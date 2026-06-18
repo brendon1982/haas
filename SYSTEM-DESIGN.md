@@ -367,4 +367,5 @@ policy_rules:
 | **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration; we wrap it with governance/observability |
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
 | **Per-session governance** | Policy is evaluated against the session's identity + source metadata, not globally. This enables fine-grained per-customer rules. |
+| **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config file shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
