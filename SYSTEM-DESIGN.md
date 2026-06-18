@@ -79,7 +79,8 @@ The heart of the system. Contains no infrastructure concerns.
 |-------------|-------------|
 | `SessionId` | Wraps a session identifier |
 | `Identity` | Authenticated user/system identity with claims |
-| `SignalSource` | Type + metadata about where the signal came from |
+| `SignalSource` | Type + metadata about where the signal came from, including optional inline or referenced config overrides |
+| `SessionConfig` | Resolved effective config for a session — merged from global defaults and per-signal overrides (model, policy refs, prompt, skills) |
 | `ToolCall` | A tool invocation within an agent iteration |
 | `ExecutionTargetId` | Identifier for an output destination |
 | `PolicyDecision` | Result of a policy check (allow/deny with reason) |
@@ -91,7 +92,7 @@ The heart of the system. Contains no infrastructure concerns.
 - `MemoryStore`
 - `RegistryStore`
 - `PolicyRuleRepository`
-- `ConfigRepository`
+- `ConfigRepository` — stores global config, resolves per-signal overrides against defaults via `resolve(signalOverrides)`
 
 **Domain Services:**
 
@@ -106,7 +107,8 @@ Orchestrates domain objects to fulfill use cases.
 
 | Use Case | Description |
 |----------|-------------|
-| `ReceiveSignal` | Accepts raw signal, authenticates, creates session, routes to agent loop |
+| `ReceiveSignal` | Accepts raw signal, authenticates, resolves config (merges global defaults with per-signal overrides), creates session, routes to agent loop |
+| `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
 | `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
 | `ProduceOutput` | Takes agent output, checks governance, dispatches to execution target |
 | `ListSessions` | Queries active/completed sessions |
@@ -120,6 +122,8 @@ Orchestrates domain objects to fulfill use cases.
 Implements the ports defined in `domain/`. Swappable by configuration.
 
 **Signal Sources (`SignalSource`):**
+
+Signal adapters receive raw input and may include optional per-signal config overrides (inline or by reference) alongside the payload.
 
 - `HttpWebhookSignalSource` — Express/Koa route handler
 - `SlackSignalSource` — Slack Events API adapter
@@ -189,19 +193,20 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 ## 5. Data Flow (End-to-End)
 
 ```
-1. Signal arrives (e.g., Slack message)
+1. Signal arrives (e.g., Slack message), optionally with per-signal config overrides
 2. AuthProvider resolves identity from signal metadata
-3. SessionManager creates/loads Session (SessionId + Identity + SignalSource)
-4. PolicyEngine checks: is this source+identity allowed to start a session?
-5. PolicyEngine resolves the set of tools permitted for this session.
-6. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy:
+3. ResolveConfig merges global defaults with signal-level overrides → resolved SessionConfig
+4. SessionManager creates/loads Session (SessionId + Identity + SignalSource + SessionConfig)
+5. PolicyEngine checks: is this source+identity allowed to start a session?
+6. PolicyEngine resolves the set of tools permitted for this session.
+7. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy and resolved model/prompts/skills:
    a. Agent thinks → calls a tool
    b. Execute tool (reads/writes Knowledge stores)
    c. ObservabilityProvider records the iteration
    d. Repeat until agent produces final output
-7. Final output → PolicyEngine checks execution target permissions
-8. ExecutionTarget delivers the output
-9. Session is closed; full trace is persisted
+8. Final output → PolicyEngine checks execution target permissions
+9. ExecutionTarget delivers the output
+10. Session is closed; full trace is persisted
 ```
 
 ## 6. Multi-Agent Strategies
@@ -269,6 +274,8 @@ Observability providers receive these events. The console provider writes JSON l
 ## 10. Configuration Model
 
 Configuration is accessed through a `ConfigRepository` port. The initial adapter reads from a YAML file; swapping to a database-backed adapter requires no core code changes.
+
+Signals can carry optional per-signal overrides (inline or by reference) for model, policies, prompt, skills, and execution targets. `ConfigRepository.resolve()` merges these against global defaults before the session starts — signal values override global, unspecified fields fall through.
 
 ```yaml
 signal:
@@ -369,6 +376,7 @@ policy_rules:
 | **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
 | **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
+| **Per-signal config resolution** | Each signal carries optional overrides (inline or by reference) for model, policies, prompt, skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts. Keeps global config simple while enabling fine-grained per-signal tuning without ad-hoc env vars. |
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
@@ -482,75 +490,3 @@ When one Node.js process isn't enough:
 - **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration → ProduceOutput flow per item.
 - **`infra/`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
 - **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).
-
-## 15. Supplemental: Per-Signal Configuration Overrides
-
-Different signals may need different models, policies, prompts, or skills — a Slack mention should use a different model than a Jira webhook, and an admin HTTP request should have broader policy scope than a public webhook.
-
-### What can be overridden
-
-| Override | Description |
-|----------|-------------|
-| **model** | Model ID and thinking level (e.g. `claude-sonnet:high` vs `gpt-4o-mini:off`) |
-| **policies** | Policy rule refs or inline overrides scoped to this signal |
-| **prompt** | System prompt override or a prompt template ref |
-| **skills** | Skill refs to load for this session |
-| **execution targets** | Override where the output goes for this signal |
-
-### How overrides are carried
-
-The signal source adapter embeds overrides in the signal payload. Two approaches, both supported:
-
-1. **Inline** — The signal payload contains the overrides directly (simple, self-contained):
-   ```json
-   {
-     "text": "What's the status?",
-     "config": {
-       "model": "claude-sonnet:high",
-       "policies": ["strict"],
-       "prompt": "You are a support agent."
-     }
-   }
-   ```
-
-2. **By reference** — The signal carries a config key that `ConfigRepository` resolves:
-   ```json
-   {
-     "text": "What's the status?",
-     "config_ref": "slack-support-config"
-   }
-   ```
-
-### Merge logic
-
-The application layer resolves overrides before the session starts (between Steps 4 and 5 in the data flow):
-
-```
-Global config (YAML/DB)
-        │
-        ▼
-  ConfigRepository.resolve(signalOverrides)
-        │
-        ▼
-  Resolved session config  ──→ Session created with effective settings
-        │
-        ▼
-  PolicyEngine resolves tools against resolved config
-        │
-        ▼
-  Agent loop starts with resolved model, prompts, skills
-```
-
-Merge rules:
-- Signal-level values **override** global defaults (never deep-merge lists like skills — signal values replace global).
-- `config_ref` is resolved first, then inline overrides on top of that.
-- Unspecified fields fall through to global defaults.
-
-### What changes
-
-- **`domain/config-repository.ts`** — New `resolve(overrides: SignalOverrides): ResolvedSessionConfig` method on the existing port.
-- **`domain/session-config.ts`** — New value object `SessionConfig` (or extended into `Session`): holds resolved model, policy refs, prompt, skills.
-- **`domain/signal-source.ts`** — `SignalSource` type gains optional `overrides` field.
-- **`application/resolve-config.ts`** — New use case: takes global config + signal overrides, returns resolved `SessionConfig` with merge logic.
-- **`application/receive-signal.ts`** — Calls `resolve-config` before creating the session.
-- **`infra/config.ts`** — Global config remains the default. ConfigRepository adapter handles both file/DB reads and the resolve/merge step.
