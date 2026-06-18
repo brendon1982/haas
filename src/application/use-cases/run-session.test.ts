@@ -6,20 +6,28 @@ import type { SessionResult } from "../../domain/value-objects/session-result.js
 import type { Signal } from "../../domain/value-objects/signal.js";
 import { SessionConfigTestBuilder } from "../../testharness/session-config-test-builder.js";
 import { SessionResultTestBuilder } from "../../testharness/session-result-test-builder.js";
+import { SignalTestBuilder } from "../../testharness/signal-test-builder.js";
 import { RunSessionUseCase } from "./run-session.js";
 
 describe("RunSessionUseCase", () => {
   it("reads a signal and delivers the session result", async () => {
     // Arrange
-    const signal: Signal = { payload: "hello", source: "test" };
-    const expectedResult: SessionResult = { output: "Hi there!", sessionId: "sess-1" };
+    const signal = SignalTestBuilder.create()
+      .withPayload("hello")
+      .withSource("test")
+      .build();
+    const expectedResult = SessionResultTestBuilder.create()
+      .withOutput("Hi there!")
+      .withSessionId("sess-1")
+      .build();
+    const config = SessionConfigTestBuilder.create().build();
     const source = fakeSignalSource(signal);
     const strategy = fakeStrategy(expectedResult);
     const target = fakeTarget();
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act
-    await useCase.execute(SessionConfigTestBuilder.create().build());
+    await useCase.execute(config);
 
     // Assert
     expect(target.delivered).toEqual(expectedResult);
@@ -27,13 +35,15 @@ describe("RunSessionUseCase", () => {
 
   it("does nothing when signal source returns null", async () => {
     // Arrange
+    const defaultResult = SessionResultTestBuilder.create().build();
+    const config = SessionConfigTestBuilder.create().build();
     const source = fakeSignalSource(null);
-    const strategy = fakeStrategy(SessionResultTestBuilder.create().build());
+    const strategy = fakeStrategy(defaultResult);
     const target = fakeTarget();
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act
-    await useCase.execute(SessionConfigTestBuilder.create().build());
+    await useCase.execute(config);
 
     // Assert
     expect(target.delivered).toBeNull();
@@ -41,27 +51,39 @@ describe("RunSessionUseCase", () => {
 
   it("propagates when the strategy throws", async () => {
     // Arrange
-    const signal: Signal = { payload: "hello", source: "test" };
+    const signal = SignalTestBuilder.create()
+      .withPayload("hello")
+      .withSource("test")
+      .build();
+    const config = SessionConfigTestBuilder.create().build();
     const source = fakeSignalSource(signal);
     const strategy = fakeFailingStrategy(new Error("strategy error"));
     const target = fakeTarget();
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act & Assert
-    await expect(useCase.execute(SessionConfigTestBuilder.create().build())).rejects.toThrow("strategy error");
+    await expect(useCase.execute(config)).rejects.toThrow("strategy error");
     expect(target.delivered).toBeNull();
   });
 
   it("propagates when the target throws", async () => {
     // Arrange
-    const signal: Signal = { payload: "hello", source: "test" };
+    const signal = SignalTestBuilder.create()
+      .withPayload("hello")
+      .withSource("test")
+      .build();
+    const result = SessionResultTestBuilder.create()
+      .withOutput("ok")
+      .withSessionId("sess-1")
+      .build();
+    const config = SessionConfigTestBuilder.create().build();
     const source = fakeSignalSource(signal);
-    const strategy = fakeStrategy(SessionResultTestBuilder.create().withOutput("ok").withSessionId("sess-1").build());
+    const strategy = fakeStrategy(result);
     const target = fakeFailingTarget(new Error("delivery error"));
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act & Assert
-    await expect(useCase.execute(SessionConfigTestBuilder.create().build())).rejects.toThrow("delivery error");
+    await expect(useCase.execute(config)).rejects.toThrow("delivery error");
   });
 });
 
