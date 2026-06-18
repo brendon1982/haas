@@ -43,13 +43,15 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **TDD** — Red-green-refactor. Tests drive every module. No production code without a failing test first.
 - **Thin vertical slices** — Every feature cuts through all four layers (domain → application → adapter → infra) in one small, end-to-end increment. No deep layer-by-layer builds.
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
+- **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
+- **Builders** — Use builder functions (`aSignal()`, `aSessionResult()`, etc.) for domain object creation. API should reflect domain concepts. Shared builders live in `src/testharness/`. Harness used only in one test file stays at the bottom of that file.
 
 ## Coding conventions (design intent)
 
 - **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Promise` always, no callbacks.
 - **Naming:** `kebab-case.ts` file names, PascalCase types, camelCase functions/values. Test files `*.test.ts` colocated with source.
 - **Imports:** Use `.js` extensions for all local relative imports (`import { Foo } from "./foo.js"`). Source is `.ts`, but tsc outputs `.js` and runtime loads compiled output.
-- **Tests:** Builders and fakes over mocks; state-based verification over interaction-based. Integration tests in `test/integration/` with `.int.test.ts` suffix.
+- **Tests:** Integration tests in `test/integration/` with `.int.test.ts` suffix.
 
 ## pi-coding-agent SDK
 
