@@ -27,6 +27,12 @@ Enterprise customers need an on-premise AI orchestration platform that:
                           │
                           ▼
 ┌──────────────────────────────────────────────────────────────────┐
+│                      Signal Queue                                 │
+│  Buffers incoming signals; decouples ingestion from processing   │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+                          ▼  (dequeue by worker pool)
+┌──────────────────────────────────────────────────────────────────┐
 │                       Session Manager                            │
 │  Create/load session (identity + signal source + policy context) │
 └─────────────────────────┬────────────────────────────────────────┘
@@ -48,9 +54,9 @@ Enterprise customers need an on-premise AI orchestration platform that:
 ┌────────┐     ┌──────────────┐     ┌──────────────────┐
 │ Tools  │     │ Knowledge    │     │ Observability    │
 │ (ext)  │     │ Stores       │     │ Providers        │
-└───┬────┘     │ (SQLite)     │     │ (OpenTelemetry,  │
-    │          │ Tasks/Mem/   │     │  stdout, DD, CW) │
-    │          │ Registries   │     └──────────────────┘
+└───┬────┘     │ (per-session │     │ (OpenTelemetry,  │
+    │          │  + shared    │     │  stdout, DD, CW) │
+    │          │  DB files)   │     └──────────────────┘
     │          └──────────────┘
     ▼
 ┌──────────────────────────┐
@@ -93,11 +99,13 @@ The heart of the system. Contains no infrastructure concerns.
 - `RegistryStore`
 - `PolicyRuleRepository`
 - `ConfigRepository` — stores global config, resolves per-signal overrides against defaults via `resolve(signalOverrides)`
+- `SignalQueue` — enqueue, dequeue, ack, nack
 
 **Domain Services:**
 
 - `PolicyEngine` — evaluates whether a session+action is permitted
 - `AuthService` — resolves identity from raw signal metadata
+- `AgentStrategy` — orchestration pattern for the agent loop (single-agent, supervisor+worker, swarm, router)
 
 ### 3.2 Application Layer (`src/application/`)
 
@@ -107,7 +115,7 @@ Orchestrates domain objects to fulfill use cases.
 
 | Use Case | Description |
 |----------|-------------|
-| `ReceiveSignal` | Accepts raw signal, authenticates, resolves config (merges global defaults with per-signal overrides). If signal carries a valid `session_id` and the source permits continuation, loads the existing session with new input appended; otherwise creates a new session. Routes to agent loop. |
+| `ReceiveSignal` | Called by the queue worker after dequeuing. Accepts authenticated signal, resolves config (merges global defaults with per-signal overrides). If signal carries a valid `session_id` and the source permits continuation, loads the existing session with new input appended; otherwise creates a new session. Routes to agent loop. |
 | `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
 | `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
 | `ProduceOutput` | Takes agent output, checks governance, dispatches to execution target |
@@ -200,20 +208,24 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 ## 5. Data Flow (End-to-End)
 
 ```
+— At ingress (signal source adapter) —
 1. Signal arrives, optionally with per-signal config overrides and/or a session_id
 2. AuthProvider resolves identity from signal metadata
-3. ResolveConfig merges global defaults with signal-level overrides → resolved SessionConfig
-4. If signal carries a session_id and the source permits continuation, SessionManager loads the existing session with new input appended. Otherwise, creates a new session with resolved config.
-5. PolicyEngine checks: is this source+identity allowed to start or continue this session?
-6. PolicyEngine resolves the set of tools permitted for this session.
-7. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy and resolved model/prompts/skills:
+3. Source enqueues signal (payload + identity + metadata) to SignalQueue
+
+— Queue worker (after dequeue) —
+4. ResolveConfig merges global defaults with signal-level overrides → resolved SessionConfig
+5. If signal carries a session_id and the source permits continuation, SessionManager loads the existing session with new input appended. Otherwise, creates a new session with resolved config.
+6. PolicyEngine checks: is this source+identity allowed to start or continue this session?
+7. PolicyEngine resolves the set of tools permitted for this session.
+8. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy and resolved model/prompts/skills:
    a. Agent thinks → calls a tool
    b. Execute tool (reads/writes Knowledge stores)
    c. ObservabilityProvider records the iteration
    d. Repeat until agent produces final output
-8. Final output → PolicyEngine checks execution target permissions
-9. ExecutionTarget delivers the output
-10. Session is closed; full trace is persisted
+9. Final output → PolicyEngine checks execution target permissions
+10. ExecutionTarget delivers the output
+11. Session is closed; full trace is persisted
 ```
 
 ## 6. Multi-Agent Strategies
@@ -501,7 +513,7 @@ Signal arrives ──→ Auth ──→ signal_queue ──→ dequeue ──→
                                     └──────────────────────────────────────────┘
 ```
 
-**Signal sources return immediately** after enqueuing (or after auth, if auth is fast). The response channel for bidirectional sources waits on the session completing or a timeout.
+**Signal sources authenticate at ingress** and enqueue the signal with the resolved identity. Sources return immediately after enqueuing. The response channel for bidirectional sources waits on the session completing or a timeout.
 
 This works because the queue decouples *processing capacity* from *ingestion*, but response delivery still happens inline — the signal source adapter holds an in-memory promise that the worker resolves when the session finishes. `maxConcurrentSessions` limits how many connections can be *in-flight*, not how many signals can be queued.
 
@@ -509,8 +521,6 @@ Per-source response behaviour:
 - **HTTP** — Handler enqueues, then `await`s a deferred promise. Node.js holds the connection open (async I/O, not blocking). If the queue is full, the handler rejects with 503 *before* enqueuing — no dangling connection.
 - **Slack** — Slack's Events API requires a 200 OK within 3 seconds just to acknowledge receipt. Handler enqueues, returns 200 immediately. Worker posts the reply to Slack's `response_url` later.
 - **CLI** — Holds stdin/stdout open awaiting a deferred response (same as HTTP), or prints a session ID for polling.
-
-### Queue table (in addition to existing schema)
 
 ### Queue table
 
