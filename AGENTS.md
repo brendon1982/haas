@@ -36,7 +36,7 @@ src/
 Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `infra/` wires everything together.
 
 - No barrel files — explicit relative imports per file (prevents circular deps)
-- pi-coding-agent SDK wraps the agent loop; harness adds governance, auth, and observability around each iteration
+- pi-coding-agent SDK wraps the agent loop; governance resolves permitted tools before the loop, observability wraps each iteration
 
 ## Dev approach
 

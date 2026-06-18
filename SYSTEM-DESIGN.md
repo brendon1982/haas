@@ -34,14 +34,14 @@ Enterprise customers need an on-premise AI orchestration platform that:
                           ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                   Governance Layer (PolicyEngine)                 │
-│  Check permitted execution targets & tools for this session      │
+│  Resolve permitted tools & targets for this session              │
 └─────────────────────────┬────────────────────────────────────────┘
                           │
                           ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Agent Loop (pi-coding-agent)                   │
 │  Iterates: think → tool_call → observe → decide                 │
-│  Wrapped with observability & policy checks per iteration        │
+│  Runs with tools pre-filtered by policy; observability per iteration │
 └──┬────────────────────┬──────────────────────┬───────────────────┘
    │                    │                      │
    ▼                    ▼                      ▼
@@ -106,7 +106,7 @@ Orchestrates domain objects to fulfill use cases.
 | Use Case | Description |
 |----------|-------------|
 | `ReceiveSignal` | Accepts raw signal, authenticates, creates session, routes to agent loop |
-| `ExecuteAgentIteration` | Single agent loop tick: think → check policy → call tool → observe |
+| `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
 | `ProduceOutput` | Takes agent output, checks governance, dispatches to execution target |
 | `ListSessions` | Queries active/completed sessions |
 | `GetSessionLog` | Returns full observability trace for a session |
@@ -191,16 +191,15 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 2. AuthProvider resolves identity from signal metadata
 3. SessionManager creates/loads Session (SessionId + Identity + SignalSource)
 4. PolicyEngine checks: is this source+identity allowed to start a session?
-5. Agent loop begins (pi-coding-agent):
-   a. Agent thinks → produces a tool call
-   b. PolicyEngine checks: is this tool permitted for this session?
-   c. If denied → log, return error to agent, continue loop
-   d. If allowed → execute tool (reads/writes Knowledge stores)
-   e. ObservabilityProvider records the iteration
-   f. Repeat until agent produces final output
-6. Final output → PolicyEngine checks execution target permissions
-7. ExecutionTarget delivers the output
-8. Session is closed; full trace is persisted
+5. PolicyEngine resolves the set of tools permitted for this session.
+6. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy:
+   a. Agent thinks → calls a tool
+   b. Execute tool (reads/writes Knowledge stores)
+   c. ObservabilityProvider records the iteration
+   d. Repeat until agent produces final output
+7. Final output → PolicyEngine checks execution target permissions
+8. ExecutionTarget delivers the output
+9. Session is closed; full trace is persisted
 ```
 
 ## 6. Multi-Agent Strategies
@@ -238,7 +237,7 @@ Policy rules are evaluated at three gates:
 | Gate | When | What is checked |
 |------|------|----------------|
 | Session Start | After auth, before loop | Is this identity+source allowed to start a session? |
-| Tool Call | Each agent iteration | Is this tool permitted for this session? |
+| Tool Resolution | After session start, before loop | What tools is this session permitted to use? Only those tools are handed to the agent. |
 | Output | Before dispatch | Is this execution target permitted for this session? |
 
 Policy rules are stored in SQLite and support:
@@ -259,7 +258,6 @@ interface AgentIterationEvent {
   phase: 'think' | 'tool_call' | 'observe' | 'decide';
   input?: unknown;
   output?: unknown;
-  policyDecision?: PolicyDecision;
   timestamp: Date;
 }
 ```
@@ -333,7 +331,6 @@ agent_iterations:
   phase TEXT NOT NULL,
   input_json TEXT,
   output_json TEXT,
-  policy_decision_json TEXT,
   timestamp TEXT NOT NULL
 
 memory:
@@ -364,8 +361,8 @@ policy_rules:
 | **`Result<T, E>` instead of exceptions** | Makes fallibility explicit in type signatures; no hidden control flow |
 | **SQLite with WAL mode** | Zero-ops, ACID, good enough for single-tenant on-prem. WAL allows concurrent reads during writes. |
 | **No barrel files** | Prevents circular dependencies, keeps import graph explicit |
-| **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration; we wrap it with governance/observability |
+| **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
-| **Per-session governance** | Policy is evaluated against the session's identity + source metadata, not globally. This enables fine-grained per-customer rules. |
+| **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config file shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
