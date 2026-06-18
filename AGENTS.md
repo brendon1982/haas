@@ -41,6 +41,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 ## Dev approach
 
 - **TDD** — Red-green-refactor. Tests drive every module. No production code without a failing test first.
+- **Thin vertical slices** — Every feature cuts through all four layers (domain → application → adapter → infra) in one small, end-to-end increment. No deep layer-by-layer builds.
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
 
 ## Coding conventions (design intent)
@@ -71,6 +72,7 @@ Before writing integration code, read `node_modules/@earendil-works/pi-coding-ag
 | **Execution/Output** | `ExecutionTarget` | stdout, Slack message, Jira ticket, email, PagerDuty |
 | **Observability** | `ObservabilityProvider` | stdout logging, OpenTelemetry, DataDog, CloudWatch |
 | **Multi-Agent** | `AgentStrategy` | Single-agent, supervisor+worker, swarm, router |
+| **Configuration** | `ConfigRepository` | YAML file, SQLite |
 | **Knowledge** | `TaskStore`, `MemoryStore`, `RegistryStore` | SQLite, Postgres, in-memory |
 | **Auth** | `AuthProvider` | JWT, OAuth2, API key, mTLS, passthrough |
 | **Governance** | `PolicyEngine` | RBAC, ABAC, allow-list, deny-list, LLM-gated |

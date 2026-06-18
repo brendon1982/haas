@@ -91,6 +91,7 @@ The heart of the system. Contains no infrastructure concerns.
 - `MemoryStore`
 - `RegistryStore`
 - `PolicyRuleRepository`
+- `ConfigRepository`
 
 **Domain Services:**
 
@@ -156,6 +157,7 @@ Implements the ports defined in `domain/`. Swappable by configuration.
 - `SqliteMemoryStore`
 - `SqliteRegistryStore`
 - `SqlitePolicyRuleRepository`
+- `SqliteConfigRepository`
 
 ### 3.4 Infrastructure Layer (`src/infra/`)
 
@@ -164,7 +166,7 @@ Wires everything together. Configuration, dependency injection, SQLite setup, HT
 **Key Components:**
 
 - `di-container.ts` — manual DI or lightweight container wiring
-- `config.ts` — reads env/config file, resolves adapter implementations
+- `config.ts` — reads config via `ConfigRepository` (YAML file initially, swappable to DB later), resolves adapter implementations
 - `sqlite.ts` — connection pool (WAL mode, single writer), migrations
 - `http-server.ts` — Express/Fastify server mounting signal source routes
 - `logging.ts` — logger setup
@@ -266,7 +268,7 @@ Observability providers receive these events. The console provider writes JSON l
 
 ## 10. Configuration Model
 
-Configuration is a single JSON/YAML file that declares which adapters to wire:
+Configuration is accessed through a `ConfigRepository` port. The initial adapter reads from a YAML file; swapping to a database-backed adapter requires no core code changes.
 
 ```yaml
 signal:
@@ -344,6 +346,9 @@ registries:
   value_json TEXT NOT NULL,
   ttl_seconds INTEGER
 
+config:
+  key TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL
 policy_rules:
   id TEXT PRIMARY KEY,
   priority INTEGER NOT NULL,
@@ -364,5 +369,6 @@ policy_rules:
 | **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
 | **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
-| **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config file shape. Same library everywhere — no reason to introduce a second schema lib. |
+| **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
+| **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
