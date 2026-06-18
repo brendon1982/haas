@@ -156,12 +156,19 @@ Signal adapters receive raw input and may include optional per-signal config ove
 
 **Repository Implementations:**
 
-- `SqliteSessionRepository`
-- `SqliteTaskRepository`
-- `SqliteMemoryStore`
-- `SqliteRegistryStore`
-- `SqlitePolicyRuleRepository`
-- `SqliteConfigRepository`
+Each port is backed by an adapter that chooses its own storage topology. The port abstraction in the domain layer makes the topology invisible to use cases — a `PerSessionSqliteTaskStore` and a `SharedSqliteRegistryStore` share the same `TaskStore`/`RegistryStore` interface.
+
+| Port | Adapter | Topology |
+|------|---------|----------|
+| `SessionRepository` | `SharedSqliteSessionRepository` | Shared `sessions.db` — sessions are metadata, few enough for a single table |
+| `TaskRepository` | `PerSessionSqliteTaskRepository` | `tasks/<session_id>.db` — one file per session, tasks are write-heavy per agent iteration and isolated by session |
+| `MemoryStore` | `PerSessionSqliteMemoryStore` | `memory/<session_id>.db` — per-session KV store, avoids lock contention between sessions |
+| `RegistryStore` | `SharedSqliteRegistryStore` | Shared `registry.db` — global KV store (skill definitions, tool manifests), read-mostly |
+| `SignalQueueStore` | `SharedSqliteSignalQueueStore` | Shared `signal_queue.db` — atomic dequeue ordering across all sessions |
+| `PolicyRuleRepository` | `SharedSqlitePolicyRuleRepository` | Shared `policies.db` — global policy rules, read-mostly |
+| `ConfigRepository` | `SharedSqliteConfigRepository` | Shared `config.db` — key-value config, seeded from YAML at bootstrap, settled in SQLite for runtime reads |
+
+No cross-DB joins are needed because each port serves a distinct purpose — write paths are naturally separated. The only coordination is at the worker level: dequeue a signal (signal queue) → load session (sessions) → execute iteration (tasks + memory per session) → record trace (observability). Each step touches different files.
 
 ### 3.4 Infrastructure Layer (`src/infra/`)
 
@@ -170,8 +177,8 @@ Wires everything together. Configuration, dependency injection, SQLite setup, HT
 **Key Components:**
 
 - `di-container.ts` — manual DI or lightweight container wiring
-- `config.ts` — reads config via `ConfigRepository` (YAML file initially, swappable to DB later), resolves adapter implementations
-- `sqlite.ts` — connection pool (WAL mode, single writer), migrations
+- `config.ts` — reads config via `SharedSqliteConfigRepository` (seeded from a YAML bootstrap file on first run, stored in SQLite for runtime), resolves adapter implementations
+- `sqlite.ts` — manages multiple DB connections per the adapter topology (shared DBs + per-session DBs), each in WAL mode
 - `http-server.ts` — Express/Fastify server mounting signal source routes
 - `logging.ts` — logger setup
 
@@ -276,7 +283,9 @@ Observability providers receive these events. The console provider writes JSON l
 
 ## 10. Configuration Model
 
-Configuration is accessed through a `ConfigRepository` port. The initial adapter reads from a YAML file; swapping to a database-backed adapter requires no core code changes.
+Configuration is accessed through a `ConfigRepository` port. The `SharedSqliteConfigRepository` adapter stores config in a shared SQLite `config` table, seeded from a YAML bootstrap file on first run and mutable at runtime via `ConfigurePolicy` and similar use cases.
+
+Because every store is behind a domain port, no adapter has a fixed topology — the same `ConfigRepository` interface could be backed by YAML, a single SQLite file, or a Postgres table without touching application or domain code.
 
 Signals can carry optional per-signal overrides (inline or by reference) for model, policies, prompt, skills, and execution targets. `ConfigRepository.resolve()` merges these against global defaults before the session starts — signal values override global, unspecified fields fall through.
 
@@ -385,6 +394,7 @@ policy_rules:
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
+| **Federated storage via ports** | Each store port in domain resolves to a different adapter topology: shared DBs for global state (queue, registry, config), per-session DBs for hot-path writes (tasks, memory), and append-only files for observability. The domain layer knows nothing about this — the adapter layer decides. This prevents any single SQLite file from becoming a bottleneck. Cross-DB joins are never needed because each port addresses a separate concern. |
 
 ## 13. Supplemental: Bidirectional (Request-Response) Flow
 
