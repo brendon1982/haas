@@ -223,6 +223,7 @@ To add a new signal source: implement `SignalSource` → register in config. No 
    b. Execute tool (reads/writes Knowledge stores)
    c. ObservabilityProvider records the iteration
    d. Repeat until agent produces final output
+   > See `IMPLEMENTATION-CONSIDERATIONS.md` for how session auth is injected into custom tool calls via the `tool_call` extension event.
 9. Final output → PolicyEngine checks execution target permissions
 10. ExecutionTarget delivers the output
 11. Session is closed; full trace is persisted
@@ -268,6 +269,8 @@ Policy rules are evaluated at three gates:
 | Session Start | After auth, before loop | Is this identity+source allowed to start a session? |
 | Tool Resolution | After session start, before loop | What tools is this session permitted to use? Only those tools are handed to the agent. |
 | Output | Before dispatch | Is this execution target permitted for this session? |
+
+> Custom tools that call external services receive session auth via the `tool_call` extension hook. See `IMPLEMENTATION-CONSIDERATIONS.md`.
 
 Policy rules are stored in SQLite and support:
 
@@ -449,7 +452,7 @@ Observability is append-heavy and read-infrequent. A separate DB (or JSONL file)
 | **SQLite with WAL mode** | Zero-ops, ACID, good enough for single-tenant on-prem. WAL allows concurrent reads during writes. |
 | **No barrel files** | Prevents circular dependencies, keeps import graph explicit |
 | **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |
-| **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
+| **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it. Session auth reaches custom tools via the `tool_call` extension hook (see `IMPLEMENTATION-CONSIDERATIONS.md`).
 | **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
 | **Per-signal config resolution** | Each signal carries optional overrides (inline or by reference) for model, policies, prompt, skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts. Keeps global config simple while enabling fine-grained per-signal tuning without ad-hoc env vars. |
 | **Session continuation opt-in** | Only signal sources that declare `allowSessionContinuation` inspect incoming signals for a `session_id`. This avoids accidental hijacking — a Kafka consumer or public webhook will never load an arbitrary session. Continuation appends new input to the agent loop context, enabling multi-turn interactions across signals. |
