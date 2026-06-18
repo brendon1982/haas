@@ -107,7 +107,7 @@ Orchestrates domain objects to fulfill use cases.
 
 | Use Case | Description |
 |----------|-------------|
-| `ReceiveSignal` | Accepts raw signal, authenticates, resolves config (merges global defaults with per-signal overrides), creates session, routes to agent loop |
+| `ReceiveSignal` | Accepts raw signal, authenticates, resolves config (merges global defaults with per-signal overrides). If signal carries a valid `session_id` and the source permits continuation, loads the existing session with new input appended; otherwise creates a new session. Routes to agent loop. |
 | `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
 | `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
 | `ProduceOutput` | Takes agent output, checks governance, dispatches to execution target |
@@ -123,7 +123,7 @@ Implements the ports defined in `domain/`. Swappable by configuration.
 
 **Signal Sources (`SignalSource`):**
 
-Signal adapters receive raw input and may include optional per-signal config overrides (inline or by reference) alongside the payload.
+Signal adapters receive raw input and may include optional per-signal config overrides (inline or by reference) alongside the payload. Each source can optionally declare `allowSessionContinuation` in its config — when true, the adapter inspects the incoming signal for a `session_id` field and, if valid, loads the existing session rather than creating a new one.
 
 - `HttpWebhookSignalSource` — Express/Koa route handler
 - `SlackSignalSource` — Slack Events API adapter
@@ -193,11 +193,11 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 ## 5. Data Flow (End-to-End)
 
 ```
-1. Signal arrives (e.g., Slack message), optionally with per-signal config overrides
+1. Signal arrives, optionally with per-signal config overrides and/or a session_id
 2. AuthProvider resolves identity from signal metadata
 3. ResolveConfig merges global defaults with signal-level overrides → resolved SessionConfig
-4. SessionManager creates/loads Session (SessionId + Identity + SignalSource + SessionConfig)
-5. PolicyEngine checks: is this source+identity allowed to start a session?
+4. If signal carries a session_id and the source permits continuation, SessionManager loads the existing session with new input appended. Otherwise, creates a new session with resolved config.
+5. PolicyEngine checks: is this source+identity allowed to start or continue this session?
 6. PolicyEngine resolves the set of tools permitted for this session.
 7. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy and resolved model/prompts/skills:
    a. Agent thinks → calls a tool
@@ -226,15 +226,18 @@ Each strategy wraps `pi-coding-agent`'s loop with additional coordination logic.
 
 ```
 Created ──→ Authenticated ──→ Authorized ──→ Running ──→ Completed
-                                                 │
-                                                 ├──→ Failed
-                                                 └──→ Cancelled
+                  ↑                               │
+                  └────── Continued ───────────────┘
+                                                  │
+                                                  ├──→ Failed
+                                                  └──→ Cancelled
 ```
 
 - **Created:** Raw signal received but not yet authenticated
 - **Authenticated:** Identity resolved
 - **Authorized:** Policy engine approved session start
 - **Running:** Agent loop is active
+- **Continued:** New signal arrived with a valid `session_id` for this session. Session re-enters Running with appended input.
 - **Completed/Failed/Cancelled:** Terminal states
 
 ## 8. Governance Model
@@ -283,6 +286,7 @@ signal:
   config:
     token: ${SLACK_TOKEN}
     signing_secret: ${SLACK_SIGNING_SECRET}
+    allow_session_continuation: true  # inspect signals for session_id to resume existing sessions
 
 auth:
   type: jwt
@@ -377,6 +381,7 @@ policy_rules:
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it |
 | **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
 | **Per-signal config resolution** | Each signal carries optional overrides (inline or by reference) for model, policies, prompt, skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts. Keeps global config simple while enabling fine-grained per-signal tuning without ad-hoc env vars. |
+| **Session continuation opt-in** | Only signal sources that declare `allowSessionContinuation` inspect incoming signals for a `session_id`. This avoids accidental hijacking — a Kafka consumer or public webhook will never load an arbitrary session. Continuation appends new input to the agent loop context, enabling multi-turn interactions across signals. |
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
