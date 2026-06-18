@@ -4,8 +4,6 @@
 
 On-prem, customer-configurable enterprise AI harness. Routes inputs from multiple sources through a governed agent loop to produce outputs with full observability.
 
-Greenfield — `src/` is empty, no TypeScript config, no test framework, no code yet. `SYSTEM-DESIGN.md` is the authoritative architecture plan; follow it when writing code.
-
 ## Stack
 
 - **Runtime:** Node.js ESM (`"type": "module"` in package.json)
