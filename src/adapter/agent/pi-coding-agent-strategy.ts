@@ -1,8 +1,6 @@
 import {
   AuthStorage,
   createAgentSession,
-  DefaultResourceLoader,
-  getAgentDir,
   ModelRegistry,
   SessionManager,
   SettingsManager,
@@ -11,13 +9,14 @@ import type { AgentStrategy } from "../../domain/ports/agent-strategy.js";
 import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.js";
 import type { SessionResult } from "../../domain/value-objects/session-result.js";
 import type { Signal } from "../../domain/value-objects/signal.js";
+import { NoopResourceLoader } from "./noop-resource-loader.js";
 
 export class PiCodingAgentStrategy implements AgentStrategy {
-  private readonly authStorage: ReturnType<typeof AuthStorage.create>;
+  private readonly authStorage: ReturnType<typeof AuthStorage.inMemory>;
   private readonly modelRegistry: ReturnType<typeof ModelRegistry.create>;
 
   constructor(modelsJsonPath?: string) {
-    this.authStorage = AuthStorage.create();
+    this.authStorage = AuthStorage.inMemory();
     this.modelRegistry = ModelRegistry.create(this.authStorage, modelsJsonPath);
   }
 
@@ -34,16 +33,10 @@ export class PiCodingAgentStrategy implements AgentStrategy {
       retry: { enabled: true, maxRetries: 1 },
     });
 
-    const resourceLoader = new DefaultResourceLoader({
-      cwd: process.cwd(),
-      agentDir: getAgentDir(),
-      systemPromptOverride: () => config.systemPrompt,
-    });
-    await resourceLoader.reload();
+    const resourceLoader = new NoopResourceLoader(config.systemPrompt);
 
     const { session } = await createAgentSession({
       model,
-      cwd: process.cwd(),
       tools: config.tools.length > 0 ? [...config.tools] : undefined,
       noTools: config.tools.length === 0 ? "all" : undefined,
       sessionManager: SessionManager.inMemory(),
