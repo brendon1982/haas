@@ -1,4 +1,7 @@
 allowBuilds:
   '@google/genai': true
+  better-sqlite3: true
   core-js: true
   protobufjs: true
+patchedDependencies:
+  drizzle-kit: patches/drizzle-kit.patch
