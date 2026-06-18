@@ -324,51 +324,64 @@ policies:
     tools: ["*"]
 ```
 
-## 11. Database Schema (SQLite)
+## 11. Database Schema (SQLite per DB File)
+
+Tables are organized into separate SQLite files matching the adapter topology from Section 3.3. Cross-DB foreign keys are not enforced — referential integrity is maintained by the application layer.
+
+### Shared: `sessions.db`
 
 ```
 sessions:
   id TEXT PRIMARY KEY,
-  identity_json TEXT NOT NULL,
   source_type TEXT NOT NULL,
   source_metadata_json TEXT,
+  identity_json TEXT NOT NULL,
   status TEXT NOT NULL,
+  session_config_json TEXT,         -- resolved per-signal overrides (model, policies, prompt, skills)
+  input_payload_json TEXT,          -- original signal payload
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   completed_at TEXT
+```
 
-tasks:
+### Shared: `signal_queue.db`
+
+```
+signal_queue:
   id TEXT PRIMARY KEY,
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  status TEXT NOT NULL,
-  input_json TEXT,
-  output_json TEXT,
+  session_id TEXT,                               -- set when dequeued: links to sessions(id), not enforced as FK
+  source_type TEXT NOT NULL,
+  source_metadata_json TEXT,
+  identity_json TEXT,
+  payload_json TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',         -- pending, processing, completed, failed
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  picked_at TEXT,                                 -- when a worker picked it up
+  completed_at TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  max_retries INTEGER NOT NULL DEFAULT 3
+```
 
-agent_iterations:
-  id TEXT PRIMARY KEY,
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  iteration_number INTEGER NOT NULL,
-  phase TEXT NOT NULL,
-  input_json TEXT,
-  output_json TEXT,
-  timestamp TEXT NOT NULL
+### Shared: `registry.db`
 
-memory:
-  session_id TEXT NOT NULL REFERENCES sessions(id),
-  key TEXT NOT NULL,
-  value_json TEXT NOT NULL,
-  PRIMARY KEY (session_id, key)
-
+```
 registries:
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
   ttl_seconds INTEGER
+```
 
+### Shared: `config.db`
+
+```
 config:
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL
+```
+
+### Shared: `policies.db`
+
+```
 policy_rules:
   id TEXT PRIMARY KEY,
   priority INTEGER NOT NULL,
@@ -377,6 +390,43 @@ policy_rules:
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 ```
+
+### Per-session: `tasks/<session_id>.db`
+
+```
+tasks:
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+```
+
+### Per-session: `memory/<session_id>.db`
+
+```
+memory:
+  key TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  PRIMARY KEY (key)
+```
+
+`session_id` is implicit — derived from the file name. No FK column needed.
+
+### Observability: `traces/<session_id>.db` (or JSONL files per adapter)
+
+```
+agent_iterations:
+  id TEXT PRIMARY KEY,
+  iteration_number INTEGER NOT NULL,
+  phase TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  timestamp TEXT NOT NULL
+```
+
+Observability is append-heavy and read-infrequent. A separate DB (or JSONL file) per session keeps this off the hot write path. The `ObservabilityProvider` adapter decides the storage format — the domain port is the same.
 
 ## 12. Key Architectural Decisions
 
@@ -462,20 +512,9 @@ Per-source response behaviour:
 
 ### Queue table (in addition to existing schema)
 
-```
-signal_queue:
-  id TEXT PRIMARY KEY,
-  source_type TEXT NOT NULL,
-  source_metadata_json TEXT,
-  identity_json TEXT,
-  payload_json TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',     -- pending, processing, completed, failed
-  created_at TEXT NOT NULL,
-  picked_at TEXT,                              -- when a worker picked it up
-  completed_at TEXT,
-  retry_count INTEGER NOT NULL DEFAULT 0,
-  max_retries INTEGER NOT NULL DEFAULT 3
-```
+### Queue table
+
+The `signal_queue` table lives in its own DB (`signal_queue.db`). See Section 11 for the canonical schema.
 
 ### Worker pool
 
