@@ -482,3 +482,75 @@ When one Node.js process isn't enough:
 - **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration → ProduceOutput flow per item.
 - **`infra/`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
 - **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).
+
+## 15. Supplemental: Per-Signal Configuration Overrides
+
+Different signals may need different models, policies, prompts, or skills — a Slack mention should use a different model than a Jira webhook, and an admin HTTP request should have broader policy scope than a public webhook.
+
+### What can be overridden
+
+| Override | Description |
+|----------|-------------|
+| **model** | Model ID and thinking level (e.g. `claude-sonnet:high` vs `gpt-4o-mini:off`) |
+| **policies** | Policy rule refs or inline overrides scoped to this signal |
+| **prompt** | System prompt override or a prompt template ref |
+| **skills** | Skill refs to load for this session |
+| **execution targets** | Override where the output goes for this signal |
+
+### How overrides are carried
+
+The signal source adapter embeds overrides in the signal payload. Two approaches, both supported:
+
+1. **Inline** — The signal payload contains the overrides directly (simple, self-contained):
+   ```json
+   {
+     "text": "What's the status?",
+     "config": {
+       "model": "claude-sonnet:high",
+       "policies": ["strict"],
+       "prompt": "You are a support agent."
+     }
+   }
+   ```
+
+2. **By reference** — The signal carries a config key that `ConfigRepository` resolves:
+   ```json
+   {
+     "text": "What's the status?",
+     "config_ref": "slack-support-config"
+   }
+   ```
+
+### Merge logic
+
+The application layer resolves overrides before the session starts (between Steps 4 and 5 in the data flow):
+
+```
+Global config (YAML/DB)
+        │
+        ▼
+  ConfigRepository.resolve(signalOverrides)
+        │
+        ▼
+  Resolved session config  ──→ Session created with effective settings
+        │
+        ▼
+  PolicyEngine resolves tools against resolved config
+        │
+        ▼
+  Agent loop starts with resolved model, prompts, skills
+```
+
+Merge rules:
+- Signal-level values **override** global defaults (never deep-merge lists like skills — signal values replace global).
+- `config_ref` is resolved first, then inline overrides on top of that.
+- Unspecified fields fall through to global defaults.
+
+### What changes
+
+- **`domain/config-repository.ts`** — New `resolve(overrides: SignalOverrides): ResolvedSessionConfig` method on the existing port.
+- **`domain/session-config.ts`** — New value object `SessionConfig` (or extended into `Session`): holds resolved model, policy refs, prompt, skills.
+- **`domain/signal-source.ts`** — `SignalSource` type gains optional `overrides` field.
+- **`application/resolve-config.ts`** — New use case: takes global config + signal overrides, returns resolved `SessionConfig` with merge logic.
+- **`application/receive-signal.ts`** — Calls `resolve-config` before creating the session.
+- **`infra/config.ts`** — Global config remains the default. ConfigRepository adapter handles both file/DB reads and the resolve/merge step.
