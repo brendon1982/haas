@@ -164,13 +164,13 @@ Signal adapters receive raw input and may include optional per-signal config ove
 
 **Repository Implementations:**
 
-Each port is backed by an adapter that chooses its own storage topology. The port abstraction in the domain layer makes the topology invisible to use cases — a `PerSessionSqliteTaskStore` and a `SharedSqliteRegistryStore` share the same `TaskStore`/`RegistryStore` interface.
+Each port is backed by an adapter that chooses its own storage topology. The port abstraction in the domain layer makes the topology invisible to use cases — both per-session and shared adapters implement the same port interface.
 
 | Port | Adapter | Topology |
 |------|---------|----------|
 | `SessionRepository` | `SharedSqliteSessionRepository` | Shared `sessions.db` — sessions are metadata, few enough for a single table |
-| `TaskRepository` | `PerSessionSqliteTaskRepository` | `tasks/<session_id>.db` — one file per session, tasks are write-heavy per agent iteration and isolated by session |
-| `MemoryStore` | `PerSessionSqliteMemoryStore` | `memory/<session_id>.db` — per-session KV store, avoids lock contention between sessions |
+| `TaskRepository` | `PerSessionSqliteTaskRepository` | `sessions/<session_id>.db` — one file per session, contains `tasks`, `memory`, and `agent_iterations` tables |
+| `MemoryStore` | `PerSessionSqliteMemoryStore` | `sessions/<session_id>.db` — shares the same per-session file as tasks and observability |
 | `RegistryStore` | `SharedSqliteRegistryStore` | Shared `registry.db` — global KV store (skill definitions, tool manifests), read-mostly |
 | `SignalQueueStore` | `SharedSqliteSignalQueueStore` | Shared `signal_queue.db` — atomic dequeue ordering across all sessions |
 | `PolicyRuleRepository` | `SharedSqlitePolicyRuleRepository` | Shared `policies.db` — global policy rules, read-mostly |
@@ -280,6 +280,8 @@ Policy rules are stored in SQLite and support:
 - **LLM-gated** — ask the LLM to evaluate (experimental)
 
 ## 9. Observability
+
+Agent iteration traces are one aspect of observability. The system also needs **system logging** (app-level lifecycle, errors, warnings) and **metrics** (aggregated counters, gauges, histograms — signals received, sessions completed, iteration latency). Every concern is behind the same `ObservabilityProvider` port, so new providers (e.g., Prometheus for metrics, structured file logging for system logs) can be added without domain changes.
 
 Every agent loop iteration produces a structured event:
 
@@ -406,7 +408,7 @@ policy_rules:
   updated_at TEXT NOT NULL
 ```
 
-### Per-session: `tasks/<session_id>.db`
+### Per-session: `sessions/<session_id>.db`
 
 ```
 tasks:
@@ -416,22 +418,12 @@ tasks:
   output_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
-```
 
-### Per-session: `memory/<session_id>.db`
-
-```
 memory:
   key TEXT NOT NULL,
   value_json TEXT NOT NULL,
   PRIMARY KEY (key)
-```
 
-`session_id` is implicit — derived from the file name. No FK column needed.
-
-### Observability: `traces/<session_id>.db` (or JSONL files per adapter)
-
-```
 agent_iterations:
   id TEXT PRIMARY KEY,
   iteration_number INTEGER NOT NULL,
@@ -441,7 +433,7 @@ agent_iterations:
   timestamp TEXT NOT NULL
 ```
 
-Observability is append-heavy and read-infrequent. A separate DB (or JSONL file) per session keeps this off the hot write path. The `ObservabilityProvider` adapter decides the storage format — the domain port is the same.
+`session_id` is implicit — derived from the file name. No FK column needed. The three tables live in the same file to keep per-session state self-contained — SQLite with WAL mode handles concurrent table writes without contention. The `ObservabilityProvider` adapter decides the storage format for traces (SQLite for queryability, JSONL for append-only streaming); the domain port is the same.
 
 ## 12. Key Architectural Decisions
 
@@ -459,7 +451,7 @@ Observability is append-heavy and read-infrequent. A separate DB (or JSONL file)
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
-| **Federated storage via ports** | Each store port in domain resolves to a different adapter topology: shared DBs for global state (queue, registry, config), per-session DBs for hot-path writes (tasks, memory), and append-only files for observability. The domain layer knows nothing about this — the adapter layer decides. This prevents any single SQLite file from becoming a bottleneck. Cross-DB joins are never needed because each port addresses a separate concern. |
+| **Federated storage via ports** | Each store port in domain resolves to a different adapter topology: shared DBs for global state (queue, registry, config), and a single per-session DB per session for hot-path writes (tasks, memory, agent iterations). The domain layer knows nothing about this — the adapter layer decides. This prevents any single SQLite file from becoming a bottleneck. Cross-DB joins are never needed because each port addresses a separate concern. |
 
 ## 13. Supplemental: Bidirectional (Request-Response) Flow
 
