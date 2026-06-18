@@ -1,8 +1,8 @@
-import { PiCodingAgentStrategy } from "./adapter/agent/pi-coding-agent-strategy.js";
-import { ConsoleExecutionTarget } from "./adapter/execution/console-execution-target.js";
-import { CliSignalSource } from "./adapter/signal/cli-signal-source.js";
-import { RunSessionUseCase } from "./application/use-cases/run-session.js";
-import type { AgentSessionConfig } from "./domain/value-objects/agent-session-config.js";
+import { PiCodingAgentStrategy } from "./adapter/agent/pi-coding-agent-strategy.ts";
+import { ConsoleExecutionTarget } from "./adapter/execution/console-execution-target.ts";
+import { CliSignalSource } from "./adapter/signal/cli-signal-source.ts";
+import { RunSessionUseCase } from "./application/use-cases/run-session.ts";
+import type { AgentSessionConfig } from "./domain/value-objects/agent-session-config.ts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 

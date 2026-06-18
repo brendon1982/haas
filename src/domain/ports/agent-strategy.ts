@@ -1,6 +1,6 @@
-import type { AgentSessionConfig } from "../value-objects/agent-session-config.js";
-import type { SessionResult } from "../value-objects/session-result.js";
-import type { Signal } from "../value-objects/signal.js";
+import type { AgentSessionConfig } from "../value-objects/agent-session-config.ts";
+import type { SessionResult } from "../value-objects/session-result.ts";
+import type { Signal } from "../value-objects/signal.ts";
 
 export interface AgentStrategy {
   execute(config: AgentSessionConfig, signal: Signal): Promise<SessionResult>;

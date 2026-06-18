@@ -49,6 +49,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Promise` always, no callbacks.
 - **Errors:** `Result<T, E>` for fallible operations; no try/catch in domain/application layers. Domain errors as tagged unions, not `Error` subclasses.
 - **Naming:** `kebab-case.ts` file names, PascalCase types, camelCase functions/values. Test files `*.test.ts` colocated with source.
+- **Imports:** Use `.ts` extensions for all local relative imports (`import { Foo } from "./foo.ts"`). No `.js` extensions — the project runs directly via `node --experimental-strip-types` without a compile step.
 - **Tests:** Builders and fakes over mocks; state-based verification over interaction-based. Integration tests in `test/integration/` with `.int.test.ts` suffix.
 
 ## pi-coding-agent SDK

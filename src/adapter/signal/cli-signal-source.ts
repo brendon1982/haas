@@ -1,5 +1,5 @@
-import type { Signal } from "../../domain/value-objects/signal.js";
-import type { SignalSource } from "../../domain/ports/signal-source.js";
+import type { Signal } from "../../domain/value-objects/signal.ts";
+import type { SignalSource } from "../../domain/ports/signal-source.ts";
 import { createInterface } from "node:readline";
 
 export class CliSignalSource implements SignalSource {
