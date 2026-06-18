@@ -4,7 +4,8 @@ import type { ExecutionTarget } from "../../domain/ports/execution-target.js";
 import type { SignalSource } from "../../domain/ports/signal-source.js";
 import type { SessionResult } from "../../domain/value-objects/session-result.js";
 import type { Signal } from "../../domain/value-objects/signal.js";
-import { SessionConfigBuilder, SessionResultBuilder } from "../../testharness/builders.js";
+import { SessionConfigTestBuilder } from "../../testharness/session-config-test-builder.js";
+import { SessionResultTestBuilder } from "../../testharness/session-result-test-builder.js";
 import { RunSessionUseCase } from "./run-session.js";
 
 describe("RunSessionUseCase", () => {
@@ -18,7 +19,7 @@ describe("RunSessionUseCase", () => {
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act
-    await useCase.execute(SessionConfigBuilder.create().build());
+    await useCase.execute(SessionConfigTestBuilder.create().build());
 
     // Assert
     expect(target.delivered).toEqual(expectedResult);
@@ -27,12 +28,12 @@ describe("RunSessionUseCase", () => {
   it("does nothing when signal source returns null", async () => {
     // Arrange
     const source = fakeSignalSource(null);
-    const strategy = fakeStrategy(SessionResultBuilder.create().build());
+    const strategy = fakeStrategy(SessionResultTestBuilder.create().build());
     const target = fakeTarget();
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act
-    await useCase.execute(SessionConfigBuilder.create().build());
+    await useCase.execute(SessionConfigTestBuilder.create().build());
 
     // Assert
     expect(target.delivered).toBeNull();
@@ -47,7 +48,7 @@ describe("RunSessionUseCase", () => {
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act & Assert
-    await expect(useCase.execute(SessionConfigBuilder.create().build())).rejects.toThrow("strategy error");
+    await expect(useCase.execute(SessionConfigTestBuilder.create().build())).rejects.toThrow("strategy error");
     expect(target.delivered).toBeNull();
   });
 
@@ -55,12 +56,12 @@ describe("RunSessionUseCase", () => {
     // Arrange
     const signal: Signal = { payload: "hello", source: "test" };
     const source = fakeSignalSource(signal);
-    const strategy = fakeStrategy(SessionResultBuilder.create().withOutput("ok").withSessionId("sess-1").build());
+    const strategy = fakeStrategy(SessionResultTestBuilder.create().withOutput("ok").withSessionId("sess-1").build());
     const target = fakeFailingTarget(new Error("delivery error"));
     const useCase = new RunSessionUseCase(source, strategy, target);
 
     // Act & Assert
-    await expect(useCase.execute(SessionConfigBuilder.create().build())).rejects.toThrow("delivery error");
+    await expect(useCase.execute(SessionConfigTestBuilder.create().build())).rejects.toThrow("delivery error");
   });
 });
 
