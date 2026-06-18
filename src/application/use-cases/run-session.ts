@@ -1,7 +1,7 @@
-import type { AgentStrategy } from "../../domain/ports/agent-strategy.ts";
-import type { ExecutionTarget } from "../../domain/ports/execution-target.ts";
-import type { SignalSource } from "../../domain/ports/signal-source.ts";
-import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.ts";
+import type { AgentStrategy } from "../../domain/ports/agent-strategy.js";
+import type { ExecutionTarget } from "../../domain/ports/execution-target.js";
+import type { SignalSource } from "../../domain/ports/signal-source.js";
+import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.js";
 
 export class RunSessionUseCase {
   constructor(

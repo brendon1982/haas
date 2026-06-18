@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node --experimental-strip-types src/main.ts",
+    "build": "tsc",
+    "start": "tsc && node dist/main.js",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "biome check ."

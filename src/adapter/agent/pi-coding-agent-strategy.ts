@@ -7,10 +7,10 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { AgentStrategy } from "../../domain/ports/agent-strategy.ts";
-import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.ts";
-import type { SessionResult } from "../../domain/value-objects/session-result.ts";
-import type { Signal } from "../../domain/value-objects/signal.ts";
+import type { AgentStrategy } from "../../domain/ports/agent-strategy.js";
+import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.js";
+import type { SessionResult } from "../../domain/value-objects/session-result.js";
+import type { Signal } from "../../domain/value-objects/signal.js";
 
 export class PiCodingAgentStrategy implements AgentStrategy {
   private readonly authStorage: ReturnType<typeof AuthStorage.create>;

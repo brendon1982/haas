@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { AgentStrategy } from "../../domain/ports/agent-strategy.ts";
-import type { ExecutionTarget } from "../../domain/ports/execution-target.ts";
-import type { SignalSource } from "../../domain/ports/signal-source.ts";
-import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.ts";
-import type { SessionResult } from "../../domain/value-objects/session-result.ts";
-import type { Signal } from "../../domain/value-objects/signal.ts";
-import { RunSessionUseCase } from "./run-session.ts";
+import type { AgentStrategy } from "../../domain/ports/agent-strategy.js";
+import type { ExecutionTarget } from "../../domain/ports/execution-target.js";
+import type { SignalSource } from "../../domain/ports/signal-source.js";
+import type { AgentSessionConfig } from "../../domain/value-objects/agent-session-config.js";
+import type { SessionResult } from "../../domain/value-objects/session-result.js";
+import type { Signal } from "../../domain/value-objects/signal.js";
+import { RunSessionUseCase } from "./run-session.js";
 
 const testConfig: AgentSessionConfig = {
   provider: "ollama",
