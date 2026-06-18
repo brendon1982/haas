@@ -372,3 +372,42 @@ policy_rules:
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
 | **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
+
+## 13. Supplemental: Bidirectional (Request-Response) Flow
+
+Some signal sources expect a response — HTTP returns 200 with a body, Slack replies in a thread, CLI prints to stdout. Others are fire-and-forget (Kafka, scheduled poller). The design accommodates both without domain changes.
+
+### Approach
+
+The signal source adapter attaches a response channel to the session context at ingress. The existing `ExecutionTarget` port routes output back through that channel rather than to an external destination.
+
+| Signal Source | Response Execution Target | Mechanism |
+|---------------|--------------------------|-----------|
+| `HttpWebhookSignalSource` | `HttpResponseExecutionTarget` | Holds the `Response` object, writes body + status code |
+| `SlackSignalSource` | `SlackThreadExecutionTarget` | Posts to the same thread using the thread timestamp from the event |
+| `CliStdinSignalSource` | `StdoutExecutionTarget` | Already works — stdout is the natural reply channel |
+| `KafkaSignalSource` | *(none — fire-and-forget)* | Output goes to the configured external target |
+| `ScheduledPollerSignalSource` | *(none — fire-and-forget)* | Output goes to the configured external target |
+
+### How it works
+
+The `ProduceOutput` use case checks the session's `SignalSource` metadata. If the source registered a response channel, output is dispatched to the corresponding response `ExecutionTarget`. If no response channel exists (fire-and-forget sources), output goes to the default execution target configured in policy.
+
+```
+Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ Output
+
+     │                                                    │
+     │  (bidirectional sources:                           │
+     │   HTTP, Slack, CLI)                                │
+     │                                                    ▼
+     └────────────────── response ──────────→ HttpResponseExecutionTarget
+                                              SlackThreadExecutionTarget
+                                              StdoutExecutionTarget
+```
+
+### What changes
+
+- **`adapter/` only** — New `HttpResponseExecutionTarget`, `SlackThreadExecutionTarget`. Signal source adapters gain a small amount of wiring to pass a reply handle into the session context.
+- **`domain/`** — No changes. `Session.SignalSource` already carries source type and metadata. `ExecutionTarget` is already a port.
+- **`application/`** — `ProduceOutput` logic checks whether a response execution target should be selected based on signal source metadata. Single responsibility preserved.
+- **`infra/`** — Optional: response timeout wiring for HTTP to avoid dangling connections if the agent loop stalls.
