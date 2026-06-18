@@ -11,16 +11,15 @@ Greenfield. `src/` is empty — no TypeScript config, no test framework, no code
 - **Package manager:** pnpm v11.7+ (match `devEngines` in package.json)
 - **Agent orchestration:** `@earendil-works/pi-coding-agent` ^0.79.6 (SDK — use `createAgentSession` etc.)
 - **Schema validation:** pi depends on `typebox` for tool param schemas; zod is suggested in SYSTEM-DESIGN.md for domain validation
+- **Testing:** Vitest
 - **Persistence:** SQLite with WAL mode (design intent, not implemented)
 
-## Commands (not yet configured)
+## Commands
 
-All `package.json` scripts are placeholders. Before coding, add:
-- `pnpm test` → vitest (or framework of choice)
-- `pnpm typecheck` → `tsc --noEmit`
-- `pnpm lint` → eslint or biome
-
-Install deps with `pnpm add ...`.
+- `pnpm test` — vitest
+- `pnpm typecheck` — `tsc --noEmit`
+- `pnpm lint` — biome check
+- Install deps with `pnpm add ...`
 
 ## Architecture (from SYSTEM-DESIGN.md)
 
