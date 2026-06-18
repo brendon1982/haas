@@ -430,6 +430,13 @@ Signal arrives ──→ Auth ──→ signal_queue ──→ dequeue ──→
 
 **Signal sources return immediately** after enqueuing (or after auth, if auth is fast). The response channel for bidirectional sources waits on the session completing or a timeout.
 
+This works because the queue decouples *processing capacity* from *ingestion*, but response delivery still happens inline — the signal source adapter holds an in-memory promise that the worker resolves when the session finishes. `maxConcurrentSessions` limits how many connections can be *in-flight*, not how many signals can be queued.
+
+Per-source response behaviour:
+- **HTTP** — Handler enqueues, then `await`s a deferred promise. Node.js holds the connection open (async I/O, not blocking). If the queue is full, the handler rejects with 503 *before* enqueuing — no dangling connection.
+- **Slack** — Slack's Events API requires a 200 OK within 3 seconds just to acknowledge receipt. Handler enqueues, returns 200 immediately. Worker posts the reply to Slack's `response_url` later.
+- **CLI** — Holds stdin/stdout open awaiting a deferred response (same as HTTP), or prints a session ID for polling.
+
 ### Queue table (in addition to existing schema)
 
 ```
