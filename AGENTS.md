@@ -19,6 +19,8 @@ On-prem, customer-configurable enterprise AI harness. Routes inputs from multipl
 - `pnpm test` — vitest
 - `pnpm typecheck` — `tsc --noEmit`
 - `pnpm lint` — biome check
+- `pnpm build` — `tsc` (compiles `src/` → `dist/`)
+- `pnpm start` — `tsc && node dist/main.ts`
 - Install deps with `pnpm add ...`
 
 ## Architecture (from SYSTEM-DESIGN.md)
@@ -44,7 +46,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **Thin vertical slices** — Every feature cuts through all four layers (domain → application → adapter → infra) in one small, end-to-end increment. No deep layer-by-layer builds.
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
 - **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
-- **Builders** — Use builder classes suffixed with `TestBuilder` (`SessionConfigTestBuilder.create().withModelId("...").build()`) for domain object creation. Private constructor, static `create()` method, `with` methods for configuration, sensible defaults. Shared builders live in `src/testharness/`, one file per builder. Harness used only in one test file stays at the bottom of that file.
+- **Builders** — Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `create()` method, stacked `with` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in `src/testharness/`, one file per builder. Harness used only in one test file stays at the bottom of that file.
 
 ## Coding conventions (design intent)
 
@@ -55,12 +57,14 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 
 ## pi-coding-agent SDK
 
+We interact with the SDK through `createAgentSession()`. The harness does NOT use `DefaultResourceLoader` or file-based auth — instead it uses `NoopResourceLoader` (adapter layer, returns empty resources) and `AuthStorage.inMemory()` to keep pi isolated from the filesystem.
+
 Key imports (see `docs/sdk.md` in the package for full API):
 
 ```typescript
 import {
-  createAgentSession, defineTool, SessionManager,
-  DefaultResourceLoader, AuthStorage, ModelRegistry,
+  createAgentSession, SessionManager,
+  AuthStorage, ModelRegistry, SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 ```
 
