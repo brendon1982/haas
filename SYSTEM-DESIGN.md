@@ -411,3 +411,67 @@ Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ Outp
 - **`domain/`** — No changes. `Session.SignalSource` already carries source type and metadata. `ExecutionTarget` is already a port.
 - **`application/`** — `ProduceOutput` logic checks whether a response execution target should be selected based on signal source metadata. Single responsibility preserved.
 - **`infra/`** — Optional: response timeout wiring for HTTP to avoid dangling connections if the agent loop stalls.
+
+## 14. Supplemental: Signal Queuing and Concurrent Processing
+
+Enterprise signal volumes can exceed the throughput of a single sequential agent loop. The agent loop is I/O-bound (LLM API calls, DB reads/writes), so a single Node.js process can handle many concurrent sessions via async concurrency. However, without a queue, bursts of signals either overload the process or get dropped.
+
+### Queue architecture
+
+Signals are not processed inline. Instead they land in a `signal_queue` table, and a configurable worker pool dequeues them:
+
+```
+Signal arrives ──→ Auth ──→ signal_queue ──→ dequeue ──→ Session + Policy ──→ Agent Loop ──→ Output
+                                    │                                            ↑
+                                    │                                     Worker pool
+                                    │                                 (N concurrent sessions)
+                                    └──────────────────────────────────────────┘
+```
+
+**Signal sources return immediately** after enqueuing (or after auth, if auth is fast). The response channel for bidirectional sources waits on the session completing or a timeout.
+
+### Queue table (in addition to existing schema)
+
+```
+signal_queue:
+  id TEXT PRIMARY KEY,
+  source_type TEXT NOT NULL,
+  source_metadata_json TEXT,
+  identity_json TEXT,
+  payload_json TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',     -- pending, processing, completed, failed
+  created_at TEXT NOT NULL,
+  picked_at TEXT,                              -- when a worker picked it up
+  completed_at TEXT,
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  max_retries INTEGER NOT NULL DEFAULT 3
+```
+
+### Worker pool
+
+- **Configurable concurrency** — `maxConcurrentSessions` in config controls how many sessions run simultaneously.
+- **Async I/O concurrency** — Within a single Node.js process, one worker can manage many sessions because the loop is almost entirely I/O (LLM HTTP calls). CPU-bound post-processing would need `worker_threads`.
+- **Polling** — Workers poll `signal_queue` for `pending` rows, atomically transition to `processing` via `UPDATE ... WHERE status = 'pending' LIMIT 1` (SQLite serializes writes, so no race).
+- **Pick timeout** — If a worker crashes, sessions stuck in `processing` with a stale `picked_at` are retried after a grace period.
+
+### Multi-process scaling (future)
+
+When one Node.js process isn't enough:
+
+1. **Multiple processes, shared SQLite** — WAL mode allows concurrent readers. Workers in separate processes poll the same queue. SQLite write contention becomes the bottleneck under high load.
+2. **Dedicated queue** — Swap the SQLite-backed queue for Redis or Bull. The `SignalQueue` port abstracts this — same pattern as `ConfigRepository`.
+3. **Stateless workers** — Workers hold no in-memory state. They can be scaled horizontally behind a proper queue without changes to domain or application layers.
+
+### Backpressure
+
+- Signal source adapters check queue depth before enqueuing.
+- Configurable `maxQueueDepth` — if exceeded, sources either reject (HTTP 503) or signal intent to drop.
+- Persistent high depth triggers an alert through the observability provider.
+
+### What changes
+
+- **`domain/signal-queue.ts`** — New `SignalQueue` port: `enqueue`, `dequeue`, `ack`, `nack`.
+- **`adapter/sqlite-signal-queue.ts`** — SQLite-backed adapter using the table above.
+- **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration → ProduceOutput flow per item.
+- **`infra/`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
+- **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).
