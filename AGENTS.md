@@ -40,7 +40,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **Thin vertical slices** — Every feature cuts through all four layers (domain → application → adapter → infra) in one small, end-to-end increment. No deep layer-by-layer builds.
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
 - **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
-- **Builders** — Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `create()` method, stacked `with` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in `src/testharness/`, one file per builder. Harness used only in one test file stays at the bottom of that file.
+- **Arrange only what matters** — Arrange sections should contain only setup relevant to the test scenario. If a value isn't varied or asserted, rely on the builder's default. Builders provide sensible defaults so tests don't have to repeat boilerplate.
 
 ## Coding conventions
 
