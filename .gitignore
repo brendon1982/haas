@@ -20,3 +20,12 @@ tmp/
 .tmp/
 .idea/
 
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+.vscode/
+*.nupkg
+
