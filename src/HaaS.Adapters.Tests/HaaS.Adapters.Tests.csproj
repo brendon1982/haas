@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HaaS.Adapters\HaaS.Adapters.csproj" />
+    <ProjectReference Include="..\HaaS.Domain.Tests\HaaS.Domain.Tests.csproj" />
   </ItemGroup>
 
 </Project>

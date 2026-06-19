@@ -2,6 +2,7 @@ using System.Text.Json;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Store;
 using HaaS.Domain.Ports;
+using HaaS.Domain.Tests.Builders;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -106,7 +107,11 @@ public class MicrosoftAgentFrameworkStrategyTests
 
     private static (MicrosoftAgentFrameworkStrategy Strategy, InMemorySessionRepository Repository, AgentSessionConfig DefaultConfig) CreateSut(IChatClient client)
     {
-        var config = new AgentSessionConfig("ollama", "gemma4", "You are helpful.", [], "off");
+        var config = SessionConfigTestBuilder.Create()
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("You are helpful.")
+            .Build();
         var repo = new InMemorySessionRepository();
         return (new MicrosoftAgentFrameworkStrategy(client, repo), repo, config);
     }
