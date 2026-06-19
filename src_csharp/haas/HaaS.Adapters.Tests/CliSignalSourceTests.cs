@@ -1,5 +1,6 @@
-using HaaS.Domain.ValueObjects;
 using HaaS.Adapters.Signal;
+using NUnit.Framework;
+using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Tests;
 
@@ -13,7 +14,7 @@ public class CliSignalSourceTests
         var input = new StringReader("hello\nworld\n\n");
         var output = new StringWriter();
         var source = new CliSignalSource(input, output);
-        var signals = new List<Signal>();
+        var signals = new List<SignalValue>();
 
         // Act
         await source.ListenAsync(signal =>
@@ -60,7 +61,7 @@ public class CliSignalSourceTests
         var input = new StringReader("hello\n");
         var output = new StringWriter();
         var source = new CliSignalSource(input, output);
-        var signals = new List<Signal>();
+        var signals = new List<SignalValue>();
 
         // Act
         await source.ListenAsync(signal =>

@@ -1,7 +1,9 @@
 using HaaS.Domain.Ports;
-using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SignalValue = HaaS.Domain.ValueObjects.Signal;
+using SessionResultValue = HaaS.Domain.ValueObjects.SessionResult;
+using AgentSessionConfigValue = HaaS.Domain.ValueObjects.AgentSessionConfig;
 
 namespace HaaS.Adapters.Agent;
 
@@ -14,17 +16,20 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         _chatClient = chatClient;
     }
 
-    public async Task<SessionResult> ExecuteAsync(AgentSessionConfig config, Signal signal)
+    public async Task<SessionResultValue> ExecuteAsync(AgentSessionConfigValue config, SignalValue signal)
     {
-        var agent = _chatClient.AsAIAgent(
+        var agent = new ChatClientAgent(
+            _chatClient,
             name: "HaaSAgent",
             instructions: config.SystemPrompt);
 
-        var session = new AgentSession();
-        var response = await agent.RunAsync(session, signal.Payload);
+        var session = await agent.CreateSessionAsync();
+        var response = await agent.RunAsync(
+            [new ChatMessage(ChatRole.User, signal.Payload)],
+            session);
 
-        return new SessionResult(
-            Output: response.ToString(),
-            SessionId: session.Id.ToString());
+        return new SessionResultValue(
+            Output: response.Text ?? string.Empty,
+            SessionId: Guid.NewGuid().ToString());
     }
 }

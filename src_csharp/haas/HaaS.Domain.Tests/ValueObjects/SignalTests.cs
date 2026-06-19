@@ -1,5 +1,5 @@
 using HaaS.Domain.Tests.Builders;
-using HaaS.Domain.ValueObjects;
+using NUnit.Framework;
 
 namespace HaaS.Domain.Tests.ValueObjects;
 

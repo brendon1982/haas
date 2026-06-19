@@ -1,5 +1,5 @@
 using HaaS.Domain.Ports;
-using HaaS.Domain.ValueObjects;
+using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Signal;
 
@@ -22,7 +22,7 @@ public class CliSignalSource : ISignalSource
 
     public string Type => "cli";
 
-    public async Task ListenAsync(Func<Signal, Task> handler)
+    public async Task ListenAsync(Func<SignalValue, Task> handler)
     {
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
@@ -35,7 +35,7 @@ public class CliSignalSource : ISignalSource
                 if (string.IsNullOrWhiteSpace(line))
                     break;
 
-                await handler(new Signal(line.Trim(), "cli"));
+                await handler(new SignalValue(line.Trim(), "cli"));
 
                 if (token.IsCancellationRequested)
                     break;
