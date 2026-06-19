@@ -10,16 +10,18 @@ public class SessionResultTests
     public void Create_WithOutputAndSessionId_SetsProperties()
     {
         // Arrange
+        var expectedOutput = "Hello world";
+        var expectedSessionId = "sess-1";
         var result = SessionResultTestBuilder.Create()
-            .WithOutput("Hello world")
-            .WithSessionId("sess-1")
+            .WithOutput(expectedOutput)
+            .WithSessionId(expectedSessionId)
             .Build();
 
         // Act & Assert
         Assert.Multiple(() =>
         {
-            Assert.That(result.Output, Is.EqualTo("Hello world"));
-            Assert.That(result.SessionId, Is.EqualTo("sess-1"));
+            Assert.That(result.Output, Is.EqualTo(expectedOutput));
+            Assert.That(result.SessionId, Is.EqualTo(expectedSessionId));
         });
     }
 }

@@ -33,7 +33,7 @@ public class RunSessionUseCaseTests
         Assert.Multiple(() =>
         {
             Assert.That(target.Delivered, Is.EqualTo(expected));
-            Assert.That(sessionId, Is.EqualTo("sess-1"));
+            Assert.That(sessionId, Is.EqualTo(expected.SessionId));
         });
     }
 
@@ -43,7 +43,8 @@ public class RunSessionUseCaseTests
         // Arrange
         var signal = SignalTestBuilder.Create().Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
-        var strategy = new FailingStrategy(new InvalidOperationException("strategy error"));
+        var expectedError = "strategy error";
+        var strategy = new FailingStrategy(new InvalidOperationException(expectedError));
         var target = new FakeTarget();
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
@@ -53,7 +54,7 @@ public class RunSessionUseCaseTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex.Message, Is.EqualTo("strategy error"));
+        Assert.That(ex.Message, Is.EqualTo(expectedError));
         Assert.That(target.Delivered, Is.Null);
     }
 
@@ -68,7 +69,8 @@ public class RunSessionUseCaseTests
             .Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
         var strategy = new FakeStrategy(result);
-        var target = new FailingTarget(new InvalidOperationException("delivery error"));
+        var expectedError = "delivery error";
+        var target = new FailingTarget(new InvalidOperationException(expectedError));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithTarget(target)
@@ -77,7 +79,7 @@ public class RunSessionUseCaseTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex.Message, Is.EqualTo("delivery error"));
+        Assert.That(ex.Message, Is.EqualTo(expectedError));
     }
 }
 

@@ -41,6 +41,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
 - **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
 - **Arrange only what matters** — Arrange sections should contain only setup relevant to the test scenario. If a value isn't varied or asserted, rely on the builder's default. Builders provide sensible defaults so tests don't have to repeat boilerplate.
+- **No magic strings in assertions** — Assertions should reference values from arrange instances (e.g., `signal.Payload`, `expected.SessionId`) rather than repeating string literals. Where a value isn't accessible from an instance, create an explicit `expected*` variable in arrange and use it both when configuring the SUT/builder and in the assertion. This keeps the link between cause and effect visible in a single named variable.
 
 ## Coding conventions
 

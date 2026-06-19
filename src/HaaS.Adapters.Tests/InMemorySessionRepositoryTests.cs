@@ -31,9 +31,9 @@ public class InMemorySessionRepositoryTests
         Assert.That(loaded, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(loaded!.SessionId, Is.EqualTo("sess-1"));
-            Assert.That(loaded.SourceType, Is.EqualTo("cli"));
-            Assert.That(loaded.Status, Is.EqualTo("running"));
+            Assert.That(loaded!.SessionId, Is.EqualTo(record.SessionId));
+            Assert.That(loaded.SourceType, Is.EqualTo(record.SourceType));
+            Assert.That(loaded.Status, Is.EqualTo(record.Status));
             Assert.That(loaded.AgentState, Is.EqualTo(state));
             Assert.That(loaded.CreatedAt, Is.EqualTo(now));
             Assert.That(loaded.UpdatedAt, Is.EqualTo(now));
@@ -80,8 +80,8 @@ public class InMemorySessionRepositoryTests
         Assert.That(loaded, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(loaded!.Status, Is.EqualTo("completed"));
-            Assert.That(loaded.AgentState, Is.EqualTo(new byte[] { 99 }));
+            Assert.That(loaded!.Status, Is.EqualTo(updated.Status));
+            Assert.That(loaded.AgentState, Is.EqualTo(updated.AgentState));
         });
     }
 }

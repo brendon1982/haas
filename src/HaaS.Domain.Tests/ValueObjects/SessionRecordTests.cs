@@ -12,10 +12,13 @@ public class SessionRecordTests
         // Arrange
         var now = DateTime.UtcNow;
         var state = new byte[] { 1, 2, 3 };
+        var expectedSessionId = "sess-1";
+        var expectedSourceType = "cli";
+        var expectedStatus = "running";
         var record = SessionRecordTestBuilder.Create()
-            .WithSessionId("sess-1")
-            .WithSourceType("cli")
-            .WithStatus("running")
+            .WithSessionId(expectedSessionId)
+            .WithSourceType(expectedSourceType)
+            .WithStatus(expectedStatus)
             .WithAgentState(state)
             .WithCreatedAt(now)
             .WithUpdatedAt(now)
@@ -24,9 +27,9 @@ public class SessionRecordTests
         // Act & Assert
         Assert.Multiple(() =>
         {
-            Assert.That(record.SessionId, Is.EqualTo("sess-1"));
-            Assert.That(record.SourceType, Is.EqualTo("cli"));
-            Assert.That(record.Status, Is.EqualTo("running"));
+            Assert.That(record.SessionId, Is.EqualTo(expectedSessionId));
+            Assert.That(record.SourceType, Is.EqualTo(expectedSourceType));
+            Assert.That(record.Status, Is.EqualTo(expectedStatus));
             Assert.That(record.AgentState, Is.EqualTo(state));
             Assert.That(record.CreatedAt, Is.EqualTo(now));
             Assert.That(record.UpdatedAt, Is.EqualTo(now));

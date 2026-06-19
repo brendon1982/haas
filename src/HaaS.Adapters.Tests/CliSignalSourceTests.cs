@@ -11,8 +11,11 @@ public class CliSignalSourceTests
     public async Task Listen_CallsHandlerForEachNonEmptyLine()
     {
         // Arrange
+        var input = "hello\nworld\n\n";
+        var expectedCount = 2;
+        var expectedPayloads = new[] { "hello", "world" };
         var sut = CliSignalSourceSutBuilder.Create()
-            .WithInput("hello\nworld\n\n")
+            .WithInput(input)
             .Build();
         var signals = new List<SignalValue>();
 
@@ -24,13 +27,13 @@ public class CliSignalSourceTests
         });
 
         // Assert
-        Assert.That(signals, Has.Count.EqualTo(2));
+        Assert.That(signals, Has.Count.EqualTo(expectedCount));
         Assert.Multiple(() =>
         {
-            Assert.That(signals[0].Payload, Is.EqualTo("hello"));
-            Assert.That(signals[0].Source, Is.EqualTo("cli"));
-            Assert.That(signals[1].Payload, Is.EqualTo("world"));
-            Assert.That(signals[1].Source, Is.EqualTo("cli"));
+            Assert.That(signals[0].Payload, Is.EqualTo(expectedPayloads[0]));
+            Assert.That(signals[0].Source, Is.EqualTo(sut.Type));
+            Assert.That(signals[1].Payload, Is.EqualTo(expectedPayloads[1]));
+            Assert.That(signals[1].Source, Is.EqualTo(sut.Type));
         });
     }
 

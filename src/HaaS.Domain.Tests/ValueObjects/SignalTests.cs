@@ -10,16 +10,18 @@ public class SignalTests
     public void Create_WithPayloadAndSource_SetsProperties()
     {
         // Arrange
+        var expectedPayload = "hello";
+        var expectedSource = "cli";
         var signal = SignalTestBuilder.Create()
-            .WithPayload("hello")
-            .WithSource("cli")
+            .WithPayload(expectedPayload)
+            .WithSource(expectedSource)
             .Build();
 
         // Act & Assert
         Assert.Multiple(() =>
         {
-            Assert.That(signal.Payload, Is.EqualTo("hello"));
-            Assert.That(signal.Source, Is.EqualTo("cli"));
+            Assert.That(signal.Payload, Is.EqualTo(expectedPayload));
+            Assert.That(signal.Source, Is.EqualTo(expectedSource));
             Assert.That(signal.SessionId, Is.Null);
         });
     }
@@ -28,14 +30,15 @@ public class SignalTests
     public void Create_WithSessionId_SetsSessionId()
     {
         // Arrange
+        var expectedSessionId = "sess-1";
         var signal = SignalTestBuilder.Create()
             .WithPayload("hello")
             .WithSource("cli")
-            .WithSessionId("sess-1")
+            .WithSessionId(expectedSessionId)
             .Build();
 
         // Act & Assert
-        Assert.That(signal.SessionId, Is.EqualTo("sess-1"));
+        Assert.That(signal.SessionId, Is.EqualTo(expectedSessionId));
     }
 
     [Test]
