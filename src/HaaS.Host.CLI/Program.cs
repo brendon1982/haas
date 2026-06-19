@@ -1,5 +1,6 @@
 ﻿using HaaS.Adapters.Agent;
 using HaaS.Adapters.Execution;
+using HaaS.Adapters.Observability;
 using HaaS.Adapters.Signal;
 using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
@@ -32,7 +33,9 @@ var chatClient = new OllamaChatClient(
     config.ModelId);
 
 ISessionRepository sessionRepo = new InMemorySessionRepository();
-IAgentStrategy strategy = new MicrosoftAgentFrameworkStrategy(chatClient, sessionRepo);
+IObservabilityProvider telemetry = new ConsoleObservabilityProvider();
+IAgentStrategy innerStrategy = new MicrosoftAgentFrameworkStrategy(chatClient, sessionRepo);
+IAgentStrategy strategy = new ObservableAgentStrategy(innerStrategy, telemetry);
 IExecutionTarget target = new ConsoleExecutionTarget();
 var useCase = new RunSessionUseCase(strategy, target);
 
