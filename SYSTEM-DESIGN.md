@@ -123,7 +123,7 @@ Orchestrates domain objects to fulfill use cases.
 | `GetSessionLog` | Returns full observability trace for a session |
 | `ConfigurePolicy` | CRUD for policy rules |
 
-**Pattern:** Each use case is a function accepting domain ports + DTO, returning a `Result<T, E>`.
+**Pattern:** Each use case is a class accepting domain ports via constructor injection, with async methods that throw on error.
 
 ### 3.3 Adapter Layer (`src/adapter/`)
 
@@ -440,7 +440,7 @@ agent_iterations:
 | Decision | Rationale |
 |----------|-----------|
 | **Ports in domain, adapters in adapter** | Pure DDD — domain has zero infrastructure dependencies |
-| **`Result<T, E>` instead of exceptions** | Makes fallibility explicit in type signatures; no hidden control flow |
+| **Exceptions for control flow** | Throw on error, let the caller catch. Simple, familiar, no wrapper types. |
 | **SQLite with WAL mode** | Zero-ops, ACID, good enough for single-tenant on-prem. WAL allows concurrent reads during writes. |
 | **No barrel files** | Prevents circular dependencies, keeps import graph explicit |
 | **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |

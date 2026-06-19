@@ -6,22 +6,19 @@ On-prem, customer-configurable enterprise AI harness. Routes inputs from multipl
 
 ## Stack
 
-- **Runtime:** Node.js ESM (`"type": "module"` in package.json)
-- **Language:** TypeScript (strict mode — add `tsconfig.json` before writing code)
-- **Package manager:** pnpm v11.7+ (match `devEngines` in package.json)
-- **Agent orchestration:** `@earendil-works/pi-coding-agent` ^0.79.6 (SDK — use `createAgentSession` etc.)
-- **Schema validation:** `typebox` for JSON schema (tool params, domain DTOs, config)
-- **Testing:** Vitest
-- **Persistence:** SQLite with WAL mode (design intent, not implemented)
+- **Runtime:** .NET 9.0+
+- **Language:** C#
+- **Agent orchestration:** `Microsoft.Agents.AI` v1.10.0 (Microsoft Agent Framework)
+- **Schema validation:** native C# records + attributes
+- **Testing:** NUnit
+- **Persistence:** EF Core + SQLite (design intent, not implemented)
 
 ## Commands
 
-- `pnpm test` — vitest
-- `pnpm typecheck` — `tsc --noEmit`
-- `pnpm lint` — biome check
-- `pnpm build` — `tsc` (compiles `src/` → `dist/`)
-- `pnpm start` — `tsc && node dist/main.ts`
-- Install deps with `pnpm add ...`
+- `dotnet test` — runs all tests
+- `dotnet build` — compiles solution
+- `dotnet run --project src_csharp/haas/HaaS.Host.CLI` — runs the CLI host
+- Install packages with `dotnet add package ...`
 
 ## Architecture (from SYSTEM-DESIGN.md)
 
@@ -37,9 +34,6 @@ src/
 
 Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `infra/` wires everything together.
 
-- No barrel files — explicit relative imports per file (prevents circular deps)
-- pi-coding-agent SDK wraps the agent loop; governance resolves permitted tools before the loop, observability wraps each iteration
-
 ## Dev approach
 
 - **TDD** — Red-green-refactor. Tests drive every module. No production code without a failing test first.
@@ -48,27 +42,13 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
 - **Builders** — Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `create()` method, stacked `with` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in `src/testharness/`, one file per builder. Harness used only in one test file stays at the bottom of that file.
 
-## Coding conventions (design intent)
+## Coding conventions
 
-- **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Promise` always, no callbacks.
-- **Naming:** `kebab-case.ts` file names, PascalCase types, camelCase functions/values. Test files `*.test.ts` colocated with source.
-- **Imports:** Use `.js` extensions for all local relative imports (`import { Foo } from "./foo.js"`). Source is `.ts`, but tsc outputs `.js` and runtime loads compiled output.
-- **Tests:** Integration tests in `test/integration/` with `.int.test.ts` suffix.
-
-## pi-coding-agent SDK
-
-We interact with the SDK through `createAgentSession()`. The harness does NOT use `DefaultResourceLoader` or file-based auth — instead it uses `NoopResourceLoader` (adapter layer, returns empty resources) and `AuthStorage.inMemory()` to keep pi isolated from the filesystem.
-
-Key imports (see `docs/sdk.md` in the package for full API):
-
-```typescript
-import {
-  createAgentSession, SessionManager,
-  AuthStorage, ModelRegistry, SettingsManager,
-} from "@earendil-works/pi-coding-agent";
-```
-
-Before writing integration code, read `node_modules/@earendil-works/pi-coding-agent/docs/sdk.md`.
+- **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Task` always, no callbacks.
+- **Naming:** PascalCase file names, PascalCase types, PascalCase methods. Test files `*Tests.cs` in a matching test project.
+- **Imports:** No barrel files — explicit `using` statements per file (prevents circular deps).
+- **Tests:** Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
+- **Builders:** Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `Create()` method, stacked `With*` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in the test project corresponding to the layer, one file per builder. Builder used only in one test file stays at the bottom of that file.
 
 ## Extension points (ports in `domain/`)
 
