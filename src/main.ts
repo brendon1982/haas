@@ -17,9 +17,9 @@ const config: AgentSessionConfig = {
   thinkingLevel: "off",
 };
 
-const signalSource = new CliSignalSource();
+const source = new CliSignalSource();
 const agentStrategy = new PiCodingAgentStrategy(modelsJsonPath);
 const executionTarget = new ConsoleExecutionTarget();
-const useCase = new RunSessionUseCase(signalSource, agentStrategy, executionTarget);
+const useCase = new RunSessionUseCase(agentStrategy, executionTarget);
 
-await useCase.execute(config);
+await source.listen((signal) => useCase.execute(config, signal));
