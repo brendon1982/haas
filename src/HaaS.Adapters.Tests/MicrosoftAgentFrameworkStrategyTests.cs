@@ -7,7 +7,6 @@ using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NUnit.Framework;
-using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Tests;
 
@@ -28,7 +27,10 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithModelId("gemma4")
             .WithSystemPrompt("You are helpful.")
             .Build();
-        var signal = new SignalValue("hi", "cli");
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .WithSource("cli")
+            .Build();
 
         // Act
         var result = await sut.ExecuteAsync(config, signal);
@@ -61,12 +63,19 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // First turn - create session
-        var signal1 = new SignalValue("first turn", "cli");
+        var signal1 = SignalTestBuilder.Create()
+            .WithPayload("first turn")
+            .WithSource("cli")
+            .Build();
         var result1 = await sut.ExecuteAsync(config, signal1);
         var sessionId = result1.SessionId;
 
         // Second turn - continue session
-        var signal2 = new SignalValue("second turn", "cli", sessionId);
+        var signal2 = SignalTestBuilder.Create()
+            .WithPayload("second turn")
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
 
         // Act
         var result2 = await sut.ExecuteAsync(config, signal2);
@@ -97,7 +106,11 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithModelId("gemma4")
             .WithSystemPrompt("You are helpful.")
             .Build();
-        var signal = new SignalValue("hi", "cli", "nonexistent-id");
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .WithSource("cli")
+            .WithSessionId("nonexistent-id")
+            .Build();
 
         // Act
         var result = await sut.ExecuteAsync(config, signal);
@@ -112,8 +125,12 @@ public class MicrosoftAgentFrameworkStrategyTests
     {
         // Arrange
         var repo = new InMemorySessionRepository();
-        var corrupt = new SessionRecord("bad-sess", "cli", "running",
-            [0xFF, 0xFE, 0xFD], DateTime.UtcNow, DateTime.UtcNow);
+        var corrupt = SessionRecordTestBuilder.Create()
+            .WithSessionId("bad-sess")
+            .WithSourceType("cli")
+            .WithStatus("running")
+            .WithAgentState([0xFF, 0xFE, 0xFD])
+            .Build();
         await repo.SaveAsync(corrupt);
 
         var sut = StrategySutBuilder.Create()
@@ -125,7 +142,11 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithModelId("gemma4")
             .WithSystemPrompt("You are helpful.")
             .Build();
-        var signal = new SignalValue("recover", "cli", "bad-sess");
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("recover")
+            .WithSource("cli")
+            .WithSessionId("bad-sess")
+            .Build();
 
         // Act
         var result = await sut.ExecuteAsync(config, signal);

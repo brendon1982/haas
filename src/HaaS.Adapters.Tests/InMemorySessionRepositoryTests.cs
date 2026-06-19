@@ -1,5 +1,5 @@
 using HaaS.Adapters.Store;
-using HaaS.Domain.ValueObjects;
+using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests;
@@ -14,7 +14,14 @@ public class InMemorySessionRepositoryTests
         var sut = RepositorySutBuilder.Create().Build();
         var now = DateTime.UtcNow;
         var state = new byte[] { 10, 20, 30 };
-        var record = new SessionRecord("sess-1", "cli", "running", state, now, now);
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-1")
+            .WithSourceType("cli")
+            .WithStatus("running")
+            .WithAgentState(state)
+            .WithCreatedAt(now)
+            .WithUpdatedAt(now)
+            .Build();
 
         // Act
         await sut.SaveAsync(record);
@@ -51,7 +58,11 @@ public class InMemorySessionRepositoryTests
     {
         // Arrange
         var sut = RepositorySutBuilder.Create().Build();
-        var original = new SessionRecord("sess-1", "cli", "created", null, DateTime.UtcNow, DateTime.UtcNow);
+        var original = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-1")
+            .WithSourceType("cli")
+            .WithStatus("created")
+            .Build();
         await sut.SaveAsync(original);
 
         var updated = original with
