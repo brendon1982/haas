@@ -18,11 +18,20 @@ public class MicrosoftAgentFrameworkStrategyTests
     public async Task Execute_WithoutSessionId_CreatesNewSessionAndPersists()
     {
         // Arrange
-        var (strategy, repo, config) = CreateSut(new FakeChatClient("Hello world"));
+        var repo = new InMemorySessionRepository();
+        var sut = StrategySutBuilder.Create()
+            .WithClient(new FakeChatClient("Hello world"))
+            .WithRepository(repo)
+            .Build();
+        var config = AgentSessionConfigTestBuilder.Create()
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("You are helpful.")
+            .Build();
         var signal = new SignalValue("hi", "cli");
 
         // Act
-        var result = await strategy.ExecuteAsync(config, signal);
+        var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
         Assert.That(result.Output, Is.EqualTo("Hello world"));
@@ -40,31 +49,38 @@ public class MicrosoftAgentFrameworkStrategyTests
     {
         // Arrange
         var chatClient = new CapturingChatClient("response");
-        var (strategy, repo, config) = CreateSut(chatClient);
+        var repo = new InMemorySessionRepository();
+        var sut = StrategySutBuilder.Create()
+            .WithClient(chatClient)
+            .WithRepository(repo)
+            .Build();
+        var config = AgentSessionConfigTestBuilder.Create()
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("You are helpful.")
+            .Build();
 
         // First turn - create session
         var signal1 = new SignalValue("first turn", "cli");
-        var result1 = await strategy.ExecuteAsync(config, signal1);
+        var result1 = await sut.ExecuteAsync(config, signal1);
         var sessionId = result1.SessionId;
 
         // Second turn - continue session
         var signal2 = new SignalValue("second turn", "cli", sessionId);
 
         // Act
-        var result2 = await strategy.ExecuteAsync(config, signal2);
+        var result2 = await sut.ExecuteAsync(config, signal2);
 
         // Assert
         Assert.That(result2.SessionId, Is.EqualTo(sessionId));
         Assert.That(result2.Output, Is.EqualTo("response"));
 
-        // Verify the second call received accumulated messages
         Assert.That(chatClient.ReceivedMessages, Has.Count.EqualTo(2));
         var secondCallMessages = chatClient.ReceivedMessages[1]
             .Select(m => m.Text)
             .Where(t => t != null)
             .ToList();
 
-        // Should contain at least the system prompt and both user messages
         Assert.That(secondCallMessages, Has.Some.Contains("first turn"));
         Assert.That(secondCallMessages, Has.Some.Contains("second turn"));
     }
@@ -73,11 +89,18 @@ public class MicrosoftAgentFrameworkStrategyTests
     public async Task Execute_WithInvalidSessionId_CreatesNewSession()
     {
         // Arrange
-        var (strategy, _, config) = CreateSut(new FakeChatClient("new session"));
+        var sut = StrategySutBuilder.Create()
+            .WithClient(new FakeChatClient("new session"))
+            .Build();
+        var config = AgentSessionConfigTestBuilder.Create()
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("You are helpful.")
+            .Build();
         var signal = new SignalValue("hi", "cli", "nonexistent-id");
 
         // Act
-        var result = await strategy.ExecuteAsync(config, signal);
+        var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
         Assert.That(result.Output, Is.EqualTo("new session"));
@@ -88,36 +111,56 @@ public class MicrosoftAgentFrameworkStrategyTests
     public async Task Execute_WithCorruptAgentState_CreatesNewSession()
     {
         // Arrange
-        var (strategy, repo, config) = CreateSut(new FakeChatClient("recovery"));
-
-        // Save a corrupt agent state
+        var repo = new InMemorySessionRepository();
         var corrupt = new SessionRecord("bad-sess", "cli", "running",
             [0xFF, 0xFE, 0xFD], DateTime.UtcNow, DateTime.UtcNow);
         await repo.SaveAsync(corrupt);
 
-        var signal = new SignalValue("recover", "cli", "bad-sess");
-
-        // Act
-        var result = await strategy.ExecuteAsync(config, signal);
-
-        // Assert
-        Assert.That(result.Output, Is.EqualTo("recovery"));
-        Assert.That(result.SessionId, Is.Not.EqualTo("bad-sess"));
-    }
-
-    private static (MicrosoftAgentFrameworkStrategy Strategy, InMemorySessionRepository Repository, AgentSessionConfig DefaultConfig) CreateSut(IChatClient client)
-    {
+        var sut = StrategySutBuilder.Create()
+            .WithClient(new FakeChatClient("recovery"))
+            .WithRepository(repo)
+            .Build();
         var config = AgentSessionConfigTestBuilder.Create()
             .WithProvider("ollama")
             .WithModelId("gemma4")
             .WithSystemPrompt("You are helpful.")
             .Build();
-        var repo = new InMemorySessionRepository();
-        return (new MicrosoftAgentFrameworkStrategy(client, repo), repo, config);
+        var signal = new SignalValue("recover", "cli", "bad-sess");
+
+        // Act
+        var result = await sut.ExecuteAsync(config, signal);
+
+        // Assert
+        Assert.That(result.Output, Is.EqualTo("recovery"));
+        Assert.That(result.SessionId, Is.Not.EqualTo("bad-sess"));
     }
 }
 
 // --- harness (local) ---
+
+file sealed class StrategySutBuilder
+{
+    private IChatClient _client = new FakeChatClient("default response");
+    private InMemorySessionRepository _repository = new();
+
+    private StrategySutBuilder() { }
+
+    public static StrategySutBuilder Create() => new();
+
+    public StrategySutBuilder WithClient(IChatClient client)
+    {
+        _client = client;
+        return this;
+    }
+
+    public StrategySutBuilder WithRepository(InMemorySessionRepository repository)
+    {
+        _repository = repository;
+        return this;
+    }
+
+    public MicrosoftAgentFrameworkStrategy Build() => new(_client, _repository);
+}
 
 file sealed class FakeChatClient(string response) : IChatClient
 {

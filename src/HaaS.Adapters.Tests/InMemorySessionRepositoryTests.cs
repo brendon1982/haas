@@ -11,14 +11,14 @@ public class InMemorySessionRepositoryTests
     public async Task SaveAndLoad_RoundTrip_ReturnsSameRecord()
     {
         // Arrange
-        var repo = new InMemorySessionRepository();
+        var sut = RepositorySutBuilder.Create().Build();
         var now = DateTime.UtcNow;
         var state = new byte[] { 10, 20, 30 };
         var record = new SessionRecord("sess-1", "cli", "running", state, now, now);
 
         // Act
-        await repo.SaveAsync(record);
-        var loaded = await repo.LoadAsync("sess-1");
+        await sut.SaveAsync(record);
+        var loaded = await sut.LoadAsync("sess-1");
 
         // Assert
         Assert.That(loaded, Is.Not.Null);
@@ -37,10 +37,10 @@ public class InMemorySessionRepositoryTests
     public async Task Load_MissingSession_ReturnsNull()
     {
         // Arrange
-        var repo = new InMemorySessionRepository();
+        var sut = RepositorySutBuilder.Create().Build();
 
         // Act
-        var loaded = await repo.LoadAsync("nonexistent");
+        var loaded = await sut.LoadAsync("nonexistent");
 
         // Assert
         Assert.That(loaded, Is.Null);
@@ -50,9 +50,9 @@ public class InMemorySessionRepositoryTests
     public async Task Save_OverwriteExisting_UpdatesRecord()
     {
         // Arrange
-        var repo = new InMemorySessionRepository();
+        var sut = RepositorySutBuilder.Create().Build();
         var original = new SessionRecord("sess-1", "cli", "created", null, DateTime.UtcNow, DateTime.UtcNow);
-        await repo.SaveAsync(original);
+        await sut.SaveAsync(original);
 
         var updated = original with
         {
@@ -62,8 +62,8 @@ public class InMemorySessionRepositoryTests
         };
 
         // Act
-        await repo.SaveAsync(updated);
-        var loaded = await repo.LoadAsync("sess-1");
+        await sut.SaveAsync(updated);
+        var loaded = await sut.LoadAsync("sess-1");
 
         // Assert
         Assert.That(loaded, Is.Not.Null);
@@ -73,4 +73,15 @@ public class InMemorySessionRepositoryTests
             Assert.That(loaded.AgentState, Is.EqualTo(new byte[] { 99 }));
         });
     }
+}
+
+// --- harness (local) ---
+
+file sealed class RepositorySutBuilder
+{
+    private RepositorySutBuilder() { }
+
+    public static RepositorySutBuilder Create() => new();
+
+    public InMemorySessionRepository Build() => new();
 }

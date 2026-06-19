@@ -13,11 +13,14 @@ public class CliSignalSourceTests
         // Arrange
         var input = new StringReader("hello\nworld\n\n");
         var output = new StringWriter();
-        var source = new CliSignalSource(input, output);
+        var sut = CliSignalSourceSutBuilder.Create()
+            .WithInput(input)
+            .WithOutput(output)
+            .Build();
         var signals = new List<SignalValue>();
 
         // Act
-        await source.ListenAsync(signal =>
+        await sut.ListenAsync(signal =>
         {
             signals.Add(signal);
             return Task.CompletedTask;
@@ -40,11 +43,14 @@ public class CliSignalSourceTests
         // Arrange
         var input = new StringReader("\n");
         var output = new StringWriter();
-        var source = new CliSignalSource(input, output);
+        var sut = CliSignalSourceSutBuilder.Create()
+            .WithInput(input)
+            .WithOutput(output)
+            .Build();
         var handlerCalled = false;
 
         // Act
-        await source.ListenAsync(_ =>
+        await sut.ListenAsync(_ =>
         {
             handlerCalled = true;
             return Task.CompletedTask;
@@ -60,11 +66,14 @@ public class CliSignalSourceTests
         // Arrange
         var input = new StringReader("hello\n");
         var output = new StringWriter();
-        var source = new CliSignalSource(input, output);
+        var sut = CliSignalSourceSutBuilder.Create()
+            .WithInput(input)
+            .WithOutput(output)
+            .Build();
         var signals = new List<SignalValue>();
 
         // Act
-        await source.ListenAsync(signal =>
+        await sut.ListenAsync(signal =>
         {
             signals.Add(signal);
             return Task.CompletedTask;
@@ -78,9 +87,38 @@ public class CliSignalSourceTests
     public void Type_IsCli()
     {
         // Arrange
-        var source = new CliSignalSource(new StringReader(""), new StringWriter());
+        var sut = CliSignalSourceSutBuilder.Create()
+            .WithInput(new StringReader(""))
+            .WithOutput(new StringWriter())
+            .Build();
 
         // Act & Assert
-        Assert.That(source.Type, Is.EqualTo("cli"));
+        Assert.That(sut.Type, Is.EqualTo("cli"));
     }
+}
+
+// --- harness (local) ---
+
+file sealed class CliSignalSourceSutBuilder
+{
+    private TextReader _input = new StringReader("");
+    private TextWriter _output = new StringWriter();
+
+    private CliSignalSourceSutBuilder() { }
+
+    public static CliSignalSourceSutBuilder Create() => new();
+
+    public CliSignalSourceSutBuilder WithInput(TextReader input)
+    {
+        _input = input;
+        return this;
+    }
+
+    public CliSignalSourceSutBuilder WithOutput(TextWriter output)
+    {
+        _output = output;
+        return this;
+    }
+
+    public CliSignalSource Build() => new(_input, _output);
 }

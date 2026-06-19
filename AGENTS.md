@@ -48,7 +48,8 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **Naming:** PascalCase file names, PascalCase types, PascalCase methods. Test files `*Tests.cs` in a matching test project.
 - **Imports:** No barrel files — explicit `using` statements per file (prevents circular deps).
 - **Tests:** Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
-- **Tests must not share state:** No `static` or `static readonly` fields shared across tests. Each test gets a fresh SUT. Use a private `CreateSut` factory (or `SutBuilder` private class) at the bottom of the test class to house default config and build the SUT with fresh dependencies per call.
+- **Tests must not share state:** No `static` or `static readonly` fields shared across tests. Each test gets a fresh SUT.
+- **SUT builder per test class:** Every `[TestFixture]` must have a `SutBuilder` (private `file sealed` class at the bottom of the file) that creates the SUT with all necessary default dependencies. The builder provides `With*` methods for tests to supply specific dependencies when relevant. The builder's `Build()` method returns only the SUT — default dependencies are encapsulated and not exposed to tests. Tests that need a non-default dependency create it themselves and pass it via a `With*` method.
 - **Builders:** Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `Create()` method, stacked `With*` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in the test project corresponding to the layer, one file per builder. Builder used only in one test file stays at the bottom of that file.
 
 ## Extension points (ports in `domain/`)
