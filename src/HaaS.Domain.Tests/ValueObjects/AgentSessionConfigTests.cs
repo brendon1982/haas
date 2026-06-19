@@ -10,7 +10,7 @@ public class AgentSessionConfigTests
     public void Create_WithBuilder_SetsProperties()
     {
         // Arrange
-        var config = SessionConfigTestBuilder.Create()
+        var config = AgentSessionConfigTestBuilder.Create()
             .WithProvider("ollama")
             .WithModelId("gemma4")
             .WithSystemPrompt("You are a helpful assistant.")

@@ -2,7 +2,7 @@ using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Domain.Tests.Builders;
 
-public class SessionConfigTestBuilder
+public class AgentSessionConfigTestBuilder
 {
     private string _provider = "ollama";
     private string _modelId = "gemma4";
@@ -10,35 +10,35 @@ public class SessionConfigTestBuilder
     private IReadOnlyList<string> _tools = [];
     private string _thinkingLevel = "off";
 
-    private SessionConfigTestBuilder() { }
+    private AgentSessionConfigTestBuilder() { }
 
-    public static SessionConfigTestBuilder Create() => new();
+    public static AgentSessionConfigTestBuilder Create() => new();
 
-    public SessionConfigTestBuilder WithProvider(string provider)
+    public AgentSessionConfigTestBuilder WithProvider(string provider)
     {
         _provider = provider;
         return this;
     }
 
-    public SessionConfigTestBuilder WithModelId(string modelId)
+    public AgentSessionConfigTestBuilder WithModelId(string modelId)
     {
         _modelId = modelId;
         return this;
     }
 
-    public SessionConfigTestBuilder WithSystemPrompt(string prompt)
+    public AgentSessionConfigTestBuilder WithSystemPrompt(string prompt)
     {
         _systemPrompt = prompt;
         return this;
     }
 
-    public SessionConfigTestBuilder WithTools(IReadOnlyList<string> tools)
+    public AgentSessionConfigTestBuilder WithTools(IReadOnlyList<string> tools)
     {
         _tools = tools;
         return this;
     }
 
-    public SessionConfigTestBuilder WithThinkingLevel(string level)
+    public AgentSessionConfigTestBuilder WithThinkingLevel(string level)
     {
         _thinkingLevel = level;
         return this;

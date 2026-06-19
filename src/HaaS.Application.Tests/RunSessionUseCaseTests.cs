@@ -21,7 +21,7 @@ public class RunSessionUseCaseTests
             .WithOutput("Hi there!")
             .WithSessionId("sess-1")
             .Build();
-        var config = SessionConfigTestBuilder.Create().Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var strategy = new FakeStrategy(expected);
         var target = new FakeTarget();
         var useCase = new RunSessionUseCase(strategy, target);
@@ -45,7 +45,7 @@ public class RunSessionUseCaseTests
             .WithPayload("hello")
             .WithSource("test")
             .Build();
-        var config = SessionConfigTestBuilder.Create().Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var strategy = new FailingStrategy(new InvalidOperationException("strategy error"));
         var target = new FakeTarget();
         var useCase = new RunSessionUseCase(strategy, target);
@@ -69,7 +69,7 @@ public class RunSessionUseCaseTests
             .WithOutput("ok")
             .WithSessionId("sess-1")
             .Build();
-        var config = SessionConfigTestBuilder.Create().Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var strategy = new FakeStrategy(result);
         var target = new FailingTarget(new InvalidOperationException("delivery error"));
         var useCase = new RunSessionUseCase(strategy, target);

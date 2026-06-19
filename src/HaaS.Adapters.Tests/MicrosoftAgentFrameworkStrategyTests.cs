@@ -107,7 +107,7 @@ public class MicrosoftAgentFrameworkStrategyTests
 
     private static (MicrosoftAgentFrameworkStrategy Strategy, InMemorySessionRepository Repository, AgentSessionConfig DefaultConfig) CreateSut(IChatClient client)
     {
-        var config = SessionConfigTestBuilder.Create()
+        var config = AgentSessionConfigTestBuilder.Create()
             .WithProvider("ollama")
             .WithModelId("gemma4")
             .WithSystemPrompt("You are helpful.")
