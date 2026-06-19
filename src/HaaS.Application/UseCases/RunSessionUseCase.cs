@@ -14,9 +14,10 @@ public class RunSessionUseCase
         _executionTarget = executionTarget;
     }
 
-    public async Task ExecuteAsync(AgentSessionConfig config, Signal signal)
+    public async Task<string> ExecuteAsync(AgentSessionConfig config, Signal signal)
     {
         var result = await _agentStrategy.ExecuteAsync(config, signal);
         await _executionTarget.DeliverAsync(result);
+        return result.SessionId;
     }
 }

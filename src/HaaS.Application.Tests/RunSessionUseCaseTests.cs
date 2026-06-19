@@ -10,7 +10,7 @@ namespace HaaS.Application.Tests;
 public class RunSessionUseCaseTests
 {
     [Test]
-    public async Task Execute_WithValidSignal_DeliversSessionResult()
+    public async Task Execute_WithValidSignal_DeliversSessionResultAndReturnsSessionId()
     {
         // Arrange
         var signal = SignalTestBuilder.Create()
@@ -27,10 +27,14 @@ public class RunSessionUseCaseTests
         var useCase = new RunSessionUseCase(strategy, target);
 
         // Act
-        await useCase.ExecuteAsync(config, signal);
+        var sessionId = await useCase.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.That(target.Delivered, Is.EqualTo(expected));
+        Assert.Multiple(() =>
+        {
+            Assert.That(target.Delivered, Is.EqualTo(expected));
+            Assert.That(sessionId, Is.EqualTo("sess-1"));
+        });
     }
 
     [Test]
