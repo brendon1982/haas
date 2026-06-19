@@ -11,11 +11,8 @@ public class CliSignalSourceTests
     public async Task Listen_CallsHandlerForEachNonEmptyLine()
     {
         // Arrange
-        var input = new StringReader("hello\nworld\n\n");
-        var output = new StringWriter();
         var sut = CliSignalSourceSutBuilder.Create()
-            .WithInput(input)
-            .WithOutput(output)
+            .WithInput("hello\nworld\n\n")
             .Build();
         var signals = new List<SignalValue>();
 
@@ -41,11 +38,8 @@ public class CliSignalSourceTests
     public async Task Listen_StopsOnEmptyLineWithoutCallingHandler()
     {
         // Arrange
-        var input = new StringReader("\n");
-        var output = new StringWriter();
         var sut = CliSignalSourceSutBuilder.Create()
-            .WithInput(input)
-            .WithOutput(output)
+            .WithInput("\n")
             .Build();
         var handlerCalled = false;
 
@@ -64,11 +58,8 @@ public class CliSignalSourceTests
     public async Task Listen_StopsWhenInputEndsAfterLine()
     {
         // Arrange
-        var input = new StringReader("hello\n");
-        var output = new StringWriter();
         var sut = CliSignalSourceSutBuilder.Create()
-            .WithInput(input)
-            .WithOutput(output)
+            .WithInput("hello\n")
             .Build();
         var signals = new List<SignalValue>();
 
@@ -87,10 +78,7 @@ public class CliSignalSourceTests
     public void Type_IsCli()
     {
         // Arrange
-        var sut = CliSignalSourceSutBuilder.Create()
-            .WithInput(new StringReader(""))
-            .WithOutput(new StringWriter())
-            .Build();
+        var sut = CliSignalSourceSutBuilder.Create().Build();
 
         // Act & Assert
         Assert.That(sut.Type, Is.EqualTo("cli"));
@@ -101,24 +89,18 @@ public class CliSignalSourceTests
 
 file sealed class CliSignalSourceSutBuilder
 {
-    private TextReader _input = new StringReader("");
+    private string _input = "";
     private TextWriter _output = new StringWriter();
 
     private CliSignalSourceSutBuilder() { }
 
     public static CliSignalSourceSutBuilder Create() => new();
 
-    public CliSignalSourceSutBuilder WithInput(TextReader input)
+    public CliSignalSourceSutBuilder WithInput(string input)
     {
         _input = input;
         return this;
     }
 
-    public CliSignalSourceSutBuilder WithOutput(TextWriter output)
-    {
-        _output = output;
-        return this;
-    }
-
-    public CliSignalSource Build() => new(_input, _output);
+    public CliSignalSource Build() => new(new StringReader(_input), _output);
 }

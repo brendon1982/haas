@@ -22,11 +22,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithClient(new FakeChatClient("Hello world"))
             .WithRepository(repo)
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create()
-            .WithProvider("ollama")
-            .WithModelId("gemma4")
-            .WithSystemPrompt("You are helpful.")
-            .Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
             .WithSource("cli")
@@ -56,11 +52,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithClient(chatClient)
             .WithRepository(repo)
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create()
-            .WithProvider("ollama")
-            .WithModelId("gemma4")
-            .WithSystemPrompt("You are helpful.")
-            .Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
 
         // First turn - create session
         var signal1 = SignalTestBuilder.Create()
@@ -101,11 +93,7 @@ public class MicrosoftAgentFrameworkStrategyTests
         var sut = StrategySutBuilder.Create()
             .WithClient(new FakeChatClient("new session"))
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create()
-            .WithProvider("ollama")
-            .WithModelId("gemma4")
-            .WithSystemPrompt("You are helpful.")
-            .Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
             .WithSource("cli")
@@ -137,11 +125,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithClient(new FakeChatClient("recovery"))
             .WithRepository(repo)
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create()
-            .WithProvider("ollama")
-            .WithModelId("gemma4")
-            .WithSystemPrompt("You are helpful.")
-            .Build();
+        var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("recover")
             .WithSource("cli")

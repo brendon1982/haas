@@ -13,10 +13,7 @@ public class RunSessionUseCaseTests
     public async Task Execute_WithValidSignal_DeliversSessionResultAndReturnsSessionId()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("hello")
-            .WithSource("test")
-            .Build();
+        var signal = SignalTestBuilder.Create().Build();
         var expected = SessionResultTestBuilder.Create()
             .WithOutput("Hi there!")
             .WithSessionId("sess-1")
@@ -44,10 +41,7 @@ public class RunSessionUseCaseTests
     public void Execute_WhenStrategyThrows_PropagatesException()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("hello")
-            .WithSource("test")
-            .Build();
+        var signal = SignalTestBuilder.Create().Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
         var strategy = new FailingStrategy(new InvalidOperationException("strategy error"));
         var target = new FakeTarget();
@@ -67,10 +61,7 @@ public class RunSessionUseCaseTests
     public void Execute_WhenTargetThrows_PropagatesException()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("hello")
-            .WithSource("test")
-            .Build();
+        var signal = SignalTestBuilder.Create().Build();
         var result = SessionResultTestBuilder.Create()
             .WithOutput("ok")
             .WithSessionId("sess-1")
