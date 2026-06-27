@@ -11,7 +11,7 @@ namespace HaaS.Adapters.Tests;
 public class ObservableAgentStrategyTests
 {
     [Test]
-    public async Task Execute_RecordsMetricsAndEventOnSuccess()
+    public async Task Execute_LogsStartAndCompletion()
     {
         // Arrange
         var expected = SessionResultTestBuilder.Create()
@@ -19,15 +19,16 @@ public class ObservableAgentStrategyTests
             .WithSessionId("sess-42")
             .Build();
         var inner = new FakeStrategy(expected);
-        var telemetry = new FakeTelemetry();
+        var logger = new FakeLogger();
         var sut = SutBuilder.Create()
             .WithStrategy(inner)
-            .WithTelemetry(telemetry)
+            .WithLogger(logger)
             .Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("prompt")
             .WithSource("cli")
+            .WithSessionId("sess-42")
             .Build();
 
         // Act
@@ -38,33 +39,30 @@ public class ObservableAgentStrategyTests
 
         Assert.Multiple(() =>
         {
-            var startMetric = telemetry.Metrics.FirstOrDefault(m => m.Name == "agent.execute.start");
-            Assert.That(startMetric.Name, Is.EqualTo("agent.execute.start"));
-            Assert.That(startMetric.Value, Is.EqualTo(1));
+            var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
+            Assert.That(infoLogs, Has.Count.EqualTo(2));
 
-            var durationMetric = telemetry.Metrics.FirstOrDefault(m => m.Name == "agent.execute.duration_ms");
-            Assert.That(durationMetric.Name, Is.EqualTo("agent.execute.duration_ms"));
-            Assert.That(durationMetric.Value, Is.GreaterThanOrEqualTo(0));
+            var startLog = infoLogs[0];
+            Assert.That(startLog.Message, Does.Contain("Agent execution started"));
+            Assert.That(startLog.Message, Does.Contain("sess-42"));
 
-            Assert.That(telemetry.Events, Has.Count.EqualTo(1));
-            var evt = telemetry.Events[0];
-            Assert.That(evt.SessionId, Is.EqualTo(expected.SessionId));
-            Assert.That(evt.Phase, Is.EqualTo("complete"));
-            Assert.That(evt.Input, Is.EqualTo(signal.Payload));
-            Assert.That(evt.Output, Is.EqualTo(expected.Output));
+            var completeLog = infoLogs[1];
+            Assert.That(completeLog.Message, Does.Contain("Agent execution completed"));
+            Assert.That(completeLog.Message, Does.Contain("sess-42"));
+            Assert.That(completeLog.Message, Does.Contain("duration"));
         });
     }
 
     [Test]
-    public void Execute_WhenInnerThrows_RecordsErrorMetricAndRethrows()
+    public void Execute_WhenInnerThrows_LogsErrorAndRethrows()
     {
         // Arrange
         var expectedError = "strategy failure";
         var inner = new FailingStrategy(new InvalidOperationException(expectedError));
-        var telemetry = new FakeTelemetry();
+        var logger = new FakeLogger();
         var sut = SutBuilder.Create()
             .WithStrategy(inner)
-            .WithTelemetry(telemetry)
+            .WithLogger(logger)
             .Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
@@ -75,14 +73,20 @@ public class ObservableAgentStrategyTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex.Message, Is.EqualTo(expectedError));
+        Assert.That(ex!.Message, Is.EqualTo(expectedError));
 
-        var errorMetric = telemetry.Metrics.FirstOrDefault(m => m.Name == "agent.execute.error");
-        Assert.That(errorMetric.Name, Is.EqualTo("agent.execute.error"));
-        Assert.That(errorMetric.Value, Is.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(logger.Logs.Any(l => l.Level == LogLevel.Information
+                && l.Message.Contains("Agent execution started")), Is.True);
 
-        Assert.That(telemetry.Metrics.Any(m => m.Name == "agent.execute.start"), Is.True);
-        Assert.That(telemetry.Events, Is.Empty);
+            var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
+            Assert.That(errorLogs, Has.Count.EqualTo(1));
+            Assert.That(errorLogs[0].Message, Does.Contain("Agent execution failed"));
+            Assert.That(errorLogs[0].Message, Does.Contain("duration"));
+            Assert.That(errorLogs[0].Exception, Is.Not.Null);
+            Assert.That(errorLogs[0].Exception!.Message, Does.Contain(expectedError));
+        });
     }
 }
 
@@ -95,7 +99,7 @@ file sealed class SutBuilder
             .WithOutput("default output")
             .WithSessionId("sess-default")
             .Build());
-    private IObservabilityProvider _telemetry = new FakeTelemetry();
+    private ILogger _logger = new FakeLogger();
 
     private SutBuilder() { }
 
@@ -107,13 +111,13 @@ file sealed class SutBuilder
         return this;
     }
 
-    public SutBuilder WithTelemetry(IObservabilityProvider telemetry)
+    public SutBuilder WithLogger(ILogger logger)
     {
-        _telemetry = telemetry;
+        _logger = logger;
         return this;
     }
 
-    public ObservableAgentStrategy Build() => new(_strategy, _telemetry);
+    public ObservableAgentStrategy Build() => new(_strategy, _logger);
 }
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
@@ -128,20 +132,40 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
         => throw error;
 }
 
-file sealed class FakeTelemetry : IObservabilityProvider
+file sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
+
+file sealed class FakeLogger : ILogger
 {
-    public List<(string Name, double Value)> Metrics { get; } = [];
-    public List<AgentIterationEvent> Events { get; } = [];
+    public List<LogEntry> Logs { get; } = [];
 
-    public Task RecordMetricAsync(string name, double value)
-    {
-        Metrics.Add((name, value));
-        return Task.CompletedTask;
-    }
+    public void LogTrace(string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Trace, Format(message, args), null));
 
-    public Task RecordEventAsync(AgentIterationEvent evt)
-    {
-        Events.Add(evt);
-        return Task.CompletedTask;
-    }
+    public void LogDebug(string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Debug, Format(message, args), null));
+
+    public void LogInformation(string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Information, Format(message, args), null));
+
+    public void LogWarning(string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Warning, Format(message, args), null));
+
+    public void LogError(Exception? exception, string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Error, Format(message, args), exception));
+
+    public void LogCritical(Exception? exception, string message, params object?[] args)
+        => Logs.Add(new LogEntry(LogLevel.Critical, Format(message, args), exception));
+
+    private static string Format(string message, object?[] args)
+        => args.Length > 0 ? string.Format(null, message, args) : message;
+}
+
+file enum LogLevel
+{
+    Trace,
+    Debug,
+    Information,
+    Warning,
+    Error,
+    Critical
 }

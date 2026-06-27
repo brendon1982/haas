@@ -33,9 +33,9 @@ var chatClient = new OllamaChatClient(
     config.ModelId);
 
 ISessionRepository sessionRepo = new InMemorySessionRepository();
-IObservabilityProvider telemetry = new ConsoleObservabilityProvider();
+ILogger logger = new ConsoleLogger();
 IAgentStrategy innerStrategy = new MicrosoftAgentFrameworkStrategy(chatClient, sessionRepo);
-IAgentStrategy strategy = new ObservableAgentStrategy(innerStrategy, telemetry);
+IAgentStrategy strategy = new ObservableAgentStrategy(innerStrategy, logger);
 IExecutionTarget target = new ConsoleExecutionTarget();
 var useCase = new RunSessionUseCase(strategy, target);
 

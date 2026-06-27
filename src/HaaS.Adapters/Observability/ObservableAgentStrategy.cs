@@ -7,18 +7,23 @@ namespace HaaS.Adapters.Observability;
 
 public sealed class ObservableAgentStrategy : IAgentStrategy
 {
-    private readonly IAgentStrategy _inner;
-    private readonly IObservabilityProvider _telemetry;
+    private static readonly ActivitySource ActivitySource = new("HaaS.Agents");
 
-    public ObservableAgentStrategy(IAgentStrategy inner, IObservabilityProvider telemetry)
+    private readonly IAgentStrategy _inner;
+    private readonly ILogger _logger;
+
+    public ObservableAgentStrategy(IAgentStrategy inner, ILogger logger)
     {
         _inner = inner;
-        _telemetry = telemetry;
+        _logger = logger;
     }
 
     public async Task<SessionResult> ExecuteAsync(AgentSessionConfig config, SignalValue signal)
     {
-        await _telemetry.RecordMetricAsync("agent.execute.start", 1);
+        using var activity = ActivitySource.StartActivity("AgentExecute");
+        activity?.SetTag("signal.source", signal.Source);
+
+        _logger.LogInformation("Agent execution started — session: {0}, model: {1}", signal.SessionId ?? "new", config.ModelId);
         var sw = Stopwatch.StartNew();
 
         try
@@ -26,20 +31,22 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
             var result = await _inner.ExecuteAsync(config, signal);
             sw.Stop();
 
-            await _telemetry.RecordMetricAsync("agent.execute.duration_ms", sw.ElapsedMilliseconds);
-            await _telemetry.RecordEventAsync(new AgentIterationEvent(
-                result.SessionId,
-                1,
-                "complete",
-                signal.Payload,
-                result.Output,
-                DateTime.UtcNow));
+            activity?.SetTag("session.id", result.SessionId);
+            activity?.SetTag("duration_ms", sw.ElapsedMilliseconds);
+
+            _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", result.SessionId, sw.ElapsedMilliseconds);
 
             return result;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            await _telemetry.RecordMetricAsync("agent.execute.error", 1);
+            sw.Stop();
+
+            activity?.SetTag("error", true);
+            activity?.SetTag("error.message", ex.Message);
+
+            _logger.LogError(ex, "Agent execution failed — duration: {0}ms", sw.ElapsedMilliseconds);
+
             throw;
         }
     }
