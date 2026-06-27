@@ -70,9 +70,9 @@ public class ObservableAgentStrategyTests
             .Build();
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(config, signal));
-        Expect(ex!.Message).To.Equal(expectedError);
+        Expect(async () => await sut.ExecuteAsync(config, signal))
+            .To.Throw<InvalidOperationException>()
+            .With.Message.Containing(expectedError);
 
         Expect(logger.Logs.Any(l => l.Level == LogLevel.Information
             && l.Message.Contains("Agent execution started"))).To.Be.True();

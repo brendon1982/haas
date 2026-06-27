@@ -51,9 +51,9 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(config, signal));
-        Expect(ex!.Message).To.Equal(expectedError);
+        Expect(async () => await sut.ExecuteAsync(config, signal))
+            .To.Throw<InvalidOperationException>()
+            .With.Message.Containing(expectedError);
         Expect(target.Delivered).To.Be.Null();
     }
 
@@ -76,9 +76,9 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act & Assert
-        var ex = Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(config, signal));
-        Expect(ex!.Message).To.Equal(expectedError);
+        Expect(async () => await sut.ExecuteAsync(config, signal))
+            .To.Throw<InvalidOperationException>()
+            .With.Message.Containing(expectedError);
     }
 }
 
