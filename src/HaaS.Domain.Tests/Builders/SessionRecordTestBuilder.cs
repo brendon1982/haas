@@ -7,7 +7,6 @@ public class SessionRecordTestBuilder
     private string _sessionId = "sess-default";
     private string _sourceType = "test";
     private string _status = "created";
-    private byte[]? _agentState;
     private DateTime _createdAt = DateTime.UtcNow;
     private DateTime _updatedAt = DateTime.UtcNow;
 
@@ -33,12 +32,6 @@ public class SessionRecordTestBuilder
         return this;
     }
 
-    public SessionRecordTestBuilder WithAgentState(byte[]? agentState)
-    {
-        _agentState = agentState;
-        return this;
-    }
-
     public SessionRecordTestBuilder WithCreatedAt(DateTime createdAt)
     {
         _createdAt = createdAt;
@@ -51,5 +44,5 @@ public class SessionRecordTestBuilder
         return this;
     }
 
-    public SessionRecord Build() => new(_sessionId, _sourceType, _status, _agentState, _createdAt, _updatedAt);
+    public SessionRecord Build() => new(_sessionId, _sourceType, _status, _createdAt, _updatedAt);
 }

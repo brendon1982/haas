@@ -15,12 +15,10 @@ public class InMemorySessionRepositoryTests
         // Arrange
         var sut = RepositorySutBuilder.Create().Build();
         var now = DateTime.UtcNow;
-        var state = new byte[] { 10, 20, 30 };
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId("sess-1")
             .WithSourceType("cli")
             .WithStatus("running")
-            .WithAgentState(state)
             .WithCreatedAt(now)
             .WithUpdatedAt(now)
             .Build();
@@ -34,7 +32,6 @@ public class InMemorySessionRepositoryTests
         Expect(loaded!.SessionId).To.Equal(record.SessionId);
         Expect(loaded.SourceType).To.Equal(record.SourceType);
         Expect(loaded.Status).To.Equal(record.Status);
-        Expect(loaded.AgentState).To.Equal(state);
         Expect(loaded.CreatedAt).To.Equal(now);
         Expect(loaded.UpdatedAt).To.Equal(now);
     }
@@ -64,11 +61,11 @@ public class InMemorySessionRepositoryTests
             .Build();
         await sut.SaveAsync(original);
 
+        var now = DateTime.UtcNow;
         var updated = original with
         {
             Status = "completed",
-            AgentState = new byte[] { 99 },
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = now
         };
 
         // Act
@@ -78,7 +75,7 @@ public class InMemorySessionRepositoryTests
         // Assert
         Expect(loaded).Not.To.Be.Null();
         Expect(loaded!.Status).To.Equal(updated.Status);
-        Expect(loaded.AgentState).To.Equal(updated.AgentState);
+        Expect(loaded.UpdatedAt).To.Equal(now);
     }
 }
 

@@ -1,10 +1,9 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
+using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Store;
-using HaaS.Domain.Ports;
 using HaaS.Domain.Tests.Builders;
-using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NUnit.Framework;
@@ -20,10 +19,10 @@ public class MicrosoftAgentFrameworkStrategyTests
         // Arrange
         var repo = new InMemorySessionRepository();
         var expectedOutput = "Hello world";
-        var sut = StrategySutBuilder.Create()
+        var builder = StrategySutBuilder.Create()
             .WithClient(new FakeChatClient(expectedOutput))
-            .WithRepository(repo)
-            .Build();
+            .WithRepository(repo);
+        var sut = builder.Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -42,8 +41,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(saved).Not.To.Be.Null();
         Expect(saved!.SourceType).To.Equal(signal.Source);
         Expect(saved.Status).To.Equal("running");
-        Expect(saved.AgentState).Not.To.Be.Null();
-        Expect(saved.AgentState).Not.To.Be.Empty();
+
+        var messages = await builder.MessageStore.GetMessagesAsync(result.SessionId);
+        Expect(messages.Count).Not.To.Equal(0);
+        var texts = messages.Select(m => m.Text).ToList();
+        Expect(texts).To.Contain("hi");
+        Expect(texts).To.Contain(expectedOutput);
     }
 
     [Test]
@@ -54,10 +57,10 @@ public class MicrosoftAgentFrameworkStrategyTests
         var expectedMessageCount = 2;
         var chatClient = new CapturingChatClient(expectedResponse);
         var repo = new InMemorySessionRepository();
-        var sut = StrategySutBuilder.Create()
+        var builder = StrategySutBuilder.Create()
             .WithClient(chatClient)
-            .WithRepository(repo)
-            .Build();
+            .WithRepository(repo);
+        var sut = builder.Build();
         var config = AgentSessionConfigTestBuilder.Create().Build();
 
         // First turn - create session
@@ -83,13 +86,16 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(result2.Output).To.Equal(expectedResponse);
 
         Expect(chatClient.ReceivedMessages).To.Contain.Exactly(expectedMessageCount);
-        var secondCallMessages = chatClient.ReceivedMessages[1]
+        var secondCallTexts = chatClient.ReceivedMessages[1]
             .Select(m => m.Text)
             .Where(t => t != null)
             .ToList();
 
-        Expect(secondCallMessages).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal1.Payload));
-        Expect(secondCallMessages).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal2.Payload));
+        Expect(secondCallTexts).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal1.Payload));
+        Expect(secondCallTexts).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal2.Payload));
+
+        var messages = await builder.MessageStore.GetMessagesAsync(sessionId);
+        Expect(messages.Count).To.Equal(4);
     }
 
     [Test]
@@ -114,39 +120,6 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(result.Output).To.Equal(expectedResponse);
         Expect(result.SessionId).Not.To.Equal(signal.SessionId);
     }
-
-    [Test]
-    public async Task Execute_WithCorruptAgentState_CreatesNewSession()
-    {
-        // Arrange
-        var expectedResponse = "recovery";
-        var repo = new InMemorySessionRepository();
-        var corrupt = SessionRecordTestBuilder.Create()
-            .WithSessionId("bad-sess")
-            .WithSourceType("cli")
-            .WithStatus("running")
-            .WithAgentState([0xFF, 0xFE, 0xFD])
-            .Build();
-        await repo.SaveAsync(corrupt);
-
-        var sut = StrategySutBuilder.Create()
-            .WithClient(new FakeChatClient(expectedResponse))
-            .WithRepository(repo)
-            .Build();
-        var config = AgentSessionConfigTestBuilder.Create().Build();
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("recover")
-            .WithSource("cli")
-            .WithSessionId("bad-sess")
-            .Build();
-
-        // Act
-        var result = await sut.ExecuteAsync(config, signal);
-
-        // Assert
-        Expect(result.Output).To.Equal(expectedResponse);
-        Expect(result.SessionId).Not.To.Equal(corrupt.SessionId);
-    }
 }
 
 // --- harness (local) ---
@@ -155,6 +128,7 @@ file sealed class StrategySutBuilder
 {
     private IChatClient _client = new FakeChatClient("default response");
     private InMemorySessionRepository _repository = new();
+    private InMemorySessionMessageStore _messageStore = new();
 
     private StrategySutBuilder() { }
 
@@ -172,7 +146,15 @@ file sealed class StrategySutBuilder
         return this;
     }
 
-    public MicrosoftAgentFrameworkStrategy Build() => new(_client, _repository);
+    public StrategySutBuilder WithMessageStore(InMemorySessionMessageStore messageStore)
+    {
+        _messageStore = messageStore;
+        return this;
+    }
+
+    public MicrosoftAgentFrameworkStrategy Build() => new(_client, _repository, _messageStore);
+
+    public InMemorySessionMessageStore MessageStore => _messageStore;
 }
 
 file sealed class FakeChatClient(string response) : IChatClient
