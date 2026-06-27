@@ -37,7 +37,7 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
             return;
         }
 
-        var messages = (context.RequestMessages ?? [])
+        var messages = (context.RequestMessages)
             .Concat(context.ResponseMessages ?? [])
             .Select(ToChatMessageData);
         await _messageStore.AppendMessagesAsync(sessionId, messages);
@@ -60,6 +60,6 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
 
     private static ChatMessageData ToChatMessageData(ChatMessage message)
     {
-        return new ChatMessageData(message.Role.ToString()!, message.Text ?? string.Empty);
+        return new ChatMessageData(message.Role.ToString(), message.Text);
     }
 }
