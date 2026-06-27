@@ -1,4 +1,6 @@
+using static NExpect.Expectations;
 using HaaS.Adapters.Signal;
+using NExpect;
 using NUnit.Framework;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
@@ -27,14 +29,11 @@ public class CliSignalSourceTests
         });
 
         // Assert
-        Assert.That(signals, Has.Count.EqualTo(expectedCount));
-        Assert.Multiple(() =>
-        {
-            Assert.That(signals[0].Payload, Is.EqualTo(expectedPayloads[0]));
-            Assert.That(signals[0].Source, Is.EqualTo(sut.Type));
-            Assert.That(signals[1].Payload, Is.EqualTo(expectedPayloads[1]));
-            Assert.That(signals[1].Source, Is.EqualTo(sut.Type));
-        });
+        Expect(signals).To.Contain.Exactly(expectedCount);
+        Expect(signals[0].Payload).To.Equal(expectedPayloads[0]);
+        Expect(signals[0].Source).To.Equal(sut.Type);
+        Expect(signals[1].Payload).To.Equal(expectedPayloads[1]);
+        Expect(signals[1].Source).To.Equal(sut.Type);
     }
 
     [Test]
@@ -54,7 +53,7 @@ public class CliSignalSourceTests
         });
 
         // Assert
-        Assert.That(handlerCalled, Is.False);
+        Expect(handlerCalled).To.Be.False();
     }
 
     [Test]
@@ -74,7 +73,7 @@ public class CliSignalSourceTests
         });
 
         // Assert
-        Assert.That(signals, Has.Count.EqualTo(1));
+        Expect(signals).To.Contain.Exactly(1);
     }
 
     [Test]
@@ -84,7 +83,7 @@ public class CliSignalSourceTests
         var sut = CliSignalSourceSutBuilder.Create().Build();
 
         // Act & Assert
-        Assert.That(sut.Type, Is.EqualTo("cli"));
+        Expect(sut.Type).To.Equal("cli");
     }
 }
 

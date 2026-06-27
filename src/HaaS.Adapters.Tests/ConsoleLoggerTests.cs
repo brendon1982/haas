@@ -1,3 +1,5 @@
+using NExpect;
+using static NExpect.Expectations;
 using HaaS.Adapters.Observability;
 using NUnit.Framework;
 
@@ -18,7 +20,7 @@ public class ConsoleLoggerTests
 
         // Assert
         var output = writer.ToString();
-        Assert.That(output, Does.Match(@"\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*\] \[INFO\] Hello world"));
+        Expect(output).To.Match(@"\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*\] \[INFO\] Hello world");
     }
 
     [Test]
@@ -34,11 +36,8 @@ public class ConsoleLoggerTests
 
         // Assert
         var output = writer.ToString();
-        Assert.Multiple(() =>
-        {
-            Assert.That(output, Does.Match(@"\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*\] \[ERROR\] Request failed"));
-            Assert.That(output, Does.Contain("InvalidOperationException: Something broke"));
-        });
+        Expect(output).To.Match(@"\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*\] \[ERROR\] Request failed");
+        Expect(output).To.Contain("InvalidOperationException: Something broke");
     }
 
     [Test]
@@ -54,7 +53,7 @@ public class ConsoleLoggerTests
 
         // Assert
         var lines = writer.ToString().TrimEnd().Split(Environment.NewLine);
-        Assert.That(lines, Has.Length.EqualTo(2));
+        Expect(lines).To.Contain.Exactly(2);
     }
 
     [Test]
@@ -69,6 +68,6 @@ public class ConsoleLoggerTests
 
         // Assert
         var output = writer.ToString();
-        Assert.That(output, Does.Contain("User alice logged in from 10.0.0.1"));
+        Expect(output).To.Contain("User alice logged in from 10.0.0.1");
     }
 }

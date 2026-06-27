@@ -1,3 +1,5 @@
+using NExpect;
+using static NExpect.Expectations;
 using HaaS.Adapters.Observability;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
@@ -35,22 +37,19 @@ public class ObservableAgentStrategyTests
         var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.That(result, Is.EqualTo(expected));
+        Expect(result).To.Equal(expected);
 
-        Assert.Multiple(() =>
-        {
-            var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
-            Assert.That(infoLogs, Has.Count.EqualTo(2));
+        var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
+        Expect(infoLogs).To.Contain.Exactly(2);
 
-            var startLog = infoLogs[0];
-            Assert.That(startLog.Message, Does.Contain("Agent execution started"));
-            Assert.That(startLog.Message, Does.Contain("sess-42"));
+        var startLog = infoLogs[0];
+        Expect(startLog.Message).To.Contain("Agent execution started");
+        Expect(startLog.Message).To.Contain("sess-42");
 
-            var completeLog = infoLogs[1];
-            Assert.That(completeLog.Message, Does.Contain("Agent execution completed"));
-            Assert.That(completeLog.Message, Does.Contain("sess-42"));
-            Assert.That(completeLog.Message, Does.Contain("duration"));
-        });
+        var completeLog = infoLogs[1];
+        Expect(completeLog.Message).To.Contain("Agent execution completed");
+        Expect(completeLog.Message).To.Contain("sess-42");
+        Expect(completeLog.Message).To.Contain("duration");
     }
 
     [Test]
@@ -73,20 +72,17 @@ public class ObservableAgentStrategyTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex!.Message, Is.EqualTo(expectedError));
+        Expect(ex!.Message).To.Equal(expectedError);
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(logger.Logs.Any(l => l.Level == LogLevel.Information
-                && l.Message.Contains("Agent execution started")), Is.True);
+        Expect(logger.Logs.Any(l => l.Level == LogLevel.Information
+            && l.Message.Contains("Agent execution started"))).To.Be.True();
 
-            var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
-            Assert.That(errorLogs, Has.Count.EqualTo(1));
-            Assert.That(errorLogs[0].Message, Does.Contain("Agent execution failed"));
-            Assert.That(errorLogs[0].Message, Does.Contain("duration"));
-            Assert.That(errorLogs[0].Exception, Is.Not.Null);
-            Assert.That(errorLogs[0].Exception!.Message, Does.Contain(expectedError));
-        });
+        var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
+        Expect(errorLogs).To.Contain.Exactly(1);
+        Expect(errorLogs[0].Message).To.Contain("Agent execution failed");
+        Expect(errorLogs[0].Message).To.Contain("duration");
+        Expect(errorLogs[0].Exception).Not.To.Be.Null();
+        Expect(errorLogs[0].Exception!.Message).To.Contain(expectedError);
     }
 }
 

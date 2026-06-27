@@ -44,6 +44,11 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - **No magic strings in assertions** — Assertions should reference values from arrange instances (e.g., `signal.Payload`, `expected.SessionId`) rather than repeating string literals. Where a value isn't accessible from an instance, create an explicit `expected*` variable in arrange and use it both when configuring the SUT/builder and in the assertion. This keeps the link between cause and effect visible in a single named variable.
 - **Value objects are records, not SUT** — Simple value objects (C# records with only auto-generated members) need no dedicated tests. Property accessors, equality, and nullability are compiler-generated. Test builders are test infrastructure, not SUT. Only test value objects if they contain actual business logic (validation, invariants, derived properties).
 
+## Testing
+
+- **Test framework:** NUnit (`[TestFixture]`, `[Test]`, `Assert.ThrowsAsync<T>` for exception assertions)
+- **Assertions:** NExpect fluent syntax — see [`USING_NEXPECT.md`](USING_NEXPECT.md) for setup, working syntax patterns, and common pitfalls.
+
 ## Coding conventions
 
 - **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Task` always, no callbacks.

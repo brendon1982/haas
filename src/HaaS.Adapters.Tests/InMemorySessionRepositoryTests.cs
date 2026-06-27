@@ -1,3 +1,5 @@
+using NExpect;
+using static NExpect.Expectations;
 using HaaS.Adapters.Store;
 using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
@@ -28,16 +30,13 @@ public class InMemorySessionRepositoryTests
         var loaded = await sut.LoadAsync("sess-1");
 
         // Assert
-        Assert.That(loaded, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(loaded!.SessionId, Is.EqualTo(record.SessionId));
-            Assert.That(loaded.SourceType, Is.EqualTo(record.SourceType));
-            Assert.That(loaded.Status, Is.EqualTo(record.Status));
-            Assert.That(loaded.AgentState, Is.EqualTo(state));
-            Assert.That(loaded.CreatedAt, Is.EqualTo(now));
-            Assert.That(loaded.UpdatedAt, Is.EqualTo(now));
-        });
+        Expect(loaded).Not.To.Be.Null();
+        Expect(loaded!.SessionId).To.Equal(record.SessionId);
+        Expect(loaded.SourceType).To.Equal(record.SourceType);
+        Expect(loaded.Status).To.Equal(record.Status);
+        Expect(loaded.AgentState).To.Equal(state);
+        Expect(loaded.CreatedAt).To.Equal(now);
+        Expect(loaded.UpdatedAt).To.Equal(now);
     }
 
     [Test]
@@ -50,7 +49,7 @@ public class InMemorySessionRepositoryTests
         var loaded = await sut.LoadAsync("nonexistent");
 
         // Assert
-        Assert.That(loaded, Is.Null);
+        Expect(loaded).To.Be.Null();
     }
 
     [Test]
@@ -77,12 +76,9 @@ public class InMemorySessionRepositoryTests
         var loaded = await sut.LoadAsync("sess-1");
 
         // Assert
-        Assert.That(loaded, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(loaded!.Status, Is.EqualTo(updated.Status));
-            Assert.That(loaded.AgentState, Is.EqualTo(updated.AgentState));
-        });
+        Expect(loaded).Not.To.Be.Null();
+        Expect(loaded!.Status).To.Equal(updated.Status);
+        Expect(loaded.AgentState).To.Equal(updated.AgentState);
     }
 }
 

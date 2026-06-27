@@ -1,3 +1,5 @@
+using NExpect;
+using static NExpect.Expectations;
 using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
@@ -30,11 +32,8 @@ public class RunSessionUseCaseTests
         var sessionId = await sut.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.Multiple(() =>
-        {
-            Assert.That(target.Delivered, Is.EqualTo(expected));
-            Assert.That(sessionId, Is.EqualTo(expected.SessionId));
-        });
+        Expect(target.Delivered).To.Equal(expected);
+        Expect(sessionId).To.Equal(expected.SessionId);
     }
 
     [Test]
@@ -54,8 +53,8 @@ public class RunSessionUseCaseTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex.Message, Is.EqualTo(expectedError));
-        Assert.That(target.Delivered, Is.Null);
+        Expect(ex!.Message).To.Equal(expectedError);
+        Expect(target.Delivered).To.Be.Null();
     }
 
     [Test]
@@ -79,7 +78,7 @@ public class RunSessionUseCaseTests
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(
             () => sut.ExecuteAsync(config, signal));
-        Assert.That(ex.Message, Is.EqualTo(expectedError));
+        Expect(ex!.Message).To.Equal(expectedError);
     }
 }
 

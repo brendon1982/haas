@@ -1,3 +1,5 @@
+using NExpect;
+using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Store;
 using HaaS.Domain.Ports;
@@ -32,17 +34,16 @@ public class MicrosoftAgentFrameworkStrategyTests
         var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.That(result.Output, Is.EqualTo(expectedOutput));
-        Assert.That(result.SessionId, Is.Not.Null.And.Not.Empty);
+        Expect(result.Output).To.Equal(expectedOutput);
+        Expect(result.SessionId).Not.To.Be.Null();
+        Expect(result.SessionId).Not.To.Be.Empty();
 
         var saved = await repo.LoadAsync(result.SessionId);
-        Assert.That(saved, Is.Not.Null);
-        Assert.Multiple(() =>
-        {
-            Assert.That(saved!.SourceType, Is.EqualTo(signal.Source));
-            Assert.That(saved.Status, Is.EqualTo("running"));
-            Assert.That(saved.AgentState, Is.Not.Null.And.Not.Empty);
-        });
+        Expect(saved).Not.To.Be.Null();
+        Expect(saved!.SourceType).To.Equal(signal.Source);
+        Expect(saved.Status).To.Equal("running");
+        Expect(saved.AgentState).Not.To.Be.Null();
+        Expect(saved.AgentState).Not.To.Be.Empty();
     }
 
     [Test]
@@ -78,17 +79,17 @@ public class MicrosoftAgentFrameworkStrategyTests
         var result2 = await sut.ExecuteAsync(config, signal2);
 
         // Assert
-        Assert.That(result2.SessionId, Is.EqualTo(sessionId));
-        Assert.That(result2.Output, Is.EqualTo(expectedResponse));
+        Expect(result2.SessionId).To.Equal(sessionId);
+        Expect(result2.Output).To.Equal(expectedResponse);
 
-        Assert.That(chatClient.ReceivedMessages, Has.Count.EqualTo(expectedMessageCount));
+        Expect(chatClient.ReceivedMessages).To.Contain.Exactly(expectedMessageCount);
         var secondCallMessages = chatClient.ReceivedMessages[1]
             .Select(m => m.Text)
             .Where(t => t != null)
             .ToList();
 
-        Assert.That(secondCallMessages, Has.Some.Contains(signal1.Payload));
-        Assert.That(secondCallMessages, Has.Some.Contains(signal2.Payload));
+        Expect(secondCallMessages).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal1.Payload));
+        Expect(secondCallMessages).To.Contain.At.Least(1).Matched.By(m => m!.Contains(signal2.Payload));
     }
 
     [Test]
@@ -110,8 +111,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.That(result.Output, Is.EqualTo(expectedResponse));
-        Assert.That(result.SessionId, Is.Not.EqualTo(signal.SessionId));
+        Expect(result.Output).To.Equal(expectedResponse);
+        Expect(result.SessionId).Not.To.Equal(signal.SessionId);
     }
 
     [Test]
@@ -143,8 +144,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         var result = await sut.ExecuteAsync(config, signal);
 
         // Assert
-        Assert.That(result.Output, Is.EqualTo(expectedResponse));
-        Assert.That(result.SessionId, Is.Not.EqualTo(corrupt.SessionId));
+        Expect(result.Output).To.Equal(expectedResponse);
+        Expect(result.SessionId).Not.To.Equal(corrupt.SessionId);
     }
 }
 
