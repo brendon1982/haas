@@ -15,10 +15,12 @@ On-prem, customer-configurable enterprise AI harness. Routes inputs from multipl
 
 ## Commands
 
-- `dotnet test` — runs all tests
-- `dotnet build` — compiles solution
+- `dotnet build src\haas.sln` — compiles the full solution
+- `dotnet test src\haas.sln` — runs all tests
 - `dotnet run --project src_csharp/haas/HaaS.Host.CLI` — runs the CLI host
 - Install packages with `dotnet add package ...`
+
+> **Verification:** Always build and test against the **solution file** (`src\haas.sln`), not individual projects. Building individual projects can miss cross-project reference breaks (e.g. changed constructor signatures in `HaaS.Adapters` that break callers in `HaaS.Host.CLI`).
 
 ## Architecture (from SYSTEM-DESIGN.md)
 

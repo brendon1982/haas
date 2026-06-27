@@ -21,6 +21,11 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     {
     }
 
+    public MicrosoftAgentFrameworkStrategy(IChatClient chatClient, ISessionRepository sessionRepository)
+        : this(chatClient, sessionRepository, new InMemorySessionMessageStore())
+    {
+    }
+
     public MicrosoftAgentFrameworkStrategy(
         IChatClient chatClient,
         ISessionRepository sessionRepository,
