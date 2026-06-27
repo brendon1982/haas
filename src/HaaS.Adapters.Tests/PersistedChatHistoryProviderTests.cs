@@ -4,6 +4,8 @@ using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Persistence;
+using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NUnit.Framework;
@@ -19,10 +21,10 @@ public class PersistedChatHistoryProviderTests
         // Arrange
         var store = new InMemorySessionMessageStore();
         var sessionId = "test-session";
-        var stored = new List<ChatMessage>
+        var stored = new List<ChatMessageData>
         {
-            new(ChatRole.User, "stored question"),
-            new(ChatRole.Assistant, "stored answer")
+            new("user", "stored question"),
+            new("assistant", "stored answer")
         };
         await store.AppendMessagesAsync(sessionId, stored);
 
@@ -84,8 +86,8 @@ public class PersistedChatHistoryProviderTests
         // Assert
         var messages = await store.GetMessagesAsync(sessionId);
         Expect(messages.Count).To.Equal(2);
-        Expect(messages[0].Text).To.Equal("new question");
-        Expect(messages[1].Text).To.Equal("new answer");
+        Expect(messages[0].Content).To.Equal("new question");
+        Expect(messages[1].Content).To.Equal("new answer");
     }
 
     [Test]

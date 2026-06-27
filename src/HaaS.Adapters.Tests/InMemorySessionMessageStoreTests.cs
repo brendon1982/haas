@@ -1,7 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Persistence;
-using Microsoft.Extensions.AI;
+using HaaS.Domain.ValueObjects;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests;
@@ -15,10 +15,10 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        var expected = new List<ChatMessage>
+        var expected = new List<ChatMessageData>
         {
-            new(ChatRole.User, "hello"),
-            new(ChatRole.Assistant, "hi")
+            new("user", "hello"),
+            new("assistant", "hi")
         };
         await sut.AppendMessagesAsync(sessionId, expected);
 
@@ -27,8 +27,8 @@ public class InMemorySessionMessageStoreTests
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0].Text).To.Equal("hello");
-        Expect(result[1].Text).To.Equal("hi");
+        Expect(result[0].Content).To.Equal("hello");
+        Expect(result[1].Content).To.Equal("hi");
     }
 
     [Test]
@@ -50,16 +50,16 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        await sut.AppendMessagesAsync(sessionId, [new ChatMessage(ChatRole.User, "first")]);
+        await sut.AppendMessagesAsync(sessionId, [new ChatMessageData("user", "first")]);
 
         // Act
-        await sut.AppendMessagesAsync(sessionId, [new ChatMessage(ChatRole.Assistant, "second")]);
+        await sut.AppendMessagesAsync(sessionId, [new ChatMessageData("assistant", "second")]);
         var result = await sut.GetMessagesAsync(sessionId);
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0].Text).To.Equal("first");
-        Expect(result[1].Text).To.Equal("second");
+        Expect(result[0].Content).To.Equal("first");
+        Expect(result[1].Content).To.Equal("second");
     }
 
     [Test]
@@ -69,12 +69,12 @@ public class InMemorySessionMessageStoreTests
         var sut = MessageStoreSutBuilder.Create().Build();
 
         // Act
-        await sut.AppendMessagesAsync("new-sess", [new ChatMessage(ChatRole.User, "first")]);
+        await sut.AppendMessagesAsync("new-sess", [new ChatMessageData("user", "first")]);
         var result = await sut.GetMessagesAsync("new-sess");
 
         // Assert
         Expect(result.Count).To.Equal(1);
-        Expect(result[0].Text).To.Equal("first");
+        Expect(result[0].Content).To.Equal("first");
     }
 }
 

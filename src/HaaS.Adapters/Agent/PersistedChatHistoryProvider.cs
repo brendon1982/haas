@@ -1,4 +1,5 @@
-using HaaS.Adapters.Persistence;
+using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -7,9 +8,9 @@ namespace HaaS.Adapters.Agent;
 public class PersistedChatHistoryProvider : ChatHistoryProvider
 {
     public const string SessionIdKey = "haas_session_id";
-    private readonly ISessionMessageStore _messageStore;
+    private readonly IMessageStore _messageStore;
 
-    public PersistedChatHistoryProvider(ISessionMessageStore messageStore)
+    public PersistedChatHistoryProvider(IMessageStore messageStore)
     {
         _messageStore = messageStore;
     }
@@ -23,7 +24,8 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
             return [];
         }
 
-        return await _messageStore.GetMessagesAsync(sessionId);
+        var stored = await _messageStore.GetMessagesAsync(sessionId);
+        return stored.Select(ToChatMessage);
     }
 
     protected override async ValueTask StoreChatHistoryAsync(
@@ -36,7 +38,8 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         }
 
         var messages = (context.RequestMessages ?? [])
-            .Concat(context.ResponseMessages ?? []);
+            .Concat(context.ResponseMessages ?? [])
+            .Select(ToChatMessageData);
         await _messageStore.AppendMessagesAsync(sessionId, messages);
     }
 
@@ -48,5 +51,15 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         }
 
         return null;
+    }
+
+    private static ChatMessage ToChatMessage(ChatMessageData data)
+    {
+        return new ChatMessage(new ChatRole(data.Role), data.Content);
+    }
+
+    private static ChatMessageData ToChatMessageData(ChatMessage message)
+    {
+        return new ChatMessageData(message.Role.ToString()!, message.Text ?? string.Empty);
     }
 }

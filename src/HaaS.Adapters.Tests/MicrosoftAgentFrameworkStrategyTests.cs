@@ -3,6 +3,7 @@ using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Store;
+using HaaS.Domain.Ports;
 using HaaS.Domain.Tests.Builders;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -44,7 +45,7 @@ public class MicrosoftAgentFrameworkStrategyTests
 
         var messages = await builder.MessageStore.GetMessagesAsync(result.SessionId);
         Expect(messages.Count).Not.To.Equal(0);
-        var texts = messages.Select(m => m.Text).ToList();
+        var texts = messages.Select(m => m.Content).ToList();
         Expect(texts).To.Contain("hi");
         Expect(texts).To.Contain(expectedOutput);
     }

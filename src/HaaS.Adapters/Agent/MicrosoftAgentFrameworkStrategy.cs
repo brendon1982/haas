@@ -1,6 +1,7 @@
 using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Store;
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
@@ -14,7 +15,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     private readonly IChatClient _chatClient;
     private readonly ISessionRepository _sessionRepository;
     private readonly ChatClientAgent _agent;
-    private readonly ISessionMessageStore _messageStore;
+    private readonly IMessageStore _messageStore;
 
     public MicrosoftAgentFrameworkStrategy(IChatClient chatClient)
         : this(chatClient, new InMemorySessionRepository(), new InMemorySessionMessageStore())
@@ -29,7 +30,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     public MicrosoftAgentFrameworkStrategy(
         IChatClient chatClient,
         ISessionRepository sessionRepository,
-        ISessionMessageStore messageStore)
+        IMessageStore messageStore)
     {
         _chatClient = chatClient;
         _sessionRepository = sessionRepository;

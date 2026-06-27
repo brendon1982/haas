@@ -1,23 +1,24 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.AI;
+using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Adapters.Persistence;
 
-public class InMemorySessionMessageStore : ISessionMessageStore
+public class InMemorySessionMessageStore : IMessageStore
 {
-    private readonly ConcurrentDictionary<string, List<ChatMessage>> _store = new();
+    private readonly ConcurrentDictionary<string, List<ChatMessageData>> _store = new();
 
-    public Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(string sessionId)
+    public Task<IReadOnlyList<ChatMessageData>> GetMessagesAsync(string sessionId)
     {
         if (_store.TryGetValue(sessionId, out var messages))
         {
-            return Task.FromResult<IReadOnlyList<ChatMessage>>(messages.ToList());
+            return Task.FromResult<IReadOnlyList<ChatMessageData>>(messages.ToList());
         }
 
-        return Task.FromResult<IReadOnlyList<ChatMessage>>(Array.Empty<ChatMessage>());
+        return Task.FromResult<IReadOnlyList<ChatMessageData>>(Array.Empty<ChatMessageData>());
     }
 
-    public Task AppendMessagesAsync(string sessionId, IEnumerable<ChatMessage> messages)
+    public Task AppendMessagesAsync(string sessionId, IEnumerable<ChatMessageData> messages)
     {
         var list = _store.GetOrAdd(sessionId, _ => []);
         list.AddRange(messages);
