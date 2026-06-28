@@ -26,7 +26,6 @@ public class ObservableAgentStrategyTests
             .WithStrategy(inner)
             .WithLogger(logger)
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("prompt")
             .WithSource("cli")
@@ -34,7 +33,7 @@ public class ObservableAgentStrategyTests
             .Build();
 
         // Act
-        var result = await sut.ExecuteAsync(config, signal);
+        var result = await sut.ExecuteAsync(signal, "sess-42");
 
         // Assert
         Expect(result).To.Equal(expected);
@@ -63,14 +62,13 @@ public class ObservableAgentStrategyTests
             .WithStrategy(inner)
             .WithLogger(logger)
             .Build();
-        var config = AgentSessionConfigTestBuilder.Create().Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("prompt")
             .WithSource("cli")
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(config, signal))
+        Expect(async () => await sut.ExecuteAsync(signal, "sess-fail"))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing(expectedError);
 
@@ -118,13 +116,13 @@ file sealed class SutBuilder
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(AgentSessionConfig config, SignalValue signal)
+    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId)
         => Task.FromResult(result);
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(AgentSessionConfig config, SignalValue signal)
+    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId)
         => throw error;
 }
 

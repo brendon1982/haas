@@ -7,8 +7,13 @@ public class SessionRecordTestBuilder
     private string _sessionId = "sess-default";
     private string _sourceType = "test";
     private string _status = "created";
-    private DateTime _createdAt = DateTime.UtcNow;
-    private DateTime _updatedAt = DateTime.UtcNow;
+    private string _provider = "ollama";
+    private string _modelId = "gemma4";
+    private string _systemPrompt = "You are a helpful assistant.";
+    private string _tools = "[]";
+    private string _thinkingLevel = "off";
+    private DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
 
     private SessionRecordTestBuilder() { }
 
@@ -32,17 +37,50 @@ public class SessionRecordTestBuilder
         return this;
     }
 
-    public SessionRecordTestBuilder WithCreatedAt(DateTime createdAt)
+    public SessionRecordTestBuilder WithProvider(string provider)
+    {
+        _provider = provider;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithModelId(string modelId)
+    {
+        _modelId = modelId;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithSystemPrompt(string prompt)
+    {
+        _systemPrompt = prompt;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithTools(string tools)
+    {
+        _tools = tools;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithThinkingLevel(string level)
+    {
+        _thinkingLevel = level;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithCreatedAt(DateTimeOffset createdAt)
     {
         _createdAt = createdAt;
         return this;
     }
 
-    public SessionRecordTestBuilder WithUpdatedAt(DateTime updatedAt)
+    public SessionRecordTestBuilder WithUpdatedAt(DateTimeOffset updatedAt)
     {
         _updatedAt = updatedAt;
         return this;
     }
 
-    public SessionRecord Build() => new(_sessionId, _sourceType, _status, _createdAt, _updatedAt);
+    public SessionRecord Build() => new(
+        _sessionId, _sourceType, _status,
+        _provider, _modelId, _systemPrompt, _tools, _thinkingLevel,
+        _createdAt, _updatedAt);
 }

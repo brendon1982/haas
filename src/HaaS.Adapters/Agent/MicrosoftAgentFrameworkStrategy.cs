@@ -1,5 +1,4 @@
-using HaaS.Adapters.Persistence;
-using HaaS.Adapters.Store;
+using System.Text.Json;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
@@ -12,68 +11,55 @@ namespace HaaS.Adapters.Agent;
 
 public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 {
-    private readonly IChatClient _chatClient;
+    private readonly IChatClientFactory _chatClientFactory;
     private readonly ISessionRepository _sessionRepository;
-    private readonly ChatClientAgent _agent;
     private readonly IMessageStore _messageStore;
 
-    public MicrosoftAgentFrameworkStrategy(IChatClient chatClient)
-        : this(chatClient, new InMemorySessionRepository(), new InMemorySessionMessageStore())
-    {
-    }
-
-    public MicrosoftAgentFrameworkStrategy(IChatClient chatClient, ISessionRepository sessionRepository)
-        : this(chatClient, sessionRepository, new InMemorySessionMessageStore())
-    {
-    }
-
     public MicrosoftAgentFrameworkStrategy(
-        IChatClient chatClient,
+        IChatClientFactory chatClientFactory,
         ISessionRepository sessionRepository,
         IMessageStore messageStore)
     {
-        _chatClient = chatClient;
+        _chatClientFactory = chatClientFactory;
         _sessionRepository = sessionRepository;
         _messageStore = messageStore;
-        _agent = new ChatClientAgent(
-            _chatClient,
+    }
+
+    public async Task<SessionResultValue> ExecuteAsync(SignalValue signal, string sessionId)
+    {
+        var record = await _sessionRepository.LoadAsync(sessionId)
+            ?? throw new InvalidOperationException($"Session {sessionId} not found.");
+
+        var config = new AgentSessionConfigValue(
+            record.Provider,
+            record.ModelId,
+            record.SystemPrompt,
+            JsonSerializer.Deserialize<IReadOnlyList<string>>(record.Tools) ?? [],
+            record.ThinkingLevel);
+
+        var chatClient = _chatClientFactory.Create(config);
+        var agent = new ChatClientAgent(
+            chatClient,
             new ChatClientAgentOptions
             {
                 Name = "HaaSAgent",
                 ChatHistoryProvider = new PersistedChatHistoryProvider(_messageStore)
             });
-    }
 
-    public async Task<SessionResultValue> ExecuteAsync(AgentSessionConfigValue config, SignalValue signal)
-    {
-        string sessionId;
-        if (signal.SessionId is not null)
-        {
-            var existing = await _sessionRepository.LoadAsync(signal.SessionId);
-            sessionId = existing?.SessionId ?? Guid.NewGuid().ToString();
-        }
-        else
-        {
-            sessionId = Guid.NewGuid().ToString();
-        }
-
-        var session = await _agent.CreateSessionAsync();
+        var session = await agent.CreateSessionAsync();
         session.StateBag.SetValue(PersistedChatHistoryProvider.SessionIdKey, sessionId);
 
-        var response = await _agent.RunAsync(
-            [new ChatMessage(ChatRole.User, signal.Payload)],
-            session);
+        var messages = new List<ChatMessage>();
+        if (!string.IsNullOrEmpty(config.SystemPrompt))
+        {
+            messages.Add(new ChatMessage(new ChatRole("system"), config.SystemPrompt));
+        }
+        messages.Add(new ChatMessage(ChatRole.User, signal.Payload));
 
-        var record = new HaaS.Domain.ValueObjects.SessionRecord(
-            sessionId,
-            signal.Source,
-            "running",
-            DateTime.UtcNow,
-            DateTime.UtcNow);
-        await _sessionRepository.SaveAsync(record);
+        var response = await agent.RunAsync(messages, session);
 
         return new SessionResultValue(
-            Output: response.Text ?? string.Empty,
+            Output: response.Text,
             SessionId: sessionId);
     }
 }

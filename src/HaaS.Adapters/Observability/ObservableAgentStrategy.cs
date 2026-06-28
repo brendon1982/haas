@@ -18,17 +18,18 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
         _logger = logger;
     }
 
-    public async Task<SessionResult> ExecuteAsync(AgentSessionConfig config, SignalValue signal)
+    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId)
     {
         using var activity = ActivitySource.StartActivity("AgentExecute");
         activity?.SetTag("signal.source", signal.Source);
+        activity?.SetTag("session.id", sessionId);
 
-        _logger.LogInformation("Agent execution started — session: {0}, model: {1}", signal.SessionId ?? "new", config.ModelId);
+        _logger.LogInformation("Agent execution started — session: {0}", sessionId);
         var sw = Stopwatch.StartNew();
 
         try
         {
-            var result = await _inner.ExecuteAsync(config, signal);
+            var result = await _inner.ExecuteAsync(signal, sessionId);
             sw.Stop();
 
             activity?.SetTag("session.id", result.SessionId);

@@ -4,6 +4,11 @@ public record SessionRecord(
     string SessionId,
     string SourceType,
     string Status,
-    DateTime CreatedAt,
-    DateTime UpdatedAt
+    string Provider,
+    string ModelId,
+    string SystemPrompt,
+    string Tools,
+    string ThinkingLevel,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt
 );

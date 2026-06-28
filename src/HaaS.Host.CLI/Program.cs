@@ -1,6 +1,7 @@
 ﻿using HaaS.Adapters.Agent;
 using HaaS.Adapters.Execution;
 using HaaS.Adapters.Observability;
+using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Signal;
 using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
@@ -28,16 +29,18 @@ Console.CancelKeyPress += (_, e) =>
     Environment.Exit(0);
 };
 
-var chatClient = new OllamaChatClient(
-    new Uri("http://localhost:11434"),
-    config.ModelId);
+IChatClientFactory chatClientFactory = new ChatClientFactory(cfg =>
+    new OllamaChatClient(
+        new Uri("http://localhost:11434"),
+        cfg.ModelId));
 
 ISessionRepository sessionRepo = new InMemorySessionRepository();
+IMessageStore messageStore = new InMemorySessionMessageStore();
 ILogger logger = new ConsoleLogger();
-IAgentStrategy innerStrategy = new MicrosoftAgentFrameworkStrategy(chatClient, sessionRepo);
+IAgentStrategy innerStrategy = new MicrosoftAgentFrameworkStrategy(chatClientFactory, sessionRepo, messageStore);
 IAgentStrategy strategy = new ObservableAgentStrategy(innerStrategy, logger);
 IExecutionTarget target = new ConsoleExecutionTarget();
-var useCase = new RunSessionUseCase(strategy, target);
+var useCase = new RunSessionUseCase(strategy, target, sessionRepo, TimeProvider.System);
 
 Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
 Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
