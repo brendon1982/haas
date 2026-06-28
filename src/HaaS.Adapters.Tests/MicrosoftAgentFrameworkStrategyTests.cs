@@ -289,6 +289,8 @@ file sealed class FakeChatClientFactory(IChatClient client) : IChatClientFactory
     public int CallCount { get; private set; }
     public AgentSessionConfig? LastConfig { get; private set; }
 
+    public bool CanCreate(AgentSessionConfig config) => true;
+
     public IChatClient Create(AgentSessionConfig config)
     {
         CallCount++;

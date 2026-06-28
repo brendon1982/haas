@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace HaaS.Domain.ValueObjects;
 
 public record AgentSessionConfig(
@@ -5,5 +7,7 @@ public record AgentSessionConfig(
     string ModelId,
     string SystemPrompt,
     IReadOnlyList<string> Tools,
-    string ThinkingLevel
+    string ThinkingLevel,
+    string? Endpoint = null,
+    string? ApiKey = null
 );

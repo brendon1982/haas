@@ -1,11 +1,9 @@
-using System.Text.Json;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
 using SessionResultValue = HaaS.Domain.ValueObjects.SessionResult;
-using AgentSessionConfigValue = HaaS.Domain.ValueObjects.AgentSessionConfig;
 
 namespace HaaS.Adapters.Agent;
 
@@ -30,12 +28,13 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         var record = await _sessionRepository.LoadAsync(sessionId)
             ?? throw new InvalidOperationException($"Session {sessionId} not found.");
 
-        var config = new AgentSessionConfigValue(
-            record.Provider,
-            record.ModelId,
-            record.SystemPrompt,
-            JsonSerializer.Deserialize<IReadOnlyList<string>>(record.Tools) ?? [],
-            record.ThinkingLevel);
+        var config = record.ToConfig();
+
+        if (!_chatClientFactory.CanCreate(config))
+        {
+            throw new InvalidOperationException(
+                $"No chat client available for provider '{config.Provider}'.");
+        }
 
         var chatClient = _chatClientFactory.Create(config);
         var agent = new ChatClientAgent(

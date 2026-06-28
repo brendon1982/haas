@@ -29,10 +29,12 @@ Console.CancelKeyPress += (_, e) =>
     Environment.Exit(0);
 };
 
-IChatClientFactory chatClientFactory = new ChatClientFactory(cfg =>
-    new OllamaChatClient(
-        new Uri("http://localhost:11434"),
-        cfg.ModelId));
+var endpoint = new Uri("http://localhost:11434");
+IChatClientFactory chatClientFactory = new ChatClientFactory()
+    .Register("ollama", cfg =>
+        new OllamaChatClient(
+            cfg.Endpoint is not null ? new Uri(cfg.Endpoint) : endpoint,
+            cfg.ModelId));
 
 ISessionRepository sessionRepo = new InMemorySessionRepository();
 IMessageStore messageStore = new InMemorySessionMessageStore();

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace HaaS.Domain.ValueObjects;
 
 public record SessionRecord(
@@ -11,4 +13,13 @@ public record SessionRecord(
     string ThinkingLevel,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt
-);
+)
+{
+    public AgentSessionConfig ToConfig()
+    {
+        return new AgentSessionConfig(
+            Provider, ModelId, SystemPrompt,
+            JsonSerializer.Deserialize<IReadOnlyList<string>>(Tools) ?? [],
+            ThinkingLevel);
+    }
+}

@@ -9,6 +9,8 @@ public class AgentSessionConfigTestBuilder
     private string _systemPrompt = "You are a helpful assistant.";
     private IReadOnlyList<string> _tools = [];
     private string _thinkingLevel = "off";
+    private string? _endpoint = null;
+    private string? _apiKey = null;
 
     private AgentSessionConfigTestBuilder() { }
 
@@ -44,5 +46,17 @@ public class AgentSessionConfigTestBuilder
         return this;
     }
 
-    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _tools, _thinkingLevel);
+    public AgentSessionConfigTestBuilder WithEndpoint(string? endpoint)
+    {
+        _endpoint = endpoint;
+        return this;
+    }
+
+    public AgentSessionConfigTestBuilder WithApiKey(string? apiKey)
+    {
+        _apiKey = apiKey;
+        return this;
+    }
+
+    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _tools, _thinkingLevel, _endpoint, _apiKey);
 }
