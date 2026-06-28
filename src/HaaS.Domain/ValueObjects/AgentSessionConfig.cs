@@ -8,6 +8,5 @@ public record AgentSessionConfig(
     string SystemPrompt,
     IReadOnlyList<string> Tools,
     string ThinkingLevel,
-    string? Endpoint = null,
-    string? ApiKey = null
+    string? Endpoint = null
 );

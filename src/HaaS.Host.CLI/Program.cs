@@ -19,7 +19,8 @@ var config = new AgentSessionConfig(
     ModelId: modelId,
     SystemPrompt: systemPrompt,
     Tools: [],
-    ThinkingLevel: "off"
+    ThinkingLevel: "off",
+    Endpoint: "http://localhost:11434"
 );
 
 Console.CancelKeyPress += (_, e) =>

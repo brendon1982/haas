@@ -64,7 +64,7 @@ public class RunSessionUseCaseTests
         var storedRecord = new SessionRecord(
             "sess-existing", "cli", "running",
             storedConfig.Provider, storedConfig.ModelId, storedConfig.SystemPrompt,
-            "[]", storedConfig.ThinkingLevel,
+            "[]", storedConfig.ThinkingLevel, null,
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var signal = SignalTestBuilder.Create()

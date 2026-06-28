@@ -10,7 +10,6 @@ public class AgentSessionConfigTestBuilder
     private IReadOnlyList<string> _tools = [];
     private string _thinkingLevel = "off";
     private string? _endpoint = null;
-    private string? _apiKey = null;
 
     private AgentSessionConfigTestBuilder() { }
 
@@ -52,11 +51,5 @@ public class AgentSessionConfigTestBuilder
         return this;
     }
 
-    public AgentSessionConfigTestBuilder WithApiKey(string? apiKey)
-    {
-        _apiKey = apiKey;
-        return this;
-    }
-
-    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _tools, _thinkingLevel, _endpoint, _apiKey);
+    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _tools, _thinkingLevel, _endpoint);
 }
