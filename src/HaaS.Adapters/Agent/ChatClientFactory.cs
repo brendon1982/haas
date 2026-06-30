@@ -1,3 +1,4 @@
+using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Extensions.AI;
 
@@ -5,25 +6,40 @@ namespace HaaS.Adapters.Agent;
 
 public sealed class ChatClientFactory : IChatClientFactory
 {
-    private readonly Dictionary<string, Func<AgentSessionConfig, IChatClient>> _providers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IProviderConfigRepository _configRepo;
+    private readonly Dictionary<string, Func<ProviderConfig, string, IChatClient>> _factories = new(StringComparer.OrdinalIgnoreCase);
 
-    public ChatClientFactory Register(string provider, Func<AgentSessionConfig, IChatClient> factory)
+    public ChatClientFactory(IProviderConfigRepository configRepo)
     {
-        _providers[provider] = factory;
+        _configRepo = configRepo;
+    }
+
+    public ChatClientFactory Register(string provider, Func<ProviderConfig, string, IChatClient> factory)
+    {
+        _factories[provider] = factory;
         return this;
     }
 
-    public bool CanCreate(AgentSessionConfig config)
+    public bool CanCreate(string provider)
     {
-        return _providers.ContainsKey(config.Provider);
+        return _factories.ContainsKey(provider);
     }
 
-    public IChatClient Create(AgentSessionConfig config)
+    public async Task<IChatClient> CreateAsync(string provider, string modelId)
     {
-        if (_providers.TryGetValue(config.Provider, out var factory))
-            return factory(config);
+        if (!_factories.TryGetValue(provider, out var factory))
+        {
+            throw new InvalidOperationException(
+                $"No chat client factory registered for provider '{provider}'.");
+        }
 
-        throw new InvalidOperationException(
-            $"No chat client factory registered for provider '{config.Provider}'.");
+        var config = await _configRepo.GetAsync(provider);
+        if (config is null)
+        {
+            throw new InvalidOperationException(
+                $"No provider configuration found for '{provider}'.");
+        }
+
+        return factory(config, modelId);
     }
 }

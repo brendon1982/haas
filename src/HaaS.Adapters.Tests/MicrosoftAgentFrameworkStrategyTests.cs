@@ -54,7 +54,7 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
-    public async Task Execute_PassesConfigToFactory()
+    public async Task Execute_PassesProviderAndModelIdToFactory()
     {
         // Arrange
         var sessionId = "sess-1";
@@ -84,12 +84,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         await sut.ExecuteAsync(signal, sessionId);
 
         // Assert
-        Expect(factory.LastConfig).Not.To.Be.Null();
-        Expect(factory.LastConfig!.Provider).To.Equal("openai");
-        Expect(factory.LastConfig!.ModelId).To.Equal("gpt-4");
-        Expect(factory.LastConfig!.SystemPrompt).To.Equal("You are a helpful bot.");
-        Expect(factory.LastConfig!.Tools.Count).To.Equal(2);
-        Expect(factory.LastConfig!.ThinkingLevel).To.Equal("high");
+        Expect(factory.LastProvider).To.Equal("openai");
+        Expect(factory.LastModelId).To.Equal("gpt-4");
     }
 
     [Test]
@@ -188,8 +184,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(result1.SessionId).To.Equal(sessionId);
         Expect(result2.SessionId).To.Equal(sessionId);
         Expect(factory.CallCount).To.Equal(2);
-        Expect(factory.LastConfig!.Provider).To.Equal("ollama");
-        Expect(factory.LastConfig!.ModelId).To.Equal("gemma4");
+        Expect(factory.LastProvider).To.Equal("ollama");
+        Expect(factory.LastModelId).To.Equal("gemma4");
 
         // 2 turns × (1 system + 1 user + 1 assistant)
         var messages = await messageStore.GetMessagesAsync(sessionId);
@@ -287,15 +283,17 @@ file sealed class CapturingChatClient(string response, List<ChatMessage> capture
 file sealed class FakeChatClientFactory(IChatClient client) : IChatClientFactory
 {
     public int CallCount { get; private set; }
-    public AgentSessionConfig? LastConfig { get; private set; }
+    public string? LastProvider { get; private set; }
+    public string? LastModelId { get; private set; }
 
-    public bool CanCreate(AgentSessionConfig config) => true;
+    public bool CanCreate(string provider) => true;
 
-    public IChatClient Create(AgentSessionConfig config)
+    public Task<IChatClient> CreateAsync(string provider, string modelId)
     {
         CallCount++;
-        LastConfig = config;
-        return client;
+        LastProvider = provider;
+        LastModelId = modelId;
+        return Task.FromResult(client);
     }
 }
 

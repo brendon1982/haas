@@ -30,13 +30,13 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var config = record.ToConfig();
 
-        if (!_chatClientFactory.CanCreate(config))
+        if (!_chatClientFactory.CanCreate(config.Provider))
         {
             throw new InvalidOperationException(
                 $"No chat client available for provider '{config.Provider}'.");
         }
 
-        var chatClient = _chatClientFactory.Create(config);
+        var chatClient = await _chatClientFactory.CreateAsync(config.Provider, config.ModelId);
         var agent = new ChatClientAgent(
             chatClient,
             new ChatClientAgentOptions

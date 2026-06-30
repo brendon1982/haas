@@ -39,7 +39,6 @@ public class RunSessionUseCase
                 config.SystemPrompt,
                 JsonSerializer.Serialize(config.Tools),
                 config.ThinkingLevel,
-                config.Endpoint,
                 now,
                 now);
             await _sessionRepository.SaveAsync(record);

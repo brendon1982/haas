@@ -12,7 +12,6 @@ public class SessionRecordTestBuilder
     private string _systemPrompt = "You are a helpful assistant.";
     private string _tools = "[]";
     private string _thinkingLevel = "off";
-    private string? _endpoint = null;
     private DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
 
@@ -68,12 +67,6 @@ public class SessionRecordTestBuilder
         return this;
     }
 
-    public SessionRecordTestBuilder WithEndpoint(string? endpoint)
-    {
-        _endpoint = endpoint;
-        return this;
-    }
-
     public SessionRecordTestBuilder WithCreatedAt(DateTimeOffset createdAt)
     {
         _createdAt = createdAt;
@@ -88,6 +81,6 @@ public class SessionRecordTestBuilder
 
     public SessionRecord Build() => new(
         _sessionId, _sourceType, _status,
-        _provider, _modelId, _systemPrompt, _tools, _thinkingLevel, _endpoint,
+        _provider, _modelId, _systemPrompt, _tools, _thinkingLevel,
         _createdAt, _updatedAt);
 }

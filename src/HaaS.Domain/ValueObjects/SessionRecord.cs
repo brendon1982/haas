@@ -11,7 +11,6 @@ public record SessionRecord(
     string SystemPrompt,
     string Tools,
     string ThinkingLevel,
-    string? Endpoint,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt
 )
@@ -21,7 +20,6 @@ public record SessionRecord(
         return new AgentSessionConfig(
             Provider, ModelId, SystemPrompt,
             JsonSerializer.Deserialize<IReadOnlyList<string>>(Tools) ?? [],
-            ThinkingLevel,
-            Endpoint);
+            ThinkingLevel);
     }
 }

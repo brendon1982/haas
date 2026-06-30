@@ -19,8 +19,7 @@ var config = new AgentSessionConfig(
     ModelId: modelId,
     SystemPrompt: systemPrompt,
     Tools: [],
-    ThinkingLevel: "off",
-    Endpoint: "http://localhost:11434"
+    ThinkingLevel: "off"
 );
 
 Console.CancelKeyPress += (_, e) =>
@@ -30,12 +29,13 @@ Console.CancelKeyPress += (_, e) =>
     Environment.Exit(0);
 };
 
-var endpoint = new Uri("http://localhost:11434");
-IChatClientFactory chatClientFactory = new ChatClientFactory()
-    .Register("ollama", cfg =>
-        new OllamaChatClient(
-            cfg.Endpoint is not null ? new Uri(cfg.Endpoint) : endpoint,
-            cfg.ModelId));
+IProviderConfigRepository providerConfigRepo = new InMemoryProviderConfigRepository();
+await providerConfigRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
+
+IChatClientFactory chatClientFactory = new ChatClientFactory(providerConfigRepo)
+    .Register("ollama", (providerConfig, mdlId) =>
+        new OllamaChatClient(new Uri(providerConfig.Endpoint), mdlId)
+    );
 
 ISessionRepository sessionRepo = new InMemorySessionRepository();
 IMessageStore messageStore = new InMemorySessionMessageStore();

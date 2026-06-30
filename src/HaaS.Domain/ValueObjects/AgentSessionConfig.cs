@@ -7,6 +7,5 @@ public record AgentSessionConfig(
     string ModelId,
     string SystemPrompt,
     IReadOnlyList<string> Tools,
-    string ThinkingLevel,
-    string? Endpoint = null
+    string ThinkingLevel
 );
