@@ -1,13 +1,10 @@
 ﻿using HaaS.Adapters.Agent;
-using HaaS.Adapters.Execution;
-using HaaS.Adapters.Observability;
-using HaaS.Adapters.Persistence;
-using HaaS.Adapters.Signal;
-using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
+using HaaS.Infrastructure;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 var modelId = args.Length > 0 ? args[0] : "gemma4";
 var systemPrompt = args.Length > 1
@@ -22,6 +19,17 @@ var config = new AgentSessionConfig(
     ThinkingLevel: "off"
 );
 
+var services = new ServiceCollection();
+services.AddHaasCore();
+var provider = services.BuildServiceProvider();
+
+var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
+await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
+
+var clientFactory = provider.GetRequiredService<ChatClientFactory>();
+clientFactory.Register("ollama", (providerConfig, mdlId) =>
+    new OllamaChatClient(new Uri(providerConfig.Endpoint), mdlId));
+
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;
@@ -29,30 +37,16 @@ Console.CancelKeyPress += (_, e) =>
     Environment.Exit(0);
 };
 
-IProviderConfigRepository providerConfigRepo = new InMemoryProviderConfigRepository();
-await providerConfigRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
-
-IChatClientFactory chatClientFactory = new ChatClientFactory(providerConfigRepo)
-    .Register("ollama", (providerConfig, mdlId) =>
-        new OllamaChatClient(new Uri(providerConfig.Endpoint), mdlId)
-    );
-
-ISessionRepository sessionRepo = new InMemorySessionRepository();
-IMessageStore messageStore = new InMemorySessionMessageStore();
-ILogger logger = new ConsoleLogger();
-IAgentStrategy innerStrategy = new MicrosoftAgentFrameworkStrategy(chatClientFactory, sessionRepo, messageStore);
-IAgentStrategy strategy = new ObservableAgentStrategy(innerStrategy, logger);
-IExecutionTarget target = new ConsoleExecutionTarget();
-var useCase = new RunSessionUseCase(strategy, target, sessionRepo, TimeProvider.System);
-
 Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
 Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
 Console.Out.Write("> ");
 Console.Out.Flush();
 
+var useCase = provider.GetRequiredService<RunSessionUseCase>();
+var signalSource = provider.GetRequiredService<ISignalSource>();
+
 string? sessionId = null;
-var source = new CliSignalSource();
-await source.ListenAsync(async signal =>
+await signalSource.ListenAsync(async signal =>
 {
     var signalWithSession = signal with { SessionId = sessionId };
     sessionId = await useCase.ExecuteAsync(config, signalWithSession);
