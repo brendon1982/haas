@@ -191,6 +191,45 @@ public class MicrosoftAgentFrameworkStrategyTests
         var messages = await messageStore.GetMessagesAsync(sessionId);
         Expect(messages.Count).To.Equal(6);
     }
+
+    [Test]
+    public async Task Execute_WithToolBelt_ResolvesToolsFromRegistry()
+    {
+        // Arrange
+        var sessionId = "sess-1";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithSourceType("cli")
+            .WithToolBelt(new ToolBelt(["test_tool"]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+        var capturedOptions = new List<ChatOptions?>();
+        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        var toolRegistry = new FakeToolRegistry();
+        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolRegistry(toolRegistry)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(signal, sessionId);
+
+        // Assert
+        var lastOptions = capturedOptions.LastOrDefault();
+        Expect(lastOptions).Not.To.Be.Null();
+        Expect(lastOptions!.Tools).Not.To.Be.Null();
+        Expect(lastOptions.Tools.Count).To.Equal(1);
+        Expect(lastOptions.Tools[0].Name).To.Equal("test_tool");
+    }
 }
 
 // --- harness (local) ---
@@ -200,6 +239,7 @@ file sealed class StrategySutBuilder
     private IChatClientFactory _factory = new FakeChatClientFactory(new FakeChatClient("default response"));
     private InMemorySessionRepository _repository = new();
     private InMemorySessionMessageStore _messageStore = new();
+    private IToolRegistry _toolRegistry = new FakeToolRegistry();
 
     private StrategySutBuilder() { }
 
@@ -223,7 +263,13 @@ file sealed class StrategySutBuilder
         return this;
     }
 
-    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore);
+    public StrategySutBuilder WithToolRegistry(IToolRegistry toolRegistry)
+    {
+        _toolRegistry = toolRegistry;
+        return this;
+    }
+
+    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore, _toolRegistry);
 
     public InMemorySessionMessageStore MessageStore => _messageStore;
 }
@@ -262,6 +308,32 @@ file sealed class CapturingChatClient(string response, List<ChatMessage> capture
     {
         captured.Clear();
         captured.AddRange(messages);
+        var chatResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, response));
+        return Task.FromResult(chatResponse);
+    }
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public void Dispose() { }
+}
+
+file sealed class CapturingChatOptionsClient(string response, List<ChatOptions?> captured) : IChatClient
+{
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        captured.Add(options);
         var chatResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, response));
         return Task.FromResult(chatResponse);
     }
@@ -333,5 +405,33 @@ file sealed class InMemorySessionMessageStore : IMessageStore
         var list = _store.GetOrAdd(sessionId, _ => []);
         list.AddRange(messages);
         return Task.CompletedTask;
+    }
+}
+
+file sealed class FakeToolRegistry : IToolRegistry
+{
+    private readonly Dictionary<string, Delegate> _handlers = new();
+    private readonly Dictionary<string, string?> _descriptions = new();
+
+    public void Register(string name, Delegate handler, string? description = null)
+    {
+        _handlers[name] = handler;
+        _descriptions[name] = description;
+    }
+
+    public IReadOnlyList<AITool> GetTools(IEnumerable<string> toolNames)
+    {
+        return toolNames
+            .Select(name => _handlers.TryGetValue(name, out var handler)
+                ? AIFunctionFactory.Create(handler,
+                    new AIFunctionFactoryOptions
+                    {
+                        Name = name,
+                        Description = _descriptions.GetValueOrDefault(name)
+                    })
+                : null)
+            .Where(t => t is not null)
+            .Cast<AITool>()
+            .ToList();
     }
 }

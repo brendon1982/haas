@@ -18,13 +18,22 @@ var provider = services.BuildServiceProvider();
 var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
 await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
 
+var toolRegistry = provider.GetRequiredService<IToolRegistry>();
+toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
+    $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
+    "Gets the current UTC time for a given timezone");
+
+toolRegistry.Register("echo", (Func<string, Task<string>>)(async text =>
+    $"Echo: {text}"),
+    "Repeats back the input text");
+
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     SourceType: "cli",
     Provider: "ollama",
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: ToolBelt.Empty,
+    ToolBelt: new ToolBelt(["get_time", "echo"]),
     ThinkingLevel: "off"
 ));
 
@@ -53,3 +62,4 @@ await signalSource.ListenAsync(async signal =>
     var signalWithSession = signal with { SessionId = sessionId };
     sessionId = await useCase.ExecuteAsync(signalWithSession);
 });
+

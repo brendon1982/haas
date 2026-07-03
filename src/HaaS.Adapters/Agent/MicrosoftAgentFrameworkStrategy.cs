@@ -12,15 +12,18 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     private readonly IChatClientFactory _chatClientFactory;
     private readonly ISessionRepository _sessionRepository;
     private readonly IMessageStore _messageStore;
+    private readonly IToolRegistry _toolRegistry;
 
     public MicrosoftAgentFrameworkStrategy(
         IChatClientFactory chatClientFactory,
         ISessionRepository sessionRepository,
-        IMessageStore messageStore)
+        IMessageStore messageStore,
+        IToolRegistry toolRegistry)
     {
         _chatClientFactory = chatClientFactory;
         _sessionRepository = sessionRepository;
         _messageStore = messageStore;
+        _toolRegistry = toolRegistry;
     }
 
     public async Task<SessionResultValue> ExecuteAsync(SignalValue signal, string sessionId)
@@ -37,11 +40,19 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         }
 
         var chatClient = await _chatClientFactory.CreateAsync(config.Provider, config.ModelId);
+
+        var chatOptions = new ChatOptions();
+        if (config.ToolBelt.Tools.Count > 0)
+        {
+            chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();
+        }
+
         var agent = new ChatClientAgent(
             chatClient,
             new ChatClientAgentOptions
             {
                 Name = "HaaSAgent",
+                ChatOptions = chatOptions,
                 ChatHistoryProvider = new PersistedChatHistoryProvider(_messageStore)
             });
 

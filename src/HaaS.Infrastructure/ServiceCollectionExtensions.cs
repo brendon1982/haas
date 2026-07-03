@@ -23,12 +23,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ChatClientFactory>();
         services.AddSingleton<IChatClientFactory>(sp => sp.GetRequiredService<ChatClientFactory>());
 
+        services.AddSingleton<IToolRegistry, ToolRegistry>();
+
         services.AddSingleton<IAgentStrategy>(sp =>
         {
             var factory = sp.GetRequiredService<IChatClientFactory>();
             var sessionRepo = sp.GetRequiredService<ISessionRepository>();
             var messageStore = sp.GetRequiredService<IMessageStore>();
-            var inner = new MicrosoftAgentFrameworkStrategy(factory, sessionRepo, messageStore);
+            var toolRegistry = sp.GetRequiredService<IToolRegistry>();
+            var inner = new MicrosoftAgentFrameworkStrategy(factory, sessionRepo, messageStore, toolRegistry);
             var logger = sp.GetRequiredService<ILogger>();
             return new ObservableAgentStrategy(inner, logger);
         });
