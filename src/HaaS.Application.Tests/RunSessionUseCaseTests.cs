@@ -15,11 +15,12 @@ public class RunSessionUseCaseTests
     public async Task Execute_WithoutSessionId_CreatesSessionRecordAndCompletes()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create().Build();
-        var config = AgentSessionConfigTestBuilder.Create()
-            .WithProvider("openai")
-            .WithModelId("gpt-4")
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
             .Build();
+        var sourceConfig = new SignalSourceConfig(
+            "cli", "openai", "gpt-4",
+            "You are a helpful assistant.", ToolBelt.Empty, "off");
         var expected = SessionResultTestBuilder.Create()
             .WithOutput("hello")
             .WithSessionId("sess-new")
@@ -27,24 +28,27 @@ public class RunSessionUseCaseTests
         var strategy = new FakeStrategy(expected);
         var target = new FakeTarget();
         var repo = new FakeSessionRepository();
+        var configRepo = new FakeSignalSourceConfigRepository();
+        await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithTarget(target)
             .WithRepository(repo)
+            .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(config, signal);
+        var sessionId = await sut.ExecuteAsync(signal);
 
         // Assert
         var record = await repo.LoadAsync(sessionId);
         Expect(record).Not.To.Be.Null();
         Expect(record!.Status).To.Equal("completed");
-        Expect(record.Provider).To.Equal(config.Provider);
-        Expect(record.ModelId).To.Equal(config.ModelId);
-        Expect(record.SystemPrompt).To.Equal(config.SystemPrompt);
+        Expect(record.Provider).To.Equal(sourceConfig.Provider);
+        Expect(record.ModelId).To.Equal(sourceConfig.ModelId);
+        Expect(record.SystemPrompt).To.Equal(sourceConfig.SystemPrompt);
         Expect(record.SourceType).To.Equal(signal.Source);
         Expect(record.CreatedAt).To.Equal(time.UtcNow);
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
@@ -58,21 +62,19 @@ public class RunSessionUseCaseTests
     public async Task Execute_WithExistingSessionId_ContinuesExistingSession()
     {
         // Arrange
-        var storedConfig = AgentSessionConfigTestBuilder.Create()
-            .WithModelId("gpt-3.5")
-            .Build();
         var storedRecord = new SessionRecord(
             "sess-existing", "cli", "running",
-            storedConfig.Provider, storedConfig.ModelId, storedConfig.SystemPrompt,
-            "[]", storedConfig.ThinkingLevel,
+            "ollama", "gemma4", "Stored system prompt",
+            "[]", "off",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
             .WithSessionId("sess-existing")
             .Build();
-        var incomingConfig = AgentSessionConfigTestBuilder.Create()
-            .WithModelId("gpt-4") // different from stored
-            .Build();
+        var sourceConfig = new SignalSourceConfig(
+            "cli", "openai", "gpt-4",
+            "Incoming system prompt", ToolBelt.Empty, "high");
         var expected = SessionResultTestBuilder.Create()
             .WithOutput("continued")
             .WithSessionId("sess-existing")
@@ -81,23 +83,28 @@ public class RunSessionUseCaseTests
         var target = new FakeTarget();
         var repo = new FakeSessionRepository();
         await repo.SaveAsync(storedRecord);
+        var configRepo = new FakeSignalSourceConfigRepository();
+        await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithTarget(target)
             .WithRepository(repo)
+            .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(incomingConfig, signal);
+        var sessionId = await sut.ExecuteAsync(signal);
 
         // Assert
         Expect(sessionId).To.Equal("sess-existing");
         var record = await repo.LoadAsync(sessionId);
         Expect(record).Not.To.Be.Null();
         Expect(record!.Status).To.Equal("completed");
-        Expect(record.ModelId).To.Equal("gpt-3.5"); // stored config preserved
+        Expect(record.Provider).To.Equal("ollama"); // stored config preserved
+        Expect(record.ModelId).To.Equal("gemma4");
+        Expect(record.SystemPrompt).To.Equal("Stored system prompt");
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
         Expect(record.CreatedAt).To.Equal(storedRecord.CreatedAt); // unchanged
     }
@@ -106,21 +113,28 @@ public class RunSessionUseCaseTests
     public async Task Execute_WhenStrategyThrows_UpdatesStatusToFailed()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create().Build();
-        var config = AgentSessionConfigTestBuilder.Create().Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .Build();
+        var sourceConfig = new SignalSourceConfig(
+            "cli", "ollama", "gemma4",
+            "You are a helpful assistant.", ToolBelt.Empty, "off");
         var strategy = new FailingStrategy(new InvalidOperationException("fail"));
         var target = new FakeTarget();
         var repo = new FakeSessionRepository();
+        var configRepo = new FakeSignalSourceConfigRepository();
+        await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithTarget(target)
             .WithRepository(repo)
+            .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(config, signal))
+        Expect(async () => await sut.ExecuteAsync(signal))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("fail");
 
@@ -135,8 +149,12 @@ public class RunSessionUseCaseTests
     public async Task Execute_WhenTargetThrows_KeepsCompletedStatus()
     {
         // Arrange
-        var signal = SignalTestBuilder.Create().Build();
-        var config = AgentSessionConfigTestBuilder.Create().Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .Build();
+        var sourceConfig = new SignalSourceConfig(
+            "cli", "ollama", "gemma4",
+            "You are a helpful assistant.", ToolBelt.Empty, "off");
         var strategy = new FakeStrategy(
             SessionResultTestBuilder.Create()
                 .WithOutput("ok")
@@ -144,16 +162,19 @@ public class RunSessionUseCaseTests
                 .Build());
         var target = new FailingTarget(new InvalidOperationException("delivery error"));
         var repo = new FakeSessionRepository();
+        var configRepo = new FakeSignalSourceConfigRepository();
+        await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithTarget(target)
             .WithRepository(repo)
+            .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(config, signal))
+        Expect(async () => await sut.ExecuteAsync(signal))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("delivery error");
 
@@ -161,6 +182,21 @@ public class RunSessionUseCaseTests
         var allRecords = repo.AllRecords();
         Expect(allRecords).To.Contain.Exactly(1);
         Expect(allRecords[0].Status).To.Equal("completed");
+    }
+
+    [Test]
+    public async Task Execute_WhenNoSourceConfig_Throws()
+    {
+        // Arrange
+        var signal = SignalTestBuilder.Create()
+            .WithSource("unknown")
+            .Build();
+        var sut = UseCaseSutBuilder.Create().Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(signal))
+            .To.Throw<InvalidOperationException>()
+            .With.Message.Containing("unknown");
     }
 }
 
@@ -175,6 +211,7 @@ file sealed class UseCaseSutBuilder
             .Build());
     private IExecutionTarget _target = new FakeTarget();
     private ISessionRepository _repository = new FakeSessionRepository();
+    private ISignalSourceConfigRepository _configRepository = new FakeSignalSourceConfigRepository();
     private TimeProvider _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
     private UseCaseSutBuilder() { }
@@ -199,13 +236,19 @@ file sealed class UseCaseSutBuilder
         return this;
     }
 
+    public UseCaseSutBuilder WithConfigRepository(ISignalSourceConfigRepository configRepository)
+    {
+        _configRepository = configRepository;
+        return this;
+    }
+
     public UseCaseSutBuilder WithTimeProvider(TimeProvider timeProvider)
     {
         _timeProvider = timeProvider;
         return this;
     }
 
-    public RunSessionUseCase Build() => new(_strategy, _target, _repository, _timeProvider);
+    public RunSessionUseCase Build() => new(_strategy, _target, _repository, _configRepository, _timeProvider);
 }
 
 file sealed class FakeSessionRepository : ISessionRepository
@@ -260,4 +303,21 @@ file sealed class FakeTarget : IExecutionTarget
 file sealed class FailingTarget(Exception error) : IExecutionTarget
 {
     public Task DeliverAsync(SessionResult result) => throw error;
+}
+
+file sealed class FakeSignalSourceConfigRepository : ISignalSourceConfigRepository
+{
+    private readonly Dictionary<string, SignalSourceConfig> _store = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task<SignalSourceConfig?> GetBySourceTypeAsync(string sourceType)
+    {
+        _store.TryGetValue(sourceType, out var config);
+        return Task.FromResult<SignalSourceConfig?>(config);
+    }
+
+    public Task SaveAsync(SignalSourceConfig config)
+    {
+        _store[config.SourceType] = config;
+        return Task.CompletedTask;
+    }
 }

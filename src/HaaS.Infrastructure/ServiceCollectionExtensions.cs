@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddHaasCore(this IServiceCollection services)
     {
+        services.AddSingleton<ISignalSourceConfigRepository, InMemorySignalSourceConfigRepository>();
         services.AddSingleton<IProviderConfigRepository, InMemoryProviderConfigRepository>();
         services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
         services.AddSingleton<IMessageStore, InMemorySessionMessageStore>();

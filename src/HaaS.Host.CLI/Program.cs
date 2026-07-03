@@ -11,20 +11,22 @@ var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
     : "You are a helpful assistant. Be concise and accurate.";
 
-var config = new AgentSessionConfig(
-    Provider: "ollama",
-    ModelId: modelId,
-    SystemPrompt: systemPrompt,
-    Tools: [],
-    ThinkingLevel: "off"
-);
-
 var services = new ServiceCollection();
 services.AddHaasCore();
 var provider = services.BuildServiceProvider();
 
 var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
 await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
+
+var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
+await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
+    SourceType: "cli",
+    Provider: "ollama",
+    ModelId: modelId,
+    SystemPrompt: systemPrompt,
+    ToolBelt: ToolBelt.Empty,
+    ThinkingLevel: "off"
+));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();
 clientFactory.Register("ollama", (providerConfig, mdlId) =>
@@ -49,5 +51,5 @@ string? sessionId = null;
 await signalSource.ListenAsync(async signal =>
 {
     var signalWithSession = signal with { SessionId = sessionId };
-    sessionId = await useCase.ExecuteAsync(config, signalWithSession);
+    sessionId = await useCase.ExecuteAsync(signalWithSession);
 });

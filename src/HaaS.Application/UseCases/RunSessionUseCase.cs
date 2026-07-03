@@ -9,22 +9,28 @@ public class RunSessionUseCase
     private readonly IAgentStrategy _agentStrategy;
     private readonly IExecutionTarget _executionTarget;
     private readonly ISessionRepository _sessionRepository;
+    private readonly ISignalSourceConfigRepository _signalSourceConfigRepository;
     private readonly TimeProvider _timeProvider;
 
     public RunSessionUseCase(
         IAgentStrategy agentStrategy,
         IExecutionTarget executionTarget,
         ISessionRepository sessionRepository,
+        ISignalSourceConfigRepository signalSourceConfigRepository,
         TimeProvider timeProvider)
     {
         _agentStrategy = agentStrategy;
         _executionTarget = executionTarget;
         _sessionRepository = sessionRepository;
+        _signalSourceConfigRepository = signalSourceConfigRepository;
         _timeProvider = timeProvider;
     }
 
-    public async Task<string> ExecuteAsync(AgentSessionConfig config, Signal signal)
+    public async Task<string> ExecuteAsync(Signal signal)
     {
+        var sourceConfig = await _signalSourceConfigRepository.GetBySourceTypeAsync(signal.Source)
+            ?? throw new InvalidOperationException($"No signal source config found for source type '{signal.Source}'.");
+        var config = sourceConfig.ToSessionConfig();
         var sessionId = await ResolveSessionIdAsync(signal);
         var now = _timeProvider.GetUtcNow();
 
@@ -37,7 +43,7 @@ public class RunSessionUseCase
                 config.Provider,
                 config.ModelId,
                 config.SystemPrompt,
-                JsonSerializer.Serialize(config.Tools),
+                JsonSerializer.Serialize(config.ToolBelt),
                 config.ThinkingLevel,
                 now,
                 now);

@@ -7,7 +7,7 @@ public class AgentSessionConfigTestBuilder
     private string _provider = "ollama";
     private string _modelId = "gemma4";
     private string _systemPrompt = "You are a helpful assistant.";
-    private IReadOnlyList<string> _tools = [];
+    private ToolBelt _toolBelt = ToolBelt.Empty;
     private string _thinkingLevel = "off";
 
     private AgentSessionConfigTestBuilder() { }
@@ -32,9 +32,9 @@ public class AgentSessionConfigTestBuilder
         return this;
     }
 
-    public AgentSessionConfigTestBuilder WithTools(IReadOnlyList<string> tools)
+    public AgentSessionConfigTestBuilder WithToolBelt(ToolBelt toolBelt)
     {
-        _tools = tools;
+        _toolBelt = toolBelt;
         return this;
     }
 
@@ -44,5 +44,5 @@ public class AgentSessionConfigTestBuilder
         return this;
     }
 
-    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _tools, _thinkingLevel);
+    public AgentSessionConfig Build() => new(_provider, _modelId, _systemPrompt, _toolBelt, _thinkingLevel);
 }

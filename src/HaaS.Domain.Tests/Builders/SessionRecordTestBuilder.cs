@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Domain.Tests.Builders;
@@ -10,7 +11,7 @@ public class SessionRecordTestBuilder
     private string _provider = "ollama";
     private string _modelId = "gemma4";
     private string _systemPrompt = "You are a helpful assistant.";
-    private string _tools = "[]";
+    private ToolBelt _toolBelt = ToolBelt.Empty;
     private string _thinkingLevel = "off";
     private DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
@@ -55,9 +56,9 @@ public class SessionRecordTestBuilder
         return this;
     }
 
-    public SessionRecordTestBuilder WithTools(string tools)
+    public SessionRecordTestBuilder WithToolBelt(ToolBelt toolBelt)
     {
-        _tools = tools;
+        _toolBelt = toolBelt;
         return this;
     }
 
@@ -81,6 +82,7 @@ public class SessionRecordTestBuilder
 
     public SessionRecord Build() => new(
         _sessionId, _sourceType, _status,
-        _provider, _modelId, _systemPrompt, _tools, _thinkingLevel,
+        _provider, _modelId, _systemPrompt,
+        JsonSerializer.Serialize(_toolBelt), _thinkingLevel,
         _createdAt, _updatedAt);
 }

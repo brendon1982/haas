@@ -19,7 +19,7 @@ public record SessionRecord(
     {
         return new AgentSessionConfig(
             Provider, ModelId, SystemPrompt,
-            JsonSerializer.Deserialize<IReadOnlyList<string>>(Tools) ?? [],
+            JsonSerializer.Deserialize<ToolBelt>(Tools) ?? ToolBelt.Empty,
             ThinkingLevel);
     }
 }

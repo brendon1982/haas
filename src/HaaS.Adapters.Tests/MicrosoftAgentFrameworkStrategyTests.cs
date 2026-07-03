@@ -63,7 +63,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .WithProvider("openai")
             .WithModelId("gpt-4")
             .WithSystemPrompt("You are a helpful bot.")
-            .WithTools("[\"tool1\",\"tool2\"]")
+            .WithToolBelt(new ToolBelt(["tool1", "tool2"]))
             .WithThinkingLevel("high")
             .Build();
         var repo = new InMemorySessionRepository();
