@@ -1,16 +1,18 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.AI;
 
 namespace HaaS.Adapters.Agent;
 
 public class ToolRegistry : IToolRegistry
 {
-    private readonly Dictionary<string, Func<AIFunction>> _factories = new();
+    private readonly ConcurrentDictionary<string, Func<AIFunction>> _factories = new();
 
     public void Register(string name, Delegate handler, string? description = null)
     {
-        _factories[name] = () => AIFunctionFactory.Create(
+        var factory = () => AIFunctionFactory.Create(
             handler,
             new AIFunctionFactoryOptions { Name = name, Description = description });
+        _factories[name] = factory;
     }
 
     public IReadOnlyList<AITool> GetTools(IEnumerable<string> toolNames)
