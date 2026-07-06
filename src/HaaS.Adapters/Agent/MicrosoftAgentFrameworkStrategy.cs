@@ -54,6 +54,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         var chatClient = await _chatClientFactory.CreateAsync(config.Provider, config.ModelId);
 
         var chatOptions = new ChatOptions();
+        chatOptions.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
         if (config.ToolBelt.Tools.Count > 0)
         {
             chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();
@@ -65,7 +66,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         }
         else if (chatOptions.Tools?.Count > 0)
         {
-            chatOptions.ToolMode = ChatToolMode.Auto;
+            chatOptions.ToolMode = ChatToolMode.RequireAny;
         }
 
         var agent = new ChatClientAgent(
@@ -74,7 +75,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             {
                 Name = "HaaSAgent",
                 ChatOptions = chatOptions,
-                ChatHistoryProvider = new PersistedChatHistoryProvider(_messageStore)
+                ChatHistoryProvider = new PersistedChatHistoryProvider(_messageStore),
             });
 
         var session = await agent.CreateSessionAsync();

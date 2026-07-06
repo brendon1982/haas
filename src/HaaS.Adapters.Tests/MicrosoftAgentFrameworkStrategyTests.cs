@@ -268,7 +268,7 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
-    public async Task Execute_WithoutReplyTool_SetsAutoMode()
+    public async Task Execute_WithoutReplyTool_SetsRequireAnyMode()
     {
         // Arrange
         var sessionId = "sess-1";
@@ -300,7 +300,7 @@ public class MicrosoftAgentFrameworkStrategyTests
         // Assert
         var lastOptions = capturedOptions.LastOrDefault();
         Expect(lastOptions).Not.To.Be.Null();
-        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.Auto);
+        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.RequireAny);
     }
 }
 

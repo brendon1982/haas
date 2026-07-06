@@ -3,13 +3,13 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
-using Microsoft.Extensions.AI;
+using OllamaSharp;
 using Microsoft.Extensions.DependencyInjection;
 
-var modelId = args.Length > 0 ? args[0] : "gemma4:12b";
+var modelId = args.Length > 0 ? args[0] : "gemma4";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
-    : "You are a helpful assistant. Your only way of responding is to use the `send_message` tool, the user will not see any other messages you reply with.";
+    : "You are an assistant. You ONLY respond with tool calls.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
@@ -23,11 +23,11 @@ toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
     $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
     "Gets the current UTC time for a given timezone");
 
-toolRegistry.Register("send_message", (Func<string, Task<string>>)(async message =>
+toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
 {
     await Console.Out.WriteLineAsync(message);
-    return "The user has seen and read the message you sent.";
-}), "Use this to send a message in a conversation.");
+    return "Your message has been delivered to the user.";
+}), "Sends a message to the user.");
 
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
@@ -35,14 +35,14 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     Provider: "ollama",
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: new ToolBelt(["get_time", "send_message"]),
+    ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
     ThinkingLevel: "off"
-    // ReplyTool: "send_message"
+    // ReplyTool: "reply_to_user"
 ));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();
 clientFactory.Register("ollama", (providerConfig, mdlId) =>
-    new OllamaChatClient(new Uri(providerConfig.Endpoint), mdlId));
+    new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId));
 
 Console.CancelKeyPress += (_, e) =>
 {
