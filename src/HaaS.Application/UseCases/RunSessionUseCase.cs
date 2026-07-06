@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
@@ -54,7 +55,7 @@ public class RunSessionUseCase
             {
                 await _messageStore.AppendMessagesAsync(
                     sessionId,
-                    [new ChatMessageData("system", config.SystemPrompt)]);
+                    [JsonSerializer.Serialize(new { Role = "system", Content = config.SystemPrompt })]);
             }
         }
 

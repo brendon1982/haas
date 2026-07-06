@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Application.UseCases;
@@ -56,8 +57,9 @@ public class RunSessionUseCaseTests
 
         var seeded = await messageStore.GetMessagesAsync(sessionId);
         Expect(seeded.Count).To.Equal(1);
-        Expect(seeded[0].Role).To.Equal("system");
-        Expect(seeded[0].Content).To.Equal(sourceConfig.SystemPrompt);
+        var dto = JsonSerializer.Deserialize<MessageDto>(seeded[0]);
+        Expect(dto!.Role).To.Equal("system");
+        Expect(dto.Content).To.Equal(sourceConfig.SystemPrompt);
     }
 
     [Test]
@@ -255,18 +257,20 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
         => throw error;
 }
 
+file sealed record MessageDto(string Role, string Content);
+
 file sealed class FakeMessageStore : IMessageStore
 {
-    private readonly ConcurrentDictionary<string, List<ChatMessageData>> _store = new();
+    private readonly ConcurrentDictionary<string, List<string>> _store = new();
 
-    public Task<IReadOnlyList<ChatMessageData>> GetMessagesAsync(string sessionId)
+    public Task<IReadOnlyList<string>> GetMessagesAsync(string sessionId)
     {
         if (_store.TryGetValue(sessionId, out var messages))
-            return Task.FromResult<IReadOnlyList<ChatMessageData>>(messages.ToList());
-        return Task.FromResult<IReadOnlyList<ChatMessageData>>(Array.Empty<ChatMessageData>());
+            return Task.FromResult<IReadOnlyList<string>>(messages.ToList());
+        return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
     }
 
-    public Task AppendMessagesAsync(string sessionId, IEnumerable<ChatMessageData> messages)
+    public Task AppendMessagesAsync(string sessionId, IEnumerable<string> messages)
     {
         var list = _store.GetOrAdd(sessionId, _ => []);
         list.AddRange(messages);

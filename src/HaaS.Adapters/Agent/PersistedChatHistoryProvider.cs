@@ -1,5 +1,5 @@
+using System.Text.Json;
 using HaaS.Domain.Ports;
-using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -25,7 +25,7 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         }
 
         var stored = await _messageStore.GetMessagesAsync(sessionId);
-        return stored.Select(ToChatMessage);
+        return stored.Select(DeserializeMessage);
     }
 
     protected override async ValueTask StoreChatHistoryAsync(
@@ -36,10 +36,9 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         {
             return;
         }
-
         var messages = (context.RequestMessages)
             .Concat(context.ResponseMessages ?? [])
-            .Select(ToChatMessageData);
+            .Select(SerializeMessage);
         await _messageStore.AppendMessagesAsync(sessionId, messages);
     }
 
@@ -53,13 +52,16 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         return null;
     }
 
-    private static ChatMessage ToChatMessage(ChatMessageData data)
+    private static ChatMessage DeserializeMessage(string data)
     {
-        return new ChatMessage(new ChatRole(data.Role), data.Content);
+        var dto = JsonSerializer.Deserialize<MessageDto>(data);
+        return new ChatMessage(new ChatRole(dto!.Role), dto.Content);
     }
 
-    private static ChatMessageData ToChatMessageData(ChatMessage message)
+    private static string SerializeMessage(ChatMessage message)
     {
-        return new ChatMessageData(message.Role.ToString(), message.Text);
+        return JsonSerializer.Serialize(new MessageDto(message.Role.ToString(), message.Text));
     }
+
+    private record MessageDto(string Role, string Content);
 }

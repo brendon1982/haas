@@ -1,7 +1,6 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Persistence;
-using HaaS.Domain.ValueObjects;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests;
@@ -15,20 +14,15 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        var expected = new List<ChatMessageData>
-        {
-            new("user", "hello"),
-            new("assistant", "hi")
-        };
-        await sut.AppendMessagesAsync(sessionId, expected);
+        await sut.AppendMessagesAsync(sessionId, ["hello", "hi"]);
 
         // Act
         var result = await sut.GetMessagesAsync(sessionId);
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0].Content).To.Equal("hello");
-        Expect(result[1].Content).To.Equal("hi");
+        Expect(result[0]).To.Equal("hello");
+        Expect(result[1]).To.Equal("hi");
     }
 
     [Test]
@@ -50,16 +44,16 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        await sut.AppendMessagesAsync(sessionId, [new ChatMessageData("user", "first")]);
+        await sut.AppendMessagesAsync(sessionId, ["first"]);
 
         // Act
-        await sut.AppendMessagesAsync(sessionId, [new ChatMessageData("assistant", "second")]);
+        await sut.AppendMessagesAsync(sessionId, ["second"]);
         var result = await sut.GetMessagesAsync(sessionId);
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0].Content).To.Equal("first");
-        Expect(result[1].Content).To.Equal("second");
+        Expect(result[0]).To.Equal("first");
+        Expect(result[1]).To.Equal("second");
     }
 
     [Test]
@@ -69,12 +63,12 @@ public class InMemorySessionMessageStoreTests
         var sut = MessageStoreSutBuilder.Create().Build();
 
         // Act
-        await sut.AppendMessagesAsync("new-sess", [new ChatMessageData("user", "first")]);
+        await sut.AppendMessagesAsync("new-sess", ["first"]);
         var result = await sut.GetMessagesAsync("new-sess");
 
         // Assert
         Expect(result.Count).To.Equal(1);
-        Expect(result[0].Content).To.Equal("first");
+        Expect(result[0]).To.Equal("first");
     }
 }
 
