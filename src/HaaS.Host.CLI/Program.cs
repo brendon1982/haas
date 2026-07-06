@@ -6,10 +6,10 @@ using HaaS.Infrastructure;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
-var modelId = args.Length > 0 ? args[0] : "gemma4";
+var modelId = args.Length > 0 ? args[0] : "gemma4:12b";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
-    : "You are a helpful assistant. Be concise and accurate. You only respond in tool calls.";
+    : "You are a helpful assistant. Your only way of responding is to use the `send_message` tool, the user will not see any other messages you reply with.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
@@ -23,11 +23,11 @@ toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
     $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
     "Gets the current UTC time for a given timezone");
 
-toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
+toolRegistry.Register("send_message", (Func<string, Task<string>>)(async message =>
 {
     await Console.Out.WriteLineAsync(message);
-    return "success";
-}), "Used to reply to the user instead of a plain text message, treat this exactly as you would a plain text message.");
+    return "The user has seen and read the message you sent.";
+}), "Use this to send a message in a conversation.");
 
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
@@ -35,9 +35,9 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     Provider: "ollama",
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
+    ToolBelt: new ToolBelt(["get_time", "send_message"]),
     ThinkingLevel: "off"
-    // ReplyTool: "reply_to_user"
+    // ReplyTool: "send_message"
 ));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();
