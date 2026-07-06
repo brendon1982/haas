@@ -9,17 +9,20 @@ public class RunSessionUseCase
     private readonly IAgentStrategy _agentStrategy;
     private readonly ISessionRepository _sessionRepository;
     private readonly ISignalSourceConfigRepository _signalSourceConfigRepository;
+    private readonly IMessageStore _messageStore;
     private readonly TimeProvider _timeProvider;
 
     public RunSessionUseCase(
         IAgentStrategy agentStrategy,
         ISessionRepository sessionRepository,
         ISignalSourceConfigRepository signalSourceConfigRepository,
+        IMessageStore messageStore,
         TimeProvider timeProvider)
     {
         _agentStrategy = agentStrategy;
         _sessionRepository = sessionRepository;
         _signalSourceConfigRepository = signalSourceConfigRepository;
+        _messageStore = messageStore;
         _timeProvider = timeProvider;
     }
 
@@ -46,6 +49,13 @@ public class RunSessionUseCase
                 now,
                 config.ReplyTool);
             await _sessionRepository.SaveAsync(record);
+
+            if (!string.IsNullOrEmpty(config.SystemPrompt))
+            {
+                await _messageStore.AppendMessagesAsync(
+                    sessionId,
+                    [new ChatMessageData("system", config.SystemPrompt)]);
+            }
         }
 
         SessionResult result;

@@ -112,41 +112,6 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
-    public async Task Execute_WithSystemPrompt_PrependsSystemMessage()
-    {
-        // Arrange
-        var sessionId = "sess-1";
-        var systemPrompt = "You are a helpful assistant.";
-        var record = SessionRecordTestBuilder.Create()
-            .WithSessionId(sessionId)
-            .WithSystemPrompt(systemPrompt)
-            .Build();
-        var repo = new InMemorySessionRepository();
-        await repo.SaveAsync(record);
-
-        var capturedMessages = new List<ChatMessage>();
-        var chatClient = new CapturingChatClient("response", capturedMessages);
-        var factory = new FakeChatClientFactory(chatClient);
-        var messageStore = new InMemorySessionMessageStore();
-        var sut = StrategySutBuilder.Create()
-            .WithChatClientFactory(factory)
-            .WithRepository(repo)
-            .WithMessageStore(messageStore)
-            .Build();
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("user message")
-            .Build();
-
-        // Act
-        await sut.ExecuteAsync(signal, sessionId);
-
-        // Assert
-        var firstMessage = capturedMessages.First();
-        Expect(firstMessage.Role.ToString()).To.Equal("system");
-        Expect(firstMessage.Text).To.Equal(systemPrompt);
-    }
-
-    [Test]
     public async Task Execute_WithTwoTurns_LoadsSameConfig()
     {
         // Arrange
@@ -187,9 +152,9 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(factory.LastProvider).To.Equal("ollama");
         Expect(factory.LastModelId).To.Equal("gemma4");
 
-        // 2 turns × (1 system + 1 user + 1 assistant)
+        // 2 turns × (1 user + 1 assistant); system prompt seeded by use case, not strategy
         var messages = await messageStore.GetMessagesAsync(sessionId);
-        Expect(messages.Count).To.Equal(6);
+        Expect(messages.Count).To.Equal(4);
     }
 
     [Test]
@@ -356,33 +321,6 @@ file sealed class FakeChatClient(string response) : IChatClient
         ChatOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var chatResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, response));
-        return Task.FromResult(chatResponse);
-    }
-
-    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-        IEnumerable<ChatMessage> messages,
-        ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        await Task.CompletedTask;
-        yield break;
-    }
-
-    public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-    public void Dispose() { }
-}
-
-file sealed class CapturingChatClient(string response, List<ChatMessage> captured) : IChatClient
-{
-    public Task<ChatResponse> GetResponseAsync(
-        IEnumerable<ChatMessage> messages,
-        ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        captured.Clear();
-        captured.AddRange(messages);
         var chatResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, response));
         return Task.FromResult(chatResponse);
     }

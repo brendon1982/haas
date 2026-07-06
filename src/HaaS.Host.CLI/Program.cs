@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 var modelId = args.Length > 0 ? args[0] : "gemma4";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
-    : "You are a helpful assistant. Be concise and accurate.";
+    : "You are a helpful assistant. Be concise and accurate. You only respond in tool calls.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
@@ -23,15 +23,11 @@ toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
     $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
     "Gets the current UTC time for a given timezone");
 
-toolRegistry.Register("echo", (Func<string, Task<string>>)(async text =>
-    $"Echo: {text}"),
-    "Repeats back the input text");
-
 toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
 {
     await Console.Out.WriteLineAsync(message);
     return message;
-}), "Displays a message back to the user. Call this when you have a final response.");
+}), "Displays a message back to the user. Call this when you want to say anything to the user.");
 
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
@@ -39,7 +35,7 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     Provider: "ollama",
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: new ToolBelt(["get_time", "echo", "reply_to_user"]),
+    ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
     ThinkingLevel: "off",
     ReplyTool: "reply_to_user"
 ));

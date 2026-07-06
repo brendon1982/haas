@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Application.UseCases;
@@ -28,12 +29,14 @@ public class RunSessionUseCaseTests
         var strategy = new FakeStrategy(expected);
         var repo = new FakeSessionRepository();
         var configRepo = new FakeSignalSourceConfigRepository();
+        var messageStore = new FakeMessageStore();
         await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
+            .WithMessageStore(messageStore)
             .WithTimeProvider(time)
             .Build();
 
@@ -50,6 +53,11 @@ public class RunSessionUseCaseTests
         Expect(record.SourceType).To.Equal(signal.Source);
         Expect(record.CreatedAt).To.Equal(time.UtcNow);
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
+
+        var seeded = await messageStore.GetMessagesAsync(sessionId);
+        Expect(seeded.Count).To.Equal(1);
+        Expect(seeded[0].Role).To.Equal("system");
+        Expect(seeded[0].Content).To.Equal(sourceConfig.SystemPrompt);
     }
 
     [Test]
@@ -77,12 +85,14 @@ public class RunSessionUseCaseTests
         var repo = new FakeSessionRepository();
         await repo.SaveAsync(storedRecord);
         var configRepo = new FakeSignalSourceConfigRepository();
+        var messageStore = new FakeMessageStore();
         await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
+            .WithMessageStore(messageStore)
             .WithTimeProvider(time)
             .Build();
 
@@ -99,6 +109,10 @@ public class RunSessionUseCaseTests
         Expect(record.SystemPrompt).To.Equal("Stored system prompt");
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
         Expect(record.CreatedAt).To.Equal(storedRecord.CreatedAt); // unchanged
+
+        // no seeding on continuation
+        var seeded = await messageStore.GetMessagesAsync(sessionId);
+        Expect(seeded.Count).To.Equal(0);
     }
 
     [Test]
@@ -114,12 +128,14 @@ public class RunSessionUseCaseTests
         var strategy = new FailingStrategy(new InvalidOperationException("fail"));
         var repo = new FakeSessionRepository();
         var configRepo = new FakeSignalSourceConfigRepository();
+        var messageStore = new FakeMessageStore();
         await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
+            .WithMessageStore(messageStore)
             .WithTimeProvider(time)
             .Build();
 
@@ -161,6 +177,7 @@ file sealed class UseCaseSutBuilder
             .Build());
     private ISessionRepository _repository = new FakeSessionRepository();
     private ISignalSourceConfigRepository _configRepository = new FakeSignalSourceConfigRepository();
+    private IMessageStore _messageStore = new FakeMessageStore();
     private TimeProvider _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
 
     private UseCaseSutBuilder() { }
@@ -185,13 +202,19 @@ file sealed class UseCaseSutBuilder
         return this;
     }
 
+    public UseCaseSutBuilder WithMessageStore(IMessageStore messageStore)
+    {
+        _messageStore = messageStore;
+        return this;
+    }
+
     public UseCaseSutBuilder WithTimeProvider(TimeProvider timeProvider)
     {
         _timeProvider = timeProvider;
         return this;
     }
 
-    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _timeProvider);
+    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _messageStore, _timeProvider);
 }
 
 file sealed class FakeSessionRepository : ISessionRepository
@@ -230,6 +253,25 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
     public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId)
         => throw error;
+}
+
+file sealed class FakeMessageStore : IMessageStore
+{
+    private readonly ConcurrentDictionary<string, List<ChatMessageData>> _store = new();
+
+    public Task<IReadOnlyList<ChatMessageData>> GetMessagesAsync(string sessionId)
+    {
+        if (_store.TryGetValue(sessionId, out var messages))
+            return Task.FromResult<IReadOnlyList<ChatMessageData>>(messages.ToList());
+        return Task.FromResult<IReadOnlyList<ChatMessageData>>(Array.Empty<ChatMessageData>());
+    }
+
+    public Task AppendMessagesAsync(string sessionId, IEnumerable<ChatMessageData> messages)
+    {
+        var list = _store.GetOrAdd(sessionId, _ => []);
+        list.AddRange(messages);
+        return Task.CompletedTask;
+    }
 }
 
 file sealed class FakeSignalSourceConfigRepository : ISignalSourceConfigRepository

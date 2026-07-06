@@ -68,12 +68,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         var session = await agent.CreateSessionAsync();
         session.StateBag.SetValue(PersistedChatHistoryProvider.SessionIdKey, sessionId);
 
-        var messages = new List<ChatMessage>();
-        if (!string.IsNullOrEmpty(config.SystemPrompt))
-        {
-            messages.Add(new ChatMessage(new ChatRole("system"), config.SystemPrompt));
-        }
-        messages.Add(new ChatMessage(ChatRole.User, signal.Payload));
+        ChatMessage[] messages = [new(ChatRole.User, signal.Payload)];
 
         var response = await agent.RunAsync(messages, session);
 
