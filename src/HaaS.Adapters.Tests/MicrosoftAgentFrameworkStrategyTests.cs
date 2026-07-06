@@ -230,6 +230,81 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(lastOptions.Tools.Count).To.Equal(1);
         Expect(lastOptions.Tools[0].Name).To.Equal("test_tool");
     }
+
+    [Test]
+    public async Task Execute_WithReplyTool_SetsRequireSpecificMode()
+    {
+        // Arrange
+        var sessionId = "sess-1";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt(["test_tool"]))
+            .WithReplyTool("reply_to_user")
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+        var capturedOptions = new List<ChatOptions?>();
+        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        var toolRegistry = new FakeToolRegistry();
+        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolRegistry(toolRegistry)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(signal, sessionId);
+
+        // Assert
+        var lastOptions = capturedOptions.LastOrDefault();
+        Expect(lastOptions).Not.To.Be.Null();
+        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.RequireSpecific("reply_to_user"));
+        Expect(lastOptions.Tools).Not.To.Be.Null();
+        Expect(lastOptions.Tools!.Any(t => t.Name == "reply_to_user")).To.Be.False();
+    }
+
+    [Test]
+    public async Task Execute_WithoutReplyTool_SetsAutoMode()
+    {
+        // Arrange
+        var sessionId = "sess-1";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt(["test_tool"]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+        var capturedOptions = new List<ChatOptions?>();
+        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        var toolRegistry = new FakeToolRegistry();
+        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolRegistry(toolRegistry)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(signal, sessionId);
+
+        // Assert
+        var lastOptions = capturedOptions.LastOrDefault();
+        Expect(lastOptions).Not.To.Be.Null();
+        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.Auto);
+    }
 }
 
 // --- harness (local) ---

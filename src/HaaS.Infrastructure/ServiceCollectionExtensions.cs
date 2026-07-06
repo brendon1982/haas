@@ -1,5 +1,4 @@
 using HaaS.Adapters.Agent;
-using HaaS.Adapters.Execution;
 using HaaS.Adapters.Observability;
 using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Signal;
@@ -36,7 +35,6 @@ public static class ServiceCollectionExtensions
             return new ObservableAgentStrategy(inner, logger);
         });
 
-        services.AddSingleton<IExecutionTarget, ConsoleExecutionTarget>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RunSessionUseCase>();
         services.AddTransient<ISignalSource, CliSignalSource>();

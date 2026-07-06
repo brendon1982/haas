@@ -47,6 +47,15 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();
         }
 
+        if (config.ReplyTool is not null)
+        {
+            chatOptions.ToolMode = ChatToolMode.RequireSpecific(config.ReplyTool);
+        }
+        else if (chatOptions.Tools?.Count > 0)
+        {
+            chatOptions.ToolMode = ChatToolMode.Auto;
+        }
+
         var agent = new ChatClientAgent(
             chatClient,
             new ChatClientAgentOptions

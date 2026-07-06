@@ -27,14 +27,21 @@ toolRegistry.Register("echo", (Func<string, Task<string>>)(async text =>
     $"Echo: {text}"),
     "Repeats back the input text");
 
+toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
+{
+    await Console.Out.WriteLineAsync(message);
+    return message;
+}), "Displays a message back to the user. Call this when you have a final response.");
+
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     SourceType: "cli",
     Provider: "ollama",
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: new ToolBelt(["get_time", "echo"]),
-    ThinkingLevel: "off"
+    ToolBelt: new ToolBelt(["get_time", "echo", "reply_to_user"]),
+    ThinkingLevel: "off",
+    ReplyTool: "reply_to_user"
 ));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();

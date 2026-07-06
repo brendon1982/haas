@@ -12,7 +12,8 @@ public record SessionRecord(
     string Tools,
     string ThinkingLevel,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    string? ReplyTool = null
 )
 {
     public AgentSessionConfig ToConfig()
@@ -20,6 +21,7 @@ public record SessionRecord(
         return new AgentSessionConfig(
             Provider, ModelId, SystemPrompt,
             JsonSerializer.Deserialize<ToolBelt>(Tools) ?? ToolBelt.Empty,
-            ThinkingLevel);
+            ThinkingLevel,
+            ReplyTool);
     }
 }

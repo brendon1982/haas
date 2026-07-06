@@ -13,6 +13,7 @@ public class SessionRecordTestBuilder
     private string _systemPrompt = "You are a helpful assistant.";
     private ToolBelt _toolBelt = ToolBelt.Empty;
     private string _thinkingLevel = "off";
+    private string? _replyTool = null;
     private DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
 
@@ -68,6 +69,12 @@ public class SessionRecordTestBuilder
         return this;
     }
 
+    public SessionRecordTestBuilder WithReplyTool(string? replyTool)
+    {
+        _replyTool = replyTool;
+        return this;
+    }
+
     public SessionRecordTestBuilder WithCreatedAt(DateTimeOffset createdAt)
     {
         _createdAt = createdAt;
@@ -84,5 +91,5 @@ public class SessionRecordTestBuilder
         _sessionId, _sourceType, _status,
         _provider, _modelId, _systemPrompt,
         JsonSerializer.Serialize(_toolBelt), _thinkingLevel,
-        _createdAt, _updatedAt);
+        _createdAt, _updatedAt, _replyTool);
 }

@@ -4,7 +4,7 @@
 
 ### Problem
 
-Custom execution target tools (Slack, Jira, email, PagerDuty, etc.) need session-level authentication — tokens that were resolved from the original signal, secrets fetched from Keycloak or a vault, or per-session credentials selected by policy.
+Custom external tools (Slack, Jira, email, PagerDuty, etc.) need session-level authentication — tokens that were resolved from the original signal, secrets fetched from Keycloak or a vault, or per-session credentials selected by policy.
 
 The agent loop is managed by pi-coding-agent. It calls tools based on LLM decisions. Without interception, each tool would need to independently resolve auth — duplicating logic and violating the principle that auth flows through from the signal.
 

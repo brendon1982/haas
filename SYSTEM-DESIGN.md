@@ -6,7 +6,7 @@ Enterprise customers need an on-premise AI orchestration platform that:
 
 - Accepts signals from diverse input sources (webhooks, Slack, Kafka, CLI, etc.)
 - Routes them through a governed, observable agent loop
-- Produces outputs to configurable execution targets (Slack, Jira, email, PagerDuty, etc.)
+- Routes output through tools configured for the session
 - Enforces per-session auth, governance, and audit trails
 - Runs fully on-premises with zero external dependencies
 - Is extensible at every seam without modifying core code
@@ -59,10 +59,7 @@ Enterprise customers need an on-premise AI orchestration platform that:
     │          │  DB files)   │     └──────────────────┘
     │          └──────────────┘
     ▼
-┌──────────────────────────┐
-│    Execution Targets     │
-│ (Slack, Jira, Email, ...)│
-└──────────────────────────┘
+(output written by tool handler)
 ```
 
 ## 3. Layer Definitions
@@ -88,7 +85,6 @@ The heart of the system. Contains no infrastructure concerns.
 | `SignalSource` | Type + metadata about where the signal came from, including optional inline or referenced config overrides |
 | `SessionConfig` | Resolved effective config for a session — merged from global defaults and per-signal overrides (model, policy refs, prompt, skills) |
 | `ToolCall` | A tool invocation within an agent iteration |
-| `ExecutionTargetId` | Identifier for an output destination |
 | `PolicyDecision` | Result of a policy check (allow/deny with reason) |
 
 **Repository Ports (interfaces):**
@@ -118,7 +114,6 @@ Orchestrates domain objects to fulfill use cases.
 | `ReceiveSignal` | Called by the queue worker after dequeuing. Accepts authenticated signal, resolves config (merges global defaults with per-signal overrides). If signal carries a valid `session_id` and the source permits continuation, loads the existing session with new input appended; otherwise creates a new session. Routes to agent loop. |
 | `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
 | `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
-| `ProduceOutput` | Takes agent output, checks governance, dispatches to execution target |
 | `ListSessions` | Queries active/completed sessions |
 | `GetSessionLog` | Returns full observability trace for a session |
 | `ConfigurePolicy` | CRUD for policy rules |
@@ -138,14 +133,6 @@ Signal adapters receive raw input and may include optional per-signal config ove
 - `KafkaSignalSource` — Kafka consumer
 - `CliStdinSignalSource` — reads from stdin/pipe
 - `ScheduledPollerSignalSource` — cron-based polling
-
-**Execution Targets (`ExecutionTarget`):**
-
-- `StdoutExecutionTarget` — writes to stdout (dev/default)
-- `SlackExecutionTarget` — posts to Slack channel
-- `JiraExecutionTarget` — creates Jira tickets
-- `EmailExecutionTarget` — sends via SMTP
-- `PagerDutyExecutionTarget` — triggers PagerDuty alerts
 
 **Observability Providers (`ObservabilityProvider`):**
 
@@ -224,8 +211,7 @@ To add a new signal source: implement `SignalSource` → register in config. No 
    c. ObservabilityProvider records the iteration
    d. Repeat until agent produces final output
    > See `IMPLEMENTATION-CONSIDERATIONS.md` for how session auth is injected into custom tool calls via the `tool_call` extension event.
-9. Final output → PolicyEngine checks execution target permissions
-10. ExecutionTarget delivers the output
+9. Agent produces output via tools (e.g., a `reply_to_user` tool writes the response)
 11. Session is closed; full trace is persisted
 ```
 
@@ -268,13 +254,13 @@ Policy rules are evaluated at three gates:
 |------|------|----------------|
 | Session Start | After auth, before loop | Is this identity+source allowed to start a session? |
 | Tool Resolution | After session start, before loop | What tools is this session permitted to use? Only those tools are handed to the agent. |
-| Output | Before dispatch | Is this execution target permitted for this session? |
+
 
 > Custom tools that call external services receive session auth via the `tool_call` extension hook. See `IMPLEMENTATION-CONSIDERATIONS.md`.
 
 Policy rules are stored in SQLite and support:
 
-- **Allow/deny lists** — specific tools, targets, or sources
+- **Allow/deny lists** — specific tools or sources
 - **RBAC** — role-based (admin, operator, viewer)
 - **ABAC** — attribute-based (time of day, signal source type, identity claims)
 - **LLM-gated** — ask the LLM to evaluate (experimental)
@@ -304,7 +290,7 @@ Configuration is accessed through a `ConfigRepository` port. The `SharedSqliteCo
 
 Because every store is behind a domain port, no adapter has a fixed topology — the same `ConfigRepository` interface could be backed by YAML, a single SQLite file, or a Postgres table without touching application or domain code.
 
-Signals can carry optional per-signal overrides (inline or by reference) for model, policies, prompt, skills, and execution targets. `ConfigRepository.resolve()` merges these against global defaults before the session starts — signal values override global, unspecified fields fall through.
+Signals can carry optional per-signal overrides (inline or by reference) for model, policies, prompt, and skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts — signal values override global, unspecified fields fall through.
 
 ```yaml
 signal:
@@ -318,13 +304,6 @@ auth:
   type: jwt
   config:
     jwks_url: https://example.com/.well-known/jwks.json
-
-execution:
-  targets:
-    - type: jira
-      config:
-        base_url: https://company.atlassian.net
-        api_token: ${JIRA_TOKEN}
 
 observability:
   - type: opentelemetry
@@ -455,41 +434,42 @@ agent_iterations:
 
 ## 13. Supplemental: Bidirectional (Request-Response) Flow
 
-Some signal sources expect a response — HTTP returns 200 with a body, Slack replies in a thread, CLI prints to stdout. Others are fire-and-forget (Kafka, scheduled poller). The design accommodates both without domain changes.
+Some signal sources expect a response — HTTP returns 200 with a body, Slack replies in a thread, CLI prints to stdout. Others are fire-and-forget (Kafka, scheduled poller).
 
 ### Approach
 
-The signal source adapter attaches a response channel to the session context at ingress. The existing `ExecutionTarget` port routes output back through that channel rather than to an external destination.
+Each signal source config specifies a reply tool (e.g., `reply_to_user` for CLI). The agent strategy sets `ChatToolMode.RequireSpecific(replyTool)` on the chat options, forcing the LLM to call that tool whenever it produces a response. The reply tool handler writes the output to its configured destination (e.g., console for CLI, HTTP response for webhooks).
 
-| Signal Source | Response Execution Target | Mechanism |
-|---------------|--------------------------|-----------|
-| `HttpWebhookSignalSource` | `HttpResponseExecutionTarget` | Holds the `Response` object, writes body + status code |
-| `SlackSignalSource` | `SlackThreadExecutionTarget` | Posts to the same thread using the thread timestamp from the event |
-| `CliStdinSignalSource` | `StdoutExecutionTarget` | Already works — stdout is the natural reply channel |
-| `KafkaSignalSource` | *(none — fire-and-forget)* | Output goes to the configured external target |
-| `ScheduledPollerSignalSource` | *(none — fire-and-forget)* | Output goes to the configured external target |
+| Signal Source | Reply Tool | Mechanism |
+|---------------|------------|-----------|
+| `HttpWebhookSignalSource` | `reply_to_http` | Tool handler writes body + status code to the HTTP response |
+| `SlackSignalSource` | `reply_to_slack` | Tool handler posts to the Slack thread |
+| `CliStdinSignalSource` | `reply_to_user` | Tool handler writes to stdout |
+| `KafkaSignalSource` | *(none — fire-and-forget)* | No reply tool configured; agent uses `ChatToolMode.Auto` |
+| `ScheduledPollerSignalSource` | *(none — fire-and-forget)* | No reply tool configured; agent uses `ChatToolMode.Auto` |
 
 ### How it works
 
-The `ProduceOutput` use case checks the session's `SignalSource` metadata. If the source registered a response channel, output is dispatched to the corresponding response `ExecutionTarget`. If no response channel exists (fire-and-forget sources), output goes to the default execution target configured in policy.
+The `ReplyTool` property on `SignalSourceConfig` names the tool the agent must call to respond. The `SignalSourceConfigRepository` stores this per source type. When the agent strategy loads a session, it checks `config.ReplyTool`:
+
+- If set → `chatOptions.ToolMode = ChatToolMode.RequireSpecific(config.ReplyTool)` — the LLM is required to call that tool
+- If null → `chatOptions.ToolMode = ChatToolMode.Auto` — the LLM can use tools freely or respond with plain text
 
 ```
-Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ Output
+Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ reply tool writes output
 
      │                                                    │
      │  (bidirectional sources:                           │
      │   HTTP, Slack, CLI)                                │
      │                                                    ▼
-     └────────────────── response ──────────→ HttpResponseExecutionTarget
-                                              SlackThreadExecutionTarget
-                                              StdoutExecutionTarget
+     └─────────────────── session_id ────────────→ CLI/HTTP/Slack waits
 ```
 
 ### What changes
 
-- **`adapter/` only** — New `HttpResponseExecutionTarget`, `SlackThreadExecutionTarget`. Signal source adapters gain a small amount of wiring to pass a reply handle into the session context.
-- **`domain/`** — No changes. `Session.SignalSource` already carries source type and metadata. `ExecutionTarget` is already a port.
-- **`application/`** — `ProduceOutput` logic checks whether a response execution target should be selected based on signal source metadata. Single responsibility preserved.
+- **`adapter/` only** — Reply tools are registered in `IToolRegistry` alongside domain tools. Their handlers write to the output destination (console, HTTP response, Slack API). The agent strategy creates the `ChatOptions` with the appropriate `ToolMode`.
+- **`domain/`** — `SignalSourceConfig`, `AgentSessionConfig`, and `SessionRecord` gain an optional `ReplyTool` string field.
+- **`application/`** — `RunSessionUseCase` passes `ReplyTool` from config through to the session record. No separate output dispatch is needed.
 - **`infra/`** — Optional: response timeout wiring for HTTP to avoid dangling connections if the agent loop stalls.
 
 ## 14. Supplemental: Signal Queuing and Concurrent Processing
@@ -546,6 +526,6 @@ When one Node.js process isn't enough:
 
 - **`domain/signal-queue.ts`** — New `SignalQueue` port: `enqueue`, `dequeue`, `ack`, `nack`.
 - **`adapter/sqlite-signal-queue.ts`** — SQLite-backed adapter using the table above.
-- **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration → ProduceOutput flow per item.
+- **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration flow per item.
 - **`infra/`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
 - **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).

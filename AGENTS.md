@@ -66,7 +66,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 | Layer | Port | Adapters (examples) |
 |-------|------|---------------------|
 | **Signal/Input** | `SignalSource` | HTTP webhook, Slack, Kafka, CLI stdin, scheduled poller |
-| **Execution/Output** | `ExecutionTarget` | stdout, Slack message, Jira ticket, email, PagerDuty |
+| **Execution/Output** | *(tools handle output via `ToolBelt` + `ChatToolMode`)* | `reply_to_user`, Slack message, Jira ticket, email |
 | **Observability** | `ObservabilityProvider` | stdout logging, OpenTelemetry, DataDog, CloudWatch |
 | **Multi-Agent** | `AgentStrategy` | Single-agent, supervisor+worker, swarm, router |
 | **Configuration** | `ConfigRepository` | YAML file, SQLite |

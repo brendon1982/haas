@@ -26,14 +26,12 @@ public class RunSessionUseCaseTests
             .WithSessionId("sess-new")
             .Build();
         var strategy = new FakeStrategy(expected);
-        var target = new FakeTarget();
         var repo = new FakeSessionRepository();
         var configRepo = new FakeSignalSourceConfigRepository();
         await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
-            .WithTarget(target)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
@@ -52,10 +50,6 @@ public class RunSessionUseCaseTests
         Expect(record.SourceType).To.Equal(signal.Source);
         Expect(record.CreatedAt).To.Equal(time.UtcNow);
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
-
-        Expect(target.Delivered).Not.To.Be.Null();
-        Expect(target.Delivered!.Output).To.Equal(expected.Output);
-        Expect(target.Delivered!.SessionId).To.Equal(sessionId);
     }
 
     [Test]
@@ -80,7 +74,6 @@ public class RunSessionUseCaseTests
             .WithSessionId("sess-existing")
             .Build();
         var strategy = new FakeStrategy(expected);
-        var target = new FakeTarget();
         var repo = new FakeSessionRepository();
         await repo.SaveAsync(storedRecord);
         var configRepo = new FakeSignalSourceConfigRepository();
@@ -88,7 +81,6 @@ public class RunSessionUseCaseTests
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
-            .WithTarget(target)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
@@ -120,14 +112,12 @@ public class RunSessionUseCaseTests
             "cli", "ollama", "gemma4",
             "You are a helpful assistant.", ToolBelt.Empty, "off");
         var strategy = new FailingStrategy(new InvalidOperationException("fail"));
-        var target = new FakeTarget();
         var repo = new FakeSessionRepository();
         var configRepo = new FakeSignalSourceConfigRepository();
         await configRepo.SaveAsync(sourceConfig);
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
         var sut = UseCaseSutBuilder.Create()
             .WithStrategy(strategy)
-            .WithTarget(target)
             .WithRepository(repo)
             .WithConfigRepository(configRepo)
             .WithTimeProvider(time)
@@ -142,46 +132,6 @@ public class RunSessionUseCaseTests
         Expect(allRecords).To.Contain.Exactly(1);
         Expect(allRecords[0].Status).To.Equal("failed");
         Expect(allRecords[0].UpdatedAt).To.Equal(time.UtcNow);
-        Expect(target.Delivered).To.Be.Null();
-    }
-
-    [Test]
-    public async Task Execute_WhenTargetThrows_KeepsCompletedStatus()
-    {
-        // Arrange
-        var signal = SignalTestBuilder.Create()
-            .WithSource("cli")
-            .Build();
-        var sourceConfig = new SignalSourceConfig(
-            "cli", "ollama", "gemma4",
-            "You are a helpful assistant.", ToolBelt.Empty, "off");
-        var strategy = new FakeStrategy(
-            SessionResultTestBuilder.Create()
-                .WithOutput("ok")
-                .WithSessionId("sess-1")
-                .Build());
-        var target = new FailingTarget(new InvalidOperationException("delivery error"));
-        var repo = new FakeSessionRepository();
-        var configRepo = new FakeSignalSourceConfigRepository();
-        await configRepo.SaveAsync(sourceConfig);
-        var time = new FakeTimeProvider(new DateTimeOffset(2026, 6, 28, 12, 0, 0, TimeSpan.Zero));
-        var sut = UseCaseSutBuilder.Create()
-            .WithStrategy(strategy)
-            .WithTarget(target)
-            .WithRepository(repo)
-            .WithConfigRepository(configRepo)
-            .WithTimeProvider(time)
-            .Build();
-
-        // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal))
-            .To.Throw<InvalidOperationException>()
-            .With.Message.Containing("delivery error");
-
-        // strategy succeeded → status should be "completed" despite delivery failure
-        var allRecords = repo.AllRecords();
-        Expect(allRecords).To.Contain.Exactly(1);
-        Expect(allRecords[0].Status).To.Equal("completed");
     }
 
     [Test]
@@ -209,7 +159,6 @@ file sealed class UseCaseSutBuilder
             .WithOutput("default output")
             .WithSessionId("sess-default")
             .Build());
-    private IExecutionTarget _target = new FakeTarget();
     private ISessionRepository _repository = new FakeSessionRepository();
     private ISignalSourceConfigRepository _configRepository = new FakeSignalSourceConfigRepository();
     private TimeProvider _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
@@ -221,12 +170,6 @@ file sealed class UseCaseSutBuilder
     public UseCaseSutBuilder WithStrategy(IAgentStrategy strategy)
     {
         _strategy = strategy;
-        return this;
-    }
-
-    public UseCaseSutBuilder WithTarget(IExecutionTarget target)
-    {
-        _target = target;
         return this;
     }
 
@@ -248,7 +191,7 @@ file sealed class UseCaseSutBuilder
         return this;
     }
 
-    public RunSessionUseCase Build() => new(_strategy, _target, _repository, _configRepository, _timeProvider);
+    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _timeProvider);
 }
 
 file sealed class FakeSessionRepository : ISessionRepository
@@ -287,22 +230,6 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
     public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId)
         => throw error;
-}
-
-file sealed class FakeTarget : IExecutionTarget
-{
-    public SessionResult? Delivered { get; private set; }
-
-    public Task DeliverAsync(SessionResult result)
-    {
-        Delivered = result;
-        return Task.CompletedTask;
-    }
-}
-
-file sealed class FailingTarget(Exception error) : IExecutionTarget
-{
-    public Task DeliverAsync(SessionResult result) => throw error;
 }
 
 file sealed class FakeSignalSourceConfigRepository : ISignalSourceConfigRepository

@@ -7,20 +7,17 @@ namespace HaaS.Application.UseCases;
 public class RunSessionUseCase
 {
     private readonly IAgentStrategy _agentStrategy;
-    private readonly IExecutionTarget _executionTarget;
     private readonly ISessionRepository _sessionRepository;
     private readonly ISignalSourceConfigRepository _signalSourceConfigRepository;
     private readonly TimeProvider _timeProvider;
 
     public RunSessionUseCase(
         IAgentStrategy agentStrategy,
-        IExecutionTarget executionTarget,
         ISessionRepository sessionRepository,
         ISignalSourceConfigRepository signalSourceConfigRepository,
         TimeProvider timeProvider)
     {
         _agentStrategy = agentStrategy;
-        _executionTarget = executionTarget;
         _sessionRepository = sessionRepository;
         _signalSourceConfigRepository = signalSourceConfigRepository;
         _timeProvider = timeProvider;
@@ -46,7 +43,8 @@ public class RunSessionUseCase
                 JsonSerializer.Serialize(config.ToolBelt),
                 config.ThinkingLevel,
                 now,
-                now);
+                now,
+                config.ReplyTool);
             await _sessionRepository.SaveAsync(record);
         }
 
@@ -82,7 +80,6 @@ public class RunSessionUseCase
             await _sessionRepository.SaveAsync(updated);
         }
 
-        await _executionTarget.DeliverAsync(result);
         return result.SessionId;
     }
 
