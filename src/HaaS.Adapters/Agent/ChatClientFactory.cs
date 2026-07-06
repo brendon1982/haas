@@ -8,15 +8,18 @@ public sealed class ChatClientFactory : IChatClientFactory
 {
     private readonly IProviderConfigRepository _configRepo;
     private readonly Dictionary<string, Func<ProviderConfig, string, IChatClient>> _factories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Action<ChatOptions, AgentSessionConfig>> _optionConfigurators = new(StringComparer.OrdinalIgnoreCase);
 
     public ChatClientFactory(IProviderConfigRepository configRepo)
     {
         _configRepo = configRepo;
     }
 
-    public ChatClientFactory Register(string provider, Func<ProviderConfig, string, IChatClient> factory)
+    public ChatClientFactory Register(string provider, Func<ProviderConfig, string, IChatClient> factory, Action<ChatOptions, AgentSessionConfig>? configureOptions = null)
     {
         _factories[provider] = factory;
+        if (configureOptions is not null)
+            _optionConfigurators[provider] = configureOptions;
         return this;
     }
 
@@ -41,5 +44,11 @@ public sealed class ChatClientFactory : IChatClientFactory
         }
 
         return factory(config, modelId);
+    }
+
+    public void ConfigureOptions(string provider, ChatOptions options, AgentSessionConfig config)
+    {
+        if (_optionConfigurators.TryGetValue(provider, out var configurator))
+            configurator(options, config);
     }
 }

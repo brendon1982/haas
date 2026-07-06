@@ -54,7 +54,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         var chatClient = await _chatClientFactory.CreateAsync(config.Provider, config.ModelId);
 
         var chatOptions = new ChatOptions();
-        chatOptions.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
+        _chatClientFactory.ConfigureOptions(config.Provider, chatOptions, config);
         if (config.ToolBelt.Tools.Count > 0)
         {
             chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();

@@ -412,6 +412,8 @@ file sealed class FakeChatClientFactory(IChatClient client) : IChatClientFactory
         LastModelId = modelId;
         return Task.FromResult(client);
     }
+
+    public void ConfigureOptions(string provider, ChatOptions options, AgentSessionConfig config) { }
 }
 
 file sealed class InMemorySessionRepository : ISessionRepository

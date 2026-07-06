@@ -3,6 +3,7 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
+using Microsoft.Extensions.AI;
 using OllamaSharp;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,8 +42,13 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
 ));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();
-clientFactory.Register("ollama", (providerConfig, mdlId) =>
-    new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId));
+clientFactory.Register("ollama",
+    (providerConfig, mdlId) => new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId),
+    (options, config) =>
+    {
+        if (config.ThinkingLevel is not null and not "off")
+            options.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
+    });
 
 Console.CancelKeyPress += (_, e) =>
 {
