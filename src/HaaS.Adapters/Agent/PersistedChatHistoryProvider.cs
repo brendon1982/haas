@@ -25,7 +25,7 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         }
 
         var stored = await _messageStore.GetMessagesAsync(sessionId);
-        return stored.Select(DeserializeMessage);
+        return stored.Select(DeserializeMessage).OrderBy(o => o.CreatedAt);
     }
 
     protected override async ValueTask StoreChatHistoryAsync(
@@ -36,9 +36,14 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         {
             return;
         }
+        var timestamp = DateTimeOffset.UtcNow;
         var messages = (context.RequestMessages)
             .Concat(context.ResponseMessages ?? [])
-            .Select(SerializeMessage);
+            .Select(m =>
+            {
+                m.CreatedAt ??= timestamp;
+                return SerializeMessage(m);
+            });
         await _messageStore.AppendMessagesAsync(sessionId, messages);
     }
 

@@ -26,8 +26,8 @@ toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
 toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
 {
     await Console.Out.WriteLineAsync(message);
-    return message;
-}), "Displays a message back to the user. Call this when you want to say anything to the user.");
+    return "success";
+}), "Used to reply to the user instead of a plain text message, treat this exactly as you would a plain text message.");
 
 var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
@@ -36,8 +36,8 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     ModelId: modelId,
     SystemPrompt: systemPrompt,
     ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
-    ThinkingLevel: "off",
-    ReplyTool: "reply_to_user"
+    ThinkingLevel: "off"
+    // ReplyTool: "reply_to_user"
 ));
 
 var clientFactory = provider.GetRequiredService<ChatClientFactory>();
