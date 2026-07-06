@@ -6,20 +6,25 @@ using HaaS.Infrastructure;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 using Microsoft.Extensions.DependencyInjection;
+using OpenAI;
 
 var modelId = args.Length > 0 ? args[0] : "gemma4";
+var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
     : "You are an assistant taking part in a long running asynchronous conversation. You can only reply via the `reply_to_user` tool. Once you have replied using the `reply_to_user` tool reply with `waiting for user reply` so that the systems knows you are ready for a user message. DO NOT spam the user with multiple replies, reply once, then wait for their response. You will have to repeat this pattern throughout the conversation.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
-var provider = services.BuildServiceProvider();
+var serviceProvider = services.BuildServiceProvider();
 
-var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
+var configRepo = serviceProvider.GetRequiredService<IProviderConfigRepository>();
 await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
+var openRouterApiKey = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_API_KEY");
+var openRouterEndpoint = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_ENDPOINT") ?? "https://openrouter.ai/api/v1";
+await configRepo.SaveAsync(new ProviderConfig("openrouter", openRouterEndpoint, openRouterApiKey));
 
-var toolRegistry = provider.GetRequiredService<IToolRegistry>();
+var toolRegistry = serviceProvider.GetRequiredService<IToolRegistry>();
 toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
     $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
     "Gets the current UTC time for a given timezone");
@@ -30,10 +35,10 @@ toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async messag
     return "Your message has been delivered to the user.";
 }), "Sends a message to the user.");
 
-var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
+var signalSourceConfigRepo = serviceProvider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     SourceType: "cli",
-    Provider: "ollama",
+    Provider: providerName,
     ModelId: modelId,
     SystemPrompt: systemPrompt,
     ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
@@ -41,13 +46,22 @@ await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     // ReplyTool: "reply_to_user"
 ));
 
-var clientFactory = provider.GetRequiredService<ChatClientFactory>();
+var clientFactory = serviceProvider.GetRequiredService<ChatClientFactory>();
 clientFactory.Register("ollama",
     (providerConfig, mdlId) => new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId),
     (options, config) =>
     {
         if (config.ThinkingLevel is not null and not "off")
             options.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
+    });
+
+clientFactory.Register("openrouter",
+    (providerConfig, mdlId) =>
+    {
+        var openAiOptions = new OpenAIClientOptions { Endpoint = new Uri(providerConfig.Endpoint) };
+        var credential = new System.ClientModel.ApiKeyCredential(providerConfig.ApiKey!);
+        var chatClient = new OpenAI.Chat.ChatClient(mdlId, credential, openAiOptions);
+        return chatClient.AsIChatClient();
     });
 
 Console.CancelKeyPress += (_, e) =>
@@ -62,8 +76,8 @@ Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
 Console.Out.Write("> ");
 Console.Out.Flush();
 
-var useCase = provider.GetRequiredService<RunSessionUseCase>();
-var signalSource = provider.GetRequiredService<ISignalSource>();
+var useCase = serviceProvider.GetRequiredService<RunSessionUseCase>();
+var signalSource = serviceProvider.GetRequiredService<ISignalSource>();
 
 string? sessionId = null;
 await signalSource.ListenAsync(async signal =>
