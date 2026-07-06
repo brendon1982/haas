@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 var modelId = args.Length > 0 ? args[0] : "gemma4";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
-    : "You are an assistant taking part in a long running asynchronous conversation. You can only reply via the `reply_to_user` tool. Once you have replied using the `reply_to_user` tool reply with `waiting for user reply` so that the systems knows you are ready for a user message. You will have to repeat this pattern throughout the conversation. You can reply multiple times before receiving a user reply, however, DO NOT spam the user, only reply as many times as is needed.";
+    : "You are an assistant taking part in a long running asynchronous conversation. You can only reply via the `reply_to_user` tool. Once you have replied using the `reply_to_user` tool say `waiting for user reply` so that the systems knows you are ready for a user message. You will have to repeat this pattern throughout the conversation. You can reply multiple times before receiving a user reply, however, DO NOT spam the user, only reply as many times as is needed.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
