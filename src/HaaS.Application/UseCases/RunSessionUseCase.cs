@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
@@ -10,20 +8,17 @@ public class RunSessionUseCase
     private readonly IAgentStrategy _agentStrategy;
     private readonly ISessionRepository _sessionRepository;
     private readonly ISignalSourceConfigRepository _signalSourceConfigRepository;
-    private readonly IMessageStore _messageStore;
     private readonly TimeProvider _timeProvider;
 
     public RunSessionUseCase(
         IAgentStrategy agentStrategy,
         ISessionRepository sessionRepository,
         ISignalSourceConfigRepository signalSourceConfigRepository,
-        IMessageStore messageStore,
         TimeProvider timeProvider)
     {
         _agentStrategy = agentStrategy;
         _sessionRepository = sessionRepository;
         _signalSourceConfigRepository = signalSourceConfigRepository;
-        _messageStore = messageStore;
         _timeProvider = timeProvider;
     }
 
@@ -44,19 +39,12 @@ public class RunSessionUseCase
                 config.Provider,
                 config.ModelId,
                 config.SystemPrompt,
-                JsonSerializer.Serialize(config.ToolBelt),
+                System.Text.Json.JsonSerializer.Serialize(config.ToolBelt),
                 config.ThinkingLevel,
                 now,
                 now,
                 config.ReplyTool);
             await _sessionRepository.SaveAsync(record);
-
-            if (!string.IsNullOrEmpty(config.SystemPrompt))
-            {
-                await _messageStore.AppendMessagesAsync(
-                    sessionId,
-                    [JsonSerializer.Serialize(new { Role = "system", Content = config.SystemPrompt })]);
-            }
         }
 
         SessionResult result;

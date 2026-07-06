@@ -53,6 +53,39 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
+    public async Task Execute_SeedsSystemPromptOnNewSession()
+    {
+        // Arrange
+        var sessionId = "sess-new";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithSystemPrompt("You are a helpful bot.")
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+        var chatClient = new FakeChatClient("response");
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(signal, sessionId);
+
+        // Assert
+        var messages = await messageStore.GetMessagesAsync(sessionId);
+        var systemMessage = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
+        Expect(systemMessage!.Role.Value).To.Equal("system");
+        Expect(systemMessage.Text).To.Equal("You are a helpful bot.");
+    }
+
+    [Test]
     public async Task Execute_PassesProviderAndModelIdToFactory()
     {
         // Arrange
@@ -151,9 +184,9 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(factory.LastProvider).To.Equal("ollama");
         Expect(factory.LastModelId).To.Equal("gemma4");
 
-        // 2 turns × (1 user + 1 assistant); system prompt seeded by use case, not strategy
+        // system prompt seeded once + 2 turns × (1 user + 1 assistant)
         var messages = await messageStore.GetMessagesAsync(sessionId);
-        Expect(messages.Count).To.Equal(4);
+        Expect(messages.Count).To.Equal(5);
     }
 
     [Test]
@@ -417,6 +450,16 @@ file sealed class InMemorySessionMessageStore : IMessageStore
         var list = _store.GetOrAdd(sessionId, _ => []);
         list.AddRange(messages);
         return Task.CompletedTask;
+    }
+
+    public Task<int> GetMessageCountAsync(string sessionId)
+    {
+        if (_store.TryGetValue(sessionId, out var messages))
+        {
+            return Task.FromResult(messages.Count);
+        }
+
+        return Task.FromResult(0);
     }
 }
 

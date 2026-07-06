@@ -1,6 +1,5 @@
 #pragma warning disable MAAI001
 
-using System.Text.Json;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
@@ -23,8 +22,8 @@ public class PersistedChatHistoryProviderTests
         var sessionId = "test-session";
         await store.AppendMessagesAsync(sessionId,
         [
-            JsonSerializer.Serialize(new { Role = "user", Content = "stored question" }),
-            JsonSerializer.Serialize(new { Role = "assistant", Content = "stored answer" })
+            System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.User, "stored question")),
+            System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.Assistant, "stored answer"))
         ]);
 
         var sut = new PersistedChatHistoryProvider(store);
@@ -85,10 +84,10 @@ public class PersistedChatHistoryProviderTests
         // Assert
         var messages = await store.GetMessagesAsync(sessionId);
         Expect(messages.Count).To.Equal(2);
-        var deserialized0 = JsonSerializer.Deserialize<TestMessageDto>(messages[0]);
-        var deserialized1 = JsonSerializer.Deserialize<TestMessageDto>(messages[1]);
-        Expect(deserialized0!.Content).To.Equal("new question");
-        Expect(deserialized1!.Content).To.Equal("new answer");
+        var deserialized0 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
+        var deserialized1 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[1]);
+        Expect(deserialized0!.Text).To.Equal("new question");
+        Expect(deserialized1!.Text).To.Equal("new answer");
     }
 
     [Test]
@@ -137,8 +136,6 @@ public class PersistedChatHistoryProviderTests
 }
 
 // --- harness (local) ---
-
-file sealed record TestMessageDto(string Role, string Content);
 
 file sealed class StubChatClient : IChatClient
 {

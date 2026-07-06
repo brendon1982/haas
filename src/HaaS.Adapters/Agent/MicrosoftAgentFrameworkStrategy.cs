@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
@@ -32,6 +33,17 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             ?? throw new InvalidOperationException($"Session {sessionId} not found.");
 
         var config = record.ToConfig();
+
+        if (!string.IsNullOrEmpty(config.SystemPrompt))
+        {
+            var count = await _messageStore.GetMessageCountAsync(sessionId);
+            if (count == 0)
+            {
+                await _messageStore.AppendMessagesAsync(
+                    sessionId,
+                    [JsonSerializer.Serialize(new ChatMessage(new ChatRole("system"), config.SystemPrompt))]);
+            }
+        }
 
         if (!_chatClientFactory.CanCreate(config.Provider))
         {

@@ -53,15 +53,8 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
     }
 
     private static ChatMessage DeserializeMessage(string data)
-    {
-        var dto = JsonSerializer.Deserialize<MessageDto>(data);
-        return new ChatMessage(new ChatRole(dto!.Role), dto.Content);
-    }
+        => JsonSerializer.Deserialize<ChatMessage>(data)!;
 
     private static string SerializeMessage(ChatMessage message)
-    {
-        return JsonSerializer.Serialize(new MessageDto(message.Role.ToString(), message.Text));
-    }
-
-    private record MessageDto(string Role, string Content);
+        => JsonSerializer.Serialize(message);
 }

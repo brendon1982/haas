@@ -23,4 +23,14 @@ public class InMemorySessionMessageStore : IMessageStore
         list.AddRange(messages);
         return Task.CompletedTask;
     }
+
+    public Task<int> GetMessageCountAsync(string sessionId)
+    {
+        if (_store.TryGetValue(sessionId, out var messages))
+        {
+            return Task.FromResult(messages.Count);
+        }
+
+        return Task.FromResult(0);
+    }
 }
