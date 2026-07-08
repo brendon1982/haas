@@ -45,7 +45,7 @@ public class TicTacToeModule : ICliModule
                 return $"Position {position} is not available. Choose from: {FormatValidMoves(board)}.";
             board[position - 1] = 'O';
             hasMovedThisTurn = true;
-            return $"Placed O at position {position}.";
+            return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
         }, "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.");
 
         var systemPrompt = """
