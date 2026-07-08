@@ -6,10 +6,9 @@ public record SignalSourceConfig(
     string ModelId,
     string SystemPrompt,
     ToolBelt ToolBelt,
-    string ThinkingLevel,
-    string? ReplyTool = null
+    string ThinkingLevel
 )
 {
     public AgentSessionConfig ToSessionConfig() => new(
-        Provider, ModelId, SystemPrompt, ToolBelt, ThinkingLevel, ReplyTool);
+        Provider, ModelId, SystemPrompt, ToolBelt, ThinkingLevel);
 }

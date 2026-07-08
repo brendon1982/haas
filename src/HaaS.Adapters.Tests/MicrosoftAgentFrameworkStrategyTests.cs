@@ -40,11 +40,15 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        var result = await sut.ExecuteAsync(signal, sessionId);
+        var presenter = new RecordingPresenter();
+        var result = await sut.ExecuteAsync(signal, sessionId, presenter);
 
         // Assert
         Expect(result.Output).To.Equal(expectedOutput);
         Expect(result.SessionId).To.Equal(sessionId);
+        Expect(presenter.Results).To.Contain.Exactly(1);
+        Expect(presenter.Results[0].Output).To.Equal(expectedOutput);
+        Expect(presenter.Results[0].SessionId).To.Equal(sessionId);
 
         var messages = await messageStore.GetMessagesAsync(sessionId);
         Expect(messages.Count).Not.To.Equal(0);
@@ -76,7 +80,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId);
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
 
         // Assert
         var messages = await messageStore.GetMessagesAsync(sessionId);
@@ -113,7 +117,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId);
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
 
         // Assert
         Expect(factory.LastProvider).To.Equal("openai");
@@ -138,7 +142,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, "nonexistent"))
+        Expect(async () => await sut.ExecuteAsync(signal, "nonexistent", new RecordingPresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("nonexistent");
     }
@@ -166,20 +170,24 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act - first turn
+        var presenter = new RecordingPresenter();
         var signal1 = SignalTestBuilder.Create()
             .WithPayload("first turn")
             .Build();
-        var result1 = await sut.ExecuteAsync(signal1, sessionId);
+        var result1 = await sut.ExecuteAsync(signal1, sessionId, presenter);
 
         // Act - second turn
         var signal2 = SignalTestBuilder.Create()
             .WithPayload("second turn")
             .Build();
-        var result2 = await sut.ExecuteAsync(signal2, sessionId);
+        var result2 = await sut.ExecuteAsync(signal2, sessionId, presenter);
 
         // Assert
         Expect(result1.SessionId).To.Equal(sessionId);
         Expect(result2.SessionId).To.Equal(sessionId);
+        Expect(presenter.Results).To.Contain.Exactly(2);
+        Expect(presenter.Results[0].Output).To.Equal(expectedResponse);
+        Expect(presenter.Results[1].Output).To.Equal(expectedResponse);
         Expect(factory.CallCount).To.Equal(2);
         Expect(factory.LastProvider).To.Equal("ollama");
         Expect(factory.LastModelId).To.Equal("gemma4");
@@ -218,7 +226,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId);
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
 
         // Assert
         var lastOptions = capturedOptions.LastOrDefault();
@@ -226,85 +234,22 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(lastOptions!.Tools).Not.To.Be.Null();
         Expect(lastOptions.Tools.Count).To.Equal(1);
         Expect(lastOptions.Tools[0].Name).To.Equal("test_tool");
-    }
-
-    [Test]
-    public async Task Execute_WithReplyTool_SetsRequireSpecificMode()
-    {
-        // Arrange
-        var sessionId = "sess-1";
-        var record = SessionRecordTestBuilder.Create()
-            .WithSessionId(sessionId)
-            .WithToolBelt(new ToolBelt(["test_tool"]))
-            .WithReplyTool("reply_to_user")
-            .Build();
-        var repo = new InMemorySessionRepository();
-        await repo.SaveAsync(record);
-        var capturedOptions = new List<ChatOptions?>();
-        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
-        var factory = new FakeChatClientFactory(chatClient);
-        var messageStore = new InMemorySessionMessageStore();
-        var toolRegistry = new FakeToolRegistry();
-        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
-        var sut = StrategySutBuilder.Create()
-            .WithChatClientFactory(factory)
-            .WithRepository(repo)
-            .WithMessageStore(messageStore)
-            .WithToolRegistry(toolRegistry)
-            .Build();
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("hi")
-            .Build();
-
-        // Act
-        await sut.ExecuteAsync(signal, sessionId);
-
-        // Assert
-        var lastOptions = capturedOptions.LastOrDefault();
-        Expect(lastOptions).Not.To.Be.Null();
-        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.RequireSpecific("reply_to_user"));
-        Expect(lastOptions.Tools).Not.To.Be.Null();
-        Expect(lastOptions.Tools!.Any(t => t.Name == "reply_to_user")).To.Be.False();
-    }
-
-    [Test]
-    public async Task Execute_WithoutReplyTool_SetsRequireAnyMode()
-    {
-        // Arrange
-        var sessionId = "sess-1";
-        var record = SessionRecordTestBuilder.Create()
-            .WithSessionId(sessionId)
-            .WithToolBelt(new ToolBelt(["test_tool"]))
-            .Build();
-        var repo = new InMemorySessionRepository();
-        await repo.SaveAsync(record);
-        var capturedOptions = new List<ChatOptions?>();
-        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
-        var factory = new FakeChatClientFactory(chatClient);
-        var messageStore = new InMemorySessionMessageStore();
-        var toolRegistry = new FakeToolRegistry();
-        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
-        var sut = StrategySutBuilder.Create()
-            .WithChatClientFactory(factory)
-            .WithRepository(repo)
-            .WithMessageStore(messageStore)
-            .WithToolRegistry(toolRegistry)
-            .Build();
-        var signal = SignalTestBuilder.Create()
-            .WithPayload("hi")
-            .Build();
-
-        // Act
-        await sut.ExecuteAsync(signal, sessionId);
-
-        // Assert
-        var lastOptions = capturedOptions.LastOrDefault();
-        Expect(lastOptions).Not.To.Be.Null();
-        Expect(lastOptions!.ToolMode).To.Equal(ChatToolMode.RequireAny);
+        Expect(lastOptions.ToolMode).To.Be.Null();
     }
 }
 
 // --- harness (local) ---
+
+file sealed class RecordingPresenter : ISignalPresenter
+{
+    public List<SessionResult> Results { get; } = [];
+
+    public Task PresentAsync(SessionResult result)
+    {
+        Results.Add(result);
+        return Task.CompletedTask;
+    }
+}
 
 file sealed class StrategySutBuilder
 {

@@ -4,5 +4,5 @@ namespace HaaS.Domain.Ports;
 
 public interface IAgentStrategy
 {
-    Task<SessionResult> ExecuteAsync(Signal signal, string sessionId);
+    Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter);
 }

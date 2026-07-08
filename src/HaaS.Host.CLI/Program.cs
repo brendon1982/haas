@@ -8,11 +8,11 @@ using OllamaSharp;
 using Microsoft.Extensions.DependencyInjection;
 using OpenAI;
 
-var modelId = args.Length > 0 ? args[0] : "gemma4";
-var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
+var modelId = args.Length > 0 ? args[0] : "cohere/north-mini-code:free";
+var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
-    : "You are an assistant taking part in a long running asynchronous conversation. You can only reply via the `reply_to_user` tool. Once you have replied using the `reply_to_user` tool reply with `waiting for user reply` so that the systems knows you are ready for a user message. DO NOT spam the user with multiple replies, reply once, then wait for their response. You will have to repeat this pattern throughout the conversation.";
+    : "You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.";
 
 var services = new ServiceCollection();
 services.AddHaasCore();
@@ -29,21 +29,14 @@ toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
     $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
     "Gets the current UTC time for a given timezone");
 
-toolRegistry.Register("reply_to_user", (Func<string, Task<string>>)(async message =>
-{
-    await Console.Out.WriteLineAsync(message);
-    return "Your message has been delivered to the user.";
-}), "Sends a message to the user.");
-
 var signalSourceConfigRepo = serviceProvider.GetRequiredService<ISignalSourceConfigRepository>();
 await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
     SourceType: "cli",
     Provider: providerName,
     ModelId: modelId,
     SystemPrompt: systemPrompt,
-    ToolBelt: new ToolBelt(["get_time", "reply_to_user"]),
+    ToolBelt: new ToolBelt(["get_time"]),
     ThinkingLevel: "off"
-    // ReplyTool: "reply_to_user"
 ));
 
 var clientFactory = serviceProvider.GetRequiredService<ChatClientFactory>();
@@ -78,11 +71,12 @@ Console.Out.Flush();
 
 var useCase = serviceProvider.GetRequiredService<RunSessionUseCase>();
 var signalSource = serviceProvider.GetRequiredService<ISignalSource>();
+var presenter = new CliSignalPresenter();
 
 string? sessionId = null;
 await signalSource.ListenAsync(async signal =>
 {
     var signalWithSession = signal with { SessionId = sessionId };
-    sessionId = await useCase.ExecuteAsync(signalWithSession);
+    sessionId = await useCase.ExecuteAsync(signalWithSession, presenter);
 });
 

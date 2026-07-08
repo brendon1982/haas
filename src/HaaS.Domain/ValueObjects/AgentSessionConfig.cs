@@ -5,6 +5,5 @@ public record AgentSessionConfig(
     string ModelId,
     string SystemPrompt,
     ToolBelt ToolBelt,
-    string ThinkingLevel,
-    string? ReplyTool = null
+    string ThinkingLevel
 );

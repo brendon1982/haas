@@ -38,7 +38,7 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(signal);
+        var sessionId = await sut.ExecuteAsync(signal, new FakePresenter());
 
         // Assert
         var record = await repo.LoadAsync(sessionId);
@@ -87,7 +87,7 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(signal);
+        var sessionId = await sut.ExecuteAsync(signal, new FakePresenter());
 
         // Assert
         Expect(sessionId).To.Equal("sess-existing");
@@ -124,7 +124,7 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal))
+        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("fail");
 
@@ -144,7 +144,7 @@ public class RunSessionUseCaseTests
         var sut = UseCaseSutBuilder.Create().Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal))
+        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("unknown");
     }
@@ -222,14 +222,19 @@ file sealed class FakeTimeProvider(DateTimeOffset fixedTime) : TimeProvider
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId)
+    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
         => Task.FromResult(result with { SessionId = sessionId });
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId)
+    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
         => throw error;
+}
+
+file sealed class FakePresenter : ISignalPresenter
+{
+    public Task PresentAsync(SessionResult result) => Task.CompletedTask;
 }
 
 file sealed class FakeSignalSourceConfigRepository : ISignalSourceConfigRepository

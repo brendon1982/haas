@@ -4,7 +4,6 @@ using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
-using SessionResultValue = HaaS.Domain.ValueObjects.SessionResult;
 
 namespace HaaS.Adapters.Agent;
 
@@ -27,7 +26,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         _toolRegistry = toolRegistry;
     }
 
-    public async Task<SessionResultValue> ExecuteAsync(SignalValue signal, string sessionId)
+    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
     {
         var record = await _sessionRepository.LoadAsync(sessionId)
             ?? throw new InvalidOperationException($"Session {sessionId} not found.");
@@ -60,15 +59,6 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();
         }
 
-        if (config.ReplyTool is not null)
-        {
-            chatOptions.ToolMode = ChatToolMode.RequireSpecific(config.ReplyTool);
-        }
-        else if (chatOptions.Tools?.Count > 0)
-        {
-            chatOptions.ToolMode = ChatToolMode.RequireAny;
-        }
-
         var agent = new ChatClientAgent(
             chatClient,
             new ChatClientAgentOptions
@@ -85,8 +75,9 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var response = await agent.RunAsync(messages, session);
 
-        return new SessionResultValue(
-            Output: response.Text,
-            SessionId: sessionId);
+        var result = new SessionResult(Output: response.Text, SessionId: sessionId);
+        await presenter.PresentAsync(result);
+
+        return result;
     }
 }
