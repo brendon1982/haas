@@ -42,7 +42,7 @@ public class ChatModule : ICliModule
             ModelId: modelId,
             SystemPrompt: "You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.",
             ToolBelt: new ToolBelt(["get_time"]),
-            ThinkingLevel: "off"
+            ThinkingLevel: "on"
         ));
 
         var clientFactory = provider.GetRequiredService<ChatClientFactory>();
