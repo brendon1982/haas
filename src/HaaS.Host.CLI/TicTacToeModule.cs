@@ -21,8 +21,8 @@ public class TicTacToeModule : ICliModule
         services.AddHaasCore();
         var provider = services.BuildServiceProvider();
 
-        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
-        var modelId = "gemma4:12b";
+        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
+        var modelId = "cohere/north-mini-code:free";
 
         var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
         await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
@@ -32,17 +32,21 @@ public class TicTacToeModule : ICliModule
 
         var board = new char[9];
         Array.Fill(board, ' ');
+        var hasMovedThisTurn = false;
 
         var toolRegistry = provider.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_board", () => FormatBoard(board), "Returns the current Tic-Tac-Toe board as a formatted string.");
         toolRegistry.Register("get_valid_moves", () => FormatValidMoves(board), "Returns a comma-separated list of available positions (1-9).");
         toolRegistry.Register("place_marker", (int position) =>
         {
+            if (hasMovedThisTurn)
+                return $"You have already placed your marker this turn. You are O and you already played position {position}. Wait for the next turn.";
             if (position < 1 || position > 9 || board[position - 1] != ' ')
                 return $"Position {position} is not available. Choose from: {FormatValidMoves(board)}.";
             board[position - 1] = 'O';
+            hasMovedThisTurn = true;
             return $"Placed O at position {position}.";
-        }, "Places your O marker at the specified position (1-9). Call this to make your move.");
+        }, "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.");
 
         var systemPrompt = """
             You are a Tic-Tac-Toe AI playing as 'O'. Your opponent is 'X'.
@@ -79,7 +83,7 @@ public class TicTacToeModule : ICliModule
             ModelId: modelId,
             SystemPrompt: systemPrompt,
             ToolBelt: new ToolBelt(["get_board", "get_valid_moves", "place_marker"]),
-            ThinkingLevel: "off"
+            ThinkingLevel: "on"
         ));
 
         var clientFactory = provider.GetRequiredService<ChatClientFactory>();
@@ -154,9 +158,10 @@ public class TicTacToeModule : ICliModule
                 Console.Write("AI is thinking");
                 _ = Console.Out.FlushAsync();
 
+                hasMovedThisTurn = false;
                 var boardBefore = board.ToArray();
                 var signal = new Signal(
-                    $"The player (X) just moved at position {pos}.\n\nCurrent board:\n{FormatBoard(board)}\n\nIt's your turn (O). Make your move.",
+                    $"The player (X) just moved at position {pos}. It's your turn (O). Make your move.",
                     "cli",
                     presenter.LastSessionId);
 
