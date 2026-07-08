@@ -41,11 +41,9 @@ public class MicrosoftAgentFrameworkStrategyTests
 
         // Act
         var presenter = new RecordingPresenter();
-        var result = await sut.ExecuteAsync(signal, sessionId, presenter);
+        await sut.ExecuteAsync(signal, sessionId, presenter);
 
         // Assert
-        Expect(result.Output).To.Equal(expectedOutput);
-        Expect(result.SessionId).To.Equal(sessionId);
         Expect(presenter.Results).To.Contain.Exactly(1);
         Expect(presenter.Results[0].Output).To.Equal(expectedOutput);
         Expect(presenter.Results[0].SessionId).To.Equal(sessionId);
@@ -174,18 +172,18 @@ public class MicrosoftAgentFrameworkStrategyTests
         var signal1 = SignalTestBuilder.Create()
             .WithPayload("first turn")
             .Build();
-        var result1 = await sut.ExecuteAsync(signal1, sessionId, presenter);
+        await sut.ExecuteAsync(signal1, sessionId, presenter);
 
         // Act - second turn
         var signal2 = SignalTestBuilder.Create()
             .WithPayload("second turn")
             .Build();
-        var result2 = await sut.ExecuteAsync(signal2, sessionId, presenter);
+        await sut.ExecuteAsync(signal2, sessionId, presenter);
 
         // Assert
-        Expect(result1.SessionId).To.Equal(sessionId);
-        Expect(result2.SessionId).To.Equal(sessionId);
         Expect(presenter.Results).To.Contain.Exactly(2);
+        Expect(presenter.Results[0].SessionId).To.Equal(sessionId);
+        Expect(presenter.Results[1].SessionId).To.Equal(sessionId);
         Expect(presenter.Results[0].Output).To.Equal(expectedResponse);
         Expect(presenter.Results[1].Output).To.Equal(expectedResponse);
         Expect(factory.CallCount).To.Equal(2);

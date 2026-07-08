@@ -18,7 +18,7 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
         _logger = logger;
     }
 
-    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public async Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
     {
         using var activity = ActivitySource.StartActivity("AgentExecute");
         activity?.SetTag("signal.source", signal.Source);
@@ -29,15 +29,13 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
 
         try
         {
-            var result = await _inner.ExecuteAsync(signal, sessionId, presenter);
+            await _inner.ExecuteAsync(signal, sessionId, presenter);
             sw.Stop();
 
-            activity?.SetTag("session.id", result.SessionId);
+            activity?.SetTag("session.id", sessionId);
             activity?.SetTag("duration_ms", sw.ElapsedMilliseconds);
 
-            _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", result.SessionId, sw.ElapsedMilliseconds);
-
-            return result;
+            _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", sessionId, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {

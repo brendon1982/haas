@@ -38,10 +38,11 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(signal, new FakePresenter());
+        var presenter = new FakePresenter();
+        await sut.ExecuteAsync(signal, presenter);
 
         // Assert
-        var record = await repo.LoadAsync(sessionId);
+        var record = await repo.LoadAsync(presenter.LastSessionId!);
         Expect(record).Not.To.Be.Null();
         Expect(record!.Status).To.Equal("completed");
         Expect(record.Provider).To.Equal(sourceConfig.Provider);
@@ -87,11 +88,12 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(signal, new FakePresenter());
+        var presenter = new FakePresenter();
+        await sut.ExecuteAsync(signal, presenter);
 
         // Assert
-        Expect(sessionId).To.Equal("sess-existing");
-        var record = await repo.LoadAsync(sessionId);
+        Expect(presenter.LastSessionId).To.Equal("sess-existing");
+        var record = await repo.LoadAsync(presenter.LastSessionId!);
         Expect(record).Not.To.Be.Null();
         Expect(record!.Status).To.Equal("completed");
         Expect(record.Provider).To.Equal("ollama"); // stored config preserved
@@ -222,19 +224,28 @@ file sealed class FakeTimeProvider(DateTimeOffset fixedTime) : TimeProvider
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
-        => Task.FromResult(result with { SessionId = sessionId });
+    public Task ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    {
+        var updated = result with { SessionId = sessionId };
+        return presenter.PresentAsync(updated);
+    }
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public Task ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
         => throw error;
 }
 
 file sealed class FakePresenter : ISignalPresenter
 {
-    public Task PresentAsync(SessionResult result) => Task.CompletedTask;
+    public string? LastSessionId { get; private set; }
+
+    public Task PresentAsync(SessionResult result)
+    {
+        LastSessionId = result.SessionId;
+        return Task.CompletedTask;
+    }
 }
 
 file sealed class FakeSignalSourceConfigRepository : ISignalSourceConfigRepository

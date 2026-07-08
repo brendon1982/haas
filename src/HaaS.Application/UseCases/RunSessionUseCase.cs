@@ -22,7 +22,7 @@ public class RunSessionUseCase
         _timeProvider = timeProvider;
     }
 
-    public async Task<string> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public async Task ExecuteAsync(Signal signal, ISignalPresenter presenter)
     {
         var sourceConfig = await _signalSourceConfigRepository.GetBySourceTypeAsync(signal.Source)
             ?? throw new InvalidOperationException($"No signal source config found for source type '{signal.Source}'.");
@@ -46,10 +46,9 @@ public class RunSessionUseCase
             await _sessionRepository.SaveAsync(record);
         }
 
-        SessionResult result;
         try
         {
-            result = await _agentStrategy.ExecuteAsync(signal, sessionId, presenter);
+            await _agentStrategy.ExecuteAsync(signal, sessionId, presenter);
         }
         catch
         {
@@ -77,8 +76,6 @@ public class RunSessionUseCase
             };
             await _sessionRepository.SaveAsync(updated);
         }
-
-        return result.SessionId;
     }
 
     private async Task<string> ResolveSessionIdAsync(Signal signal)

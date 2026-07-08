@@ -33,10 +33,12 @@ public class ObservableAgentStrategyTests
             .Build();
 
         // Act
-        var result = await sut.ExecuteAsync(signal, "sess-42", new SilentPresenter());
+        var presenter = new RecordingPresenter();
+        await sut.ExecuteAsync(signal, "sess-42", presenter);
 
         // Assert
-        Expect(result).To.Equal(expected);
+        Expect(presenter.Results).To.Contain.Exactly(1);
+        Expect(presenter.Results[0]).To.Equal(expected);
 
         var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
         Expect(infoLogs).To.Contain.Exactly(2);
@@ -68,7 +70,7 @@ public class ObservableAgentStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, "sess-fail", new SilentPresenter()))
+        Expect(async () => await sut.ExecuteAsync(signal, "sess-fail", new RecordingPresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing(expectedError);
 
@@ -116,19 +118,25 @@ file sealed class SutBuilder
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
-        => Task.FromResult(result);
+    public Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+        => presenter.PresentAsync(result);
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
         => throw error;
 }
 
-file sealed class SilentPresenter : ISignalPresenter
+file sealed class RecordingPresenter : ISignalPresenter
 {
-    public Task PresentAsync(SessionResult result) => Task.CompletedTask;
+    public List<SessionResult> Results { get; } = [];
+
+    public Task PresentAsync(SessionResult result)
+    {
+        Results.Add(result);
+        return Task.CompletedTask;
+    }
 }
 
 file sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);

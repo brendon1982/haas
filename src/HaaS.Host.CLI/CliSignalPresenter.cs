@@ -3,8 +3,12 @@ using HaaS.Domain.ValueObjects;
 
 public class CliSignalPresenter : ISignalPresenter
 {
-    public async Task PresentAsync(SessionResult result)
+    public string? LastSessionId { get; private set; }
+
+    public Task PresentAsync(SessionResult result)
     {
-        await Console.Out.WriteLineAsync(result.Output);
+        LastSessionId = result.SessionId;
+        Console.Out.WriteLine(result.Output);
+        return Task.CompletedTask;
     }
 }

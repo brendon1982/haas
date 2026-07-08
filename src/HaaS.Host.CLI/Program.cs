@@ -8,8 +8,8 @@ using OllamaSharp;
 using Microsoft.Extensions.DependencyInjection;
 using OpenAI;
 
-var modelId = args.Length > 0 ? args[0] : "cohere/north-mini-code:free";
-var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
+var modelId = args.Length > 0 ? args[0] : "gemma4:12b";
+var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
 var systemPrompt = args.Length > 1
     ? string.Join(" ", args[1..])
     : "You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.";
@@ -73,10 +73,9 @@ var useCase = serviceProvider.GetRequiredService<RunSessionUseCase>();
 var signalSource = serviceProvider.GetRequiredService<ISignalSource>();
 var presenter = new CliSignalPresenter();
 
-string? sessionId = null;
 await signalSource.ListenAsync(async signal =>
 {
-    var signalWithSession = signal with { SessionId = sessionId };
-    sessionId = await useCase.ExecuteAsync(signalWithSession, presenter);
+    var signalWithSession = signal with { SessionId = presenter.LastSessionId };
+    await useCase.ExecuteAsync(signalWithSession, presenter);
 });
 
