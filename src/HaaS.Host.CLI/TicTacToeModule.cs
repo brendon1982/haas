@@ -154,6 +154,8 @@ public class TicTacToeModule : ICliModule
                 if (TryGetWinner(board, out _) || IsDraw(board))
                     continue;
 
+                Console.Clear();
+                DrawBoard(board);
                 Console.WriteLine();
                 Console.Write("AI is thinking");
                 _ = Console.Out.FlushAsync();
