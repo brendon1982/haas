@@ -14,14 +14,14 @@ public class ChatModule : ICliModule
     public ChatModule()
     {
         var services = new ServiceCollection();
-        services.AddHaasCore();
-        services.AddHaasCli(cli =>
+        services.AddHaas();
+        services.AddHaasInMemoryConfig(cli =>
         {
             cli.UseOllama();
             cli.UseOpenRouter();
         });
+        services.AddSignalSources();
         _provider = services.BuildServiceProvider();
-        _provider.InitializeHaasCliAsync().GetAwaiter().GetResult();
     }
 
     public string Name => "AI Chat";

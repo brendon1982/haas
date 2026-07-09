@@ -10,10 +10,9 @@ namespace HaaS.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddHaasCore(this IServiceCollection services)
+    public static IServiceCollection AddHaas(this IServiceCollection services)
     {
         services.AddSingleton<ISignalSourceConfigRepository, InMemorySignalSourceConfigRepository>();
-        services.AddSingleton<IProviderConfigRepository, InMemoryProviderConfigRepository>();
         services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
         services.AddSingleton<IMessageStore, InMemorySessionMessageStore>();
         services.AddSingleton<ILogger, ConsoleLogger>();

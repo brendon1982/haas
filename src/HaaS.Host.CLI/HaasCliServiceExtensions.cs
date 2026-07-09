@@ -1,4 +1,5 @@
 using HaaS.Adapters.Agent;
+using HaaS.Adapters.Store;
 using HaaS.Domain.Ports;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -6,23 +7,31 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static IServiceCollection AddHaasCli(
+    public static IServiceCollection AddHaasInMemoryConfig(
         this IServiceCollection services,
         Action<HaasCliOptions>? configure = null)
     {
+        services.AddSingleton<IProviderConfigRepository, InMemoryProviderConfigRepository>();
+
         var options = new HaasCliOptions();
         configure?.Invoke(options);
         services.AddSingleton(options);
-        services.AddTransient<ISignalSource, CliSignalSource>();
+
+        services.AddSingleton<ChatClientFactory>(sp =>
+        {
+            var configRepo = sp.GetRequiredService<IProviderConfigRepository>();
+            var factory = new ChatClientFactory(configRepo);
+            foreach (var registration in options.Registrations)
+                registration(factory, configRepo);
+            return factory;
+        });
+
         return services;
     }
 
-    public static async Task InitializeHaasCliAsync(this IServiceProvider services)
+    public static IServiceCollection AddSignalSources(this IServiceCollection services)
     {
-        var options = services.GetRequiredService<HaasCliOptions>();
-        var factory = services.GetRequiredService<ChatClientFactory>();
-        var configRepo = services.GetRequiredService<IProviderConfigRepository>();
-        foreach (var registration in options.Registrations)
-            await registration(factory, configRepo);
+        services.AddTransient<ISignalSource, CliSignalSource>();
+        return services;
     }
 }
