@@ -1,7 +1,6 @@
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Observability;
 using HaaS.Adapters.Persistence;
-using HaaS.Adapters.Signal;
 using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
@@ -37,7 +36,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RunSessionUseCase>();
-        services.AddTransient<ISignalSource, CliSignalSource>();
 
         return services;
     }

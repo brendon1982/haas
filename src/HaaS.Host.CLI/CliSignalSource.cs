@@ -1,7 +1,7 @@
 using HaaS.Domain.Ports;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
-namespace HaaS.Adapters.Signal;
+namespace HaaS.Host.CLI;
 
 public class CliSignalSource : ISignalSource
 {
@@ -29,8 +29,7 @@ public class CliSignalSource : ISignalSource
 
         try
         {
-            string? line;
-            while ((line = await _input.ReadLineAsync(token)) != null)
+            while (await _input.ReadLineAsync(token) is { } line)
             {
                 if (string.IsNullOrWhiteSpace(line))
                     break;
@@ -41,7 +40,7 @@ public class CliSignalSource : ISignalSource
                     break;
 
                 await _output.WriteAsync("> ");
-                await _output.FlushAsync();
+                await _output.FlushAsync(token);
             }
         }
         finally

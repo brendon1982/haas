@@ -13,6 +13,7 @@ public static class HaasCliServiceExtensions
         var options = new HaasCliOptions();
         configure?.Invoke(options);
         services.AddSingleton(options);
+        services.AddTransient<ISignalSource, CliSignalSource>();
         return services;
     }
 
