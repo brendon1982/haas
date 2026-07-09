@@ -14,8 +14,7 @@ public class ChatModule : ICliModule
     public ChatModule()
     {
         var services = new ServiceCollection();
-        services.AddHaas();
-        services.AddHaasInMemoryConfig(cli =>
+        services.AddHaas().WithInMemoryConfig(cli =>
         {
             cli.UseOllama();
             cli.UseOpenRouter();

@@ -7,7 +7,7 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static IServiceCollection AddHaasInMemoryConfig(
+    public static IServiceCollection WithInMemoryConfig(
         this IServiceCollection services,
         Action<HaasCliOptions>? configure = null)
     {
