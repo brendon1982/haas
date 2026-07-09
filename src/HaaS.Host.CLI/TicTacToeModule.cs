@@ -3,48 +3,45 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using OllamaSharp;
-using OpenAI;
 
 namespace HaaS.Host.CLI;
 
 public class TicTacToeModule : ICliModule
 {
+    private readonly IServiceProvider _provider;
+
+    public TicTacToeModule()
+    {
+        var services = new ServiceCollection();
+        services.AddHaasCore();
+        services.AddHaasCli(cli =>
+        {
+            cli.UseOllama();
+            cli.UseOpenRouter();
+        });
+        _provider = services.BuildServiceProvider();
+        _provider.InitializeHaasCliAsync().GetAwaiter().GetResult();
+    }
+
     public string Name => "Tic-Tac-Toe";
     public string Description => "Classic 3-in-a-row game against an AI opponent";
 
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var services = new ServiceCollection();
-        services.AddHaasCore();
-        var provider = services.BuildServiceProvider();
-
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
         var modelId = "cohere/north-mini-code:free";
+        var game = new TicTacToeGame();
 
-        var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
-        await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
-        var openRouterApiKey = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_API_KEY");
-        var openRouterEndpoint = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_ENDPOINT") ?? "https://openrouter.ai/api/v1";
-        await configRepo.SaveAsync(new ProviderConfig("openrouter", openRouterEndpoint, openRouterApiKey));
-
-        var board = new char[9];
-        Array.Fill(board, ' ');
-        var hasMovedThisTurn = false;
-
-        var toolRegistry = provider.GetRequiredService<IToolRegistry>();
-        toolRegistry.Register("get_board", () => FormatBoard(board), "Returns the current Tic-Tac-Toe board as a formatted string.");
-        toolRegistry.Register("get_valid_moves", () => FormatValidMoves(board), "Returns a comma-separated list of available positions (1-9).");
+        var toolRegistry = _provider.GetRequiredService<IToolRegistry>();
+        toolRegistry.Register("get_board", () => game.FormatBoard(), "Returns the current Tic-Tac-Toe board as a formatted string.");
+        toolRegistry.Register("get_valid_moves", () => game.FormatValidMoves(), "Returns a comma-separated list of available positions (1-9).");
         toolRegistry.Register("place_marker", (int position) =>
         {
-            if (hasMovedThisTurn)
+            if (game.HasMovedThisTurn)
                 return $"You have already placed your marker this turn. You are O and you already played position {position}. Wait for the next turn.";
-            if (position < 1 || position > 9 || board[position - 1] != ' ')
-                return $"Position {position} is not available. Choose from: {FormatValidMoves(board)}.";
-            board[position - 1] = 'O';
-            hasMovedThisTurn = true;
+            if (!game.TryPlace(position))
+                return $"Position {position} is not available. Choose from: {game.FormatValidMoves()}.";
             return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
         }, "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.");
 
@@ -76,7 +73,7 @@ public class TicTacToeModule : ICliModule
             Explain your reasoning briefly, then call `place_marker`. You MUST call `place_marker` each turn — do not respond with text alone.
             """;
 
-        var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
+        var signalSourceConfigRepo = _provider.GetRequiredService<ISignalSourceConfigRepository>();
         await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
             SourceType: "cli",
             Provider: providerName,
@@ -85,24 +82,6 @@ public class TicTacToeModule : ICliModule
             ToolBelt: new ToolBelt(["get_board", "get_valid_moves", "place_marker"]),
             ThinkingLevel: "on"
         ));
-
-        var clientFactory = provider.GetRequiredService<ChatClientFactory>();
-        clientFactory.Register("ollama",
-            (providerConfig, mdlId) => new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId),
-            (options, config) =>
-            {
-                if (config.ThinkingLevel is not null and not "off")
-                    options.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
-            });
-
-        clientFactory.Register("openrouter",
-            (providerConfig, mdlId) =>
-            {
-                var openAiOptions = new OpenAIClientOptions { Endpoint = new Uri(providerConfig.Endpoint) };
-                var credential = new System.ClientModel.ApiKeyCredential(providerConfig.ApiKey!);
-                var chatClient = new OpenAI.Chat.ChatClient(mdlId, credential, openAiOptions);
-                return chatClient.AsIChatClient();
-            });
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -115,21 +94,21 @@ public class TicTacToeModule : ICliModule
         Console.CancelKeyPress += cancelHandler;
         try
         {
-            var useCase = provider.GetRequiredService<RunSessionUseCase>();
+            var useCase = _provider.GetRequiredService<RunSessionUseCase>();
             var presenter = new CapturingPresenter();
 
             while (!cts.Token.IsCancellationRequested)
             {
                 Console.Clear();
-                DrawBoard(board);
+                DrawBoard(game.Board);
 
-                if (TryGetWinner(board, out var winner))
+                if (game.TryGetWinner(out var winner))
                 {
                     Console.WriteLine(winner == 'X' ? "You win!" : "AI wins!");
                     break;
                 }
 
-                if (IsDraw(board))
+                if (game.IsDraw())
                 {
                     Console.WriteLine("It's a draw!");
                     break;
@@ -142,26 +121,26 @@ public class TicTacToeModule : ICliModule
                 if (input == "0" || string.IsNullOrWhiteSpace(input))
                     break;
 
-                if (!int.TryParse(input, out var pos) || pos < 1 || pos > 9 || board[pos - 1] != ' ')
+                if (!int.TryParse(input, out var pos) || pos < 1 || pos > 9 || game.Board[pos - 1] != ' ')
                 {
                     Console.WriteLine("Invalid move. Press any key to try again...");
                     Console.ReadKey(true);
                     continue;
                 }
 
-                board[pos - 1] = 'X';
+                game.PlacePlayer(pos);
 
-                if (TryGetWinner(board, out _) || IsDraw(board))
+                if (game.TryGetWinner(out _) || game.IsDraw())
                     continue;
 
                 Console.Clear();
-                DrawBoard(board);
+                DrawBoard(game.Board);
                 Console.WriteLine();
                 Console.Write("AI is thinking");
                 _ = Console.Out.FlushAsync();
 
-                hasMovedThisTurn = false;
-                var boardBefore = board.ToArray();
+                game.ResetTurn();
+                var boardBefore = game.Board.ToArray();
                 var signal = new Signal(
                     $"The player (X) just moved at position {pos}. It's your turn (O). Make your move.",
                     "cli",
@@ -177,7 +156,7 @@ public class TicTacToeModule : ICliModule
                         Console.WriteLine(presenter.LastOutput);
                     }
 
-                    if (board.AsSpan().SequenceEqual(boardBefore))
+                    if (game.Board.SequenceEqual(boardBefore))
                     {
                         Console.WriteLine();
                         Console.WriteLine("The AI did not make a valid move. Continuing...");
@@ -203,16 +182,7 @@ public class TicTacToeModule : ICliModule
         Console.ReadKey(true);
     }
 
-    private static string FormatBoard(char[] board)
-    {
-        return $"  {Cell(board, 0, 0)} | {Cell(board, 1, 0)} | {Cell(board, 2, 0)}\n" +
-               $"  ---+---+---\n" +
-               $"  {Cell(board, 0, 1)} | {Cell(board, 1, 1)} | {Cell(board, 2, 1)}\n" +
-               $"  ---+---+---\n" +
-               $"  {Cell(board, 0, 2)} | {Cell(board, 1, 2)} | {Cell(board, 2, 2)}";
-    }
-
-    private static void DrawBoard(char[] board)
+    private static void DrawBoard(IReadOnlyList<char> board)
     {
         Console.WriteLine("Tic-Tac-Toe");
         Console.WriteLine(new string('=', 20));
@@ -226,41 +196,81 @@ public class TicTacToeModule : ICliModule
         }
     }
 
-    private static char Cell(char[] board, int col, int row) => board[row * 3 + col];
+    private static char Cell(IReadOnlyList<char> board, int col, int row) => board[row * 3 + col];
 
-    private static string FormatValidMoves(char[] board)
+    private sealed class TicTacToeGame
     {
-        var positions = new List<int>();
-        for (var i = 0; i < board.Length; i++)
-            if (board[i] == ' ')
-                positions.Add(i + 1);
+        private readonly char[] _board = new char[9];
+        private bool _hasMovedThisTurn;
 
-        return string.Join(", ", positions);
-    }
+        public TicTacToeGame() => Array.Fill(_board, ' ');
 
-    private static bool TryGetWinner(char[] board, out char winner)
-    {
-        var lines = new[]
+        public IReadOnlyList<char> Board => _board;
+
+        public bool HasMovedThisTurn => _hasMovedThisTurn;
+
+        public bool TryPlace(int position)
         {
-            (0, 1, 2), (3, 4, 5), (6, 7, 8),
-            (0, 3, 6), (1, 4, 7), (2, 5, 8),
-            (0, 4, 8), (2, 4, 6)
-        };
+            if (_hasMovedThisTurn)
+                return false;
 
-        foreach (var (a, b, c) in lines)
-        {
-            if (board[a] != ' ' && board[a] == board[b] && board[b] == board[c])
-            {
-                winner = board[a];
-                return true;
-            }
+            if (position < 1 || position > 9 || _board[position - 1] != ' ')
+                return false;
+
+            _board[position - 1] = 'O';
+            _hasMovedThisTurn = true;
+            return true;
         }
 
-        winner = default;
-        return false;
-    }
+        public void ResetTurn() => _hasMovedThisTurn = false;
 
-    private static bool IsDraw(char[] board) => Array.TrueForAll(board, c => c != ' ');
+        public void PlacePlayer(int position) => _board[position - 1] = 'X';
+
+        public string FormatBoard()
+        {
+            return $"  {Cell(0, 0)} | {Cell(1, 0)} | {Cell(2, 0)}\n" +
+                   $"  ---+---+---\n" +
+                   $"  {Cell(0, 1)} | {Cell(1, 1)} | {Cell(2, 1)}\n" +
+                   $"  ---+---+---\n" +
+                   $"  {Cell(0, 2)} | {Cell(1, 2)} | {Cell(2, 2)}";
+        }
+
+        public string FormatValidMoves()
+        {
+            var positions = new List<int>();
+            for (var i = 0; i < _board.Length; i++)
+                if (_board[i] == ' ')
+                    positions.Add(i + 1);
+
+            return string.Join(", ", positions);
+        }
+
+        public bool TryGetWinner(out char winner)
+        {
+            var lines = new[]
+            {
+                (0, 1, 2), (3, 4, 5), (6, 7, 8),
+                (0, 3, 6), (1, 4, 7), (2, 5, 8),
+                (0, 4, 8), (2, 4, 6)
+            };
+
+            foreach (var (a, b, c) in lines)
+            {
+                if (_board[a] != ' ' && _board[a] == _board[b] && _board[b] == _board[c])
+                {
+                    winner = _board[a];
+                    return true;
+                }
+            }
+
+            winner = default;
+            return false;
+        }
+
+        public bool IsDraw() => Array.TrueForAll(_board, c => c != ' ');
+
+        private char Cell(int col, int row) => _board[row * 3 + col];
+    }
 
     private sealed class CapturingPresenter : ISignalPresenter
     {

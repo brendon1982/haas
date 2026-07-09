@@ -3,39 +3,41 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using OllamaSharp;
-using OpenAI;
 
 namespace HaaS.Host.CLI;
 
 public class ChatModule : ICliModule
 {
+    private readonly IServiceProvider _provider;
+
+    public ChatModule()
+    {
+        var services = new ServiceCollection();
+        services.AddHaasCore();
+        services.AddHaasCli(cli =>
+        {
+            cli.UseOllama();
+            cli.UseOpenRouter();
+        });
+        _provider = services.BuildServiceProvider();
+        _provider.InitializeHaasCliAsync().GetAwaiter().GetResult();
+    }
+
     public string Name => "AI Chat";
     public string Description => "Interactive AI chat session";
 
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var services = new ServiceCollection();
-        services.AddHaasCore();
-        var provider = services.BuildServiceProvider();
-
         var modelId = "gemma4:12b";
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
 
-        var configRepo = provider.GetRequiredService<IProviderConfigRepository>();
-        await configRepo.SaveAsync(new ProviderConfig("ollama", "http://localhost:11434"));
-        var openRouterApiKey = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_API_KEY");
-        var openRouterEndpoint = Environment.GetEnvironmentVariable("HAAS_OPENROUTER_ENDPOINT") ?? "https://openrouter.ai/api/v1";
-        await configRepo.SaveAsync(new ProviderConfig("openrouter", openRouterEndpoint, openRouterApiKey));
-
-        var toolRegistry = provider.GetRequiredService<IToolRegistry>();
+        var toolRegistry = _provider.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
             $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
             "Gets the current UTC time for a given timezone");
 
-        var signalSourceConfigRepo = provider.GetRequiredService<ISignalSourceConfigRepository>();
+        var signalSourceConfigRepo = _provider.GetRequiredService<ISignalSourceConfigRepository>();
         await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
             SourceType: "cli",
             Provider: providerName,
@@ -44,24 +46,6 @@ public class ChatModule : ICliModule
             ToolBelt: new ToolBelt(["get_time"]),
             ThinkingLevel: "on"
         ));
-
-        var clientFactory = provider.GetRequiredService<ChatClientFactory>();
-        clientFactory.Register("ollama",
-            (providerConfig, mdlId) => new OllamaApiClient(new Uri(providerConfig.Endpoint), mdlId),
-            (options, config) =>
-            {
-                if (config.ThinkingLevel is not null and not "off")
-                    options.AdditionalProperties = new AdditionalPropertiesDictionary { ["think"] = true };
-            });
-
-        clientFactory.Register("openrouter",
-            (providerConfig, mdlId) =>
-            {
-                var openAiOptions = new OpenAIClientOptions { Endpoint = new Uri(providerConfig.Endpoint) };
-                var credential = new System.ClientModel.ApiKeyCredential(providerConfig.ApiKey!);
-                var chatClient = new OpenAI.Chat.ChatClient(mdlId, credential, openAiOptions);
-                return chatClient.AsIChatClient();
-            });
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -79,8 +63,8 @@ public class ChatModule : ICliModule
             Console.Out.Write("> ");
             Console.Out.Flush();
 
-            var useCase = provider.GetRequiredService<RunSessionUseCase>();
-            var signalSource = provider.GetRequiredService<ISignalSource>();
+            var useCase = _provider.GetRequiredService<RunSessionUseCase>();
+            var signalSource = _provider.GetRequiredService<ISignalSource>();
             var presenter = new CliSignalPresenter();
 
             await signalSource.ListenAsync(async signal =>
