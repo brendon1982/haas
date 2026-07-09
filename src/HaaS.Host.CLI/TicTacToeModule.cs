@@ -22,7 +22,6 @@ public class TicTacToeModule : ICliModule
             })
             .AddSignalSources();
         _provider = services.BuildServiceProvider();
-        _provider.SetupProviderFactories();
     }
 
     public string Name => "Tic-Tac-Toe";

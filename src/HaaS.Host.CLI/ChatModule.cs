@@ -22,7 +22,6 @@ public class ChatModule : ICliModule
             })
             .AddSignalSources();
         _provider = services.BuildServiceProvider();
-        _provider.SetupProviderFactories();
     }
 
     public string Name => "AI Chat";
