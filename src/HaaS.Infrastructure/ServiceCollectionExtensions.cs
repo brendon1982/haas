@@ -10,7 +10,7 @@ namespace HaaS.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddHaas(this IServiceCollection services)
+    public static HaasBuilder AddHaas(this IServiceCollection services)
     {
         services.AddSingleton<ISignalSourceConfigRepository, InMemorySignalSourceConfigRepository>();
         services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
@@ -36,6 +36,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RunSessionUseCase>();
 
-        return services;
+        return new HaasBuilder(services);
     }
 }

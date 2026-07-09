@@ -14,12 +14,13 @@ public class ChatModule : ICliModule
     public ChatModule()
     {
         var services = new ServiceCollection();
-        services.AddHaas().WithInMemoryConfig(cli =>
-        {
-            cli.UseOllama();
-            cli.UseOpenRouter();
-        });
-        services.AddSignalSources();
+        services.AddHaas()
+            .WithInMemoryConfig(cli =>
+            {
+                cli.UseOllama();
+                cli.UseOpenRouter();
+            })
+            .AddSignalSources();
         _provider = services.BuildServiceProvider();
     }
 

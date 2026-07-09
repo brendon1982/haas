@@ -1,24 +1,25 @@
-using System.ClientModel;
 using HaaS.Adapters.Agent;
-using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 using OpenAI;
+using System.ClientModel;
 
 namespace HaaS.Host.CLI;
 
-public class HaasCliOptions
+public class HaasInMemoryConfig
 {
-    private readonly List<Action<ChatClientFactory, IProviderConfigRepository>> _registrations = [];
+    private readonly List<ProviderConfig> _providerConfigs = [];
+    private readonly List<Action<ChatClientFactory>> _factoryRegistrations = [];
 
-    internal IReadOnlyList<Action<ChatClientFactory, IProviderConfigRepository>> Registrations => _registrations;
+    internal IReadOnlyList<ProviderConfig> ProviderConfigs => _providerConfigs;
+    internal IReadOnlyList<Action<ChatClientFactory>> FactoryRegistrations => _factoryRegistrations;
 
     public void UseOllama(string endpoint = "http://localhost:11434")
     {
-        _registrations.Add((factory, configRepo) =>
+        _providerConfigs.Add(new ProviderConfig("ollama", endpoint));
+        _factoryRegistrations.Add(factory =>
         {
-            configRepo.SaveAsync(new ProviderConfig("ollama", endpoint)).GetAwaiter().GetResult();
             factory.Register("ollama",
                 (config, modelId) => new OllamaApiClient(new Uri(config.Endpoint), modelId),
                 (options, config) =>
@@ -31,11 +32,11 @@ public class HaasCliOptions
 
     public void UseOpenRouter(string? endpoint = null, string? apiKey = null)
     {
-        _registrations.Add((factory, configRepo) =>
+        var resolvedEndpoint = endpoint ?? Environment.GetEnvironmentVariable("HAAS_OPENROUTER_ENDPOINT") ?? "https://openrouter.ai/api/v1";
+        var resolvedApiKey = apiKey ?? Environment.GetEnvironmentVariable("HAAS_OPENROUTER_API_KEY");
+        _providerConfigs.Add(new ProviderConfig("openrouter", resolvedEndpoint, resolvedApiKey));
+        _factoryRegistrations.Add(factory =>
         {
-            var resolvedEndpoint = endpoint ?? Environment.GetEnvironmentVariable("HAAS_OPENROUTER_ENDPOINT") ?? "https://openrouter.ai/api/v1";
-            var resolvedApiKey = apiKey ?? Environment.GetEnvironmentVariable("HAAS_OPENROUTER_API_KEY");
-            configRepo.SaveAsync(new ProviderConfig("openrouter", resolvedEndpoint, resolvedApiKey)).GetAwaiter().GetResult();
             factory.Register("openrouter",
                 (config, modelId) =>
                 {

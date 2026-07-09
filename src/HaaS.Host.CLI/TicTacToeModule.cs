@@ -14,12 +14,13 @@ public class TicTacToeModule : ICliModule
     public TicTacToeModule()
     {
         var services = new ServiceCollection();
-        services.AddHaas().WithInMemoryConfig(cli =>
-        {
-            cli.UseOllama();
-            cli.UseOpenRouter();
-        });
-        services.AddSignalSources();
+        services.AddHaas()
+            .WithInMemoryConfig(cli =>
+            {
+                cli.UseOllama();
+                cli.UseOpenRouter();
+            })
+            .AddSignalSources();
         _provider = services.BuildServiceProvider();
     }
 

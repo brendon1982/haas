@@ -8,6 +8,16 @@ public class InMemoryProviderConfigRepository : IProviderConfigRepository
 {
     private readonly ConcurrentDictionary<string, ProviderConfig> _store = new(StringComparer.OrdinalIgnoreCase);
 
+    public InMemoryProviderConfigRepository()
+    {
+    }
+
+    public InMemoryProviderConfigRepository(IEnumerable<ProviderConfig> configs)
+    {
+        foreach (var config in configs)
+            _store[config.Provider] = config;
+    }
+
     public Task<IReadOnlyList<ProviderConfig>> GetAllAsync()
     {
         return Task.FromResult<IReadOnlyList<ProviderConfig>>([.. _store.Values]);

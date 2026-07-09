@@ -10,9 +10,12 @@ public sealed class ChatClientFactory : IChatClientFactory
     private readonly Dictionary<string, Func<ProviderConfig, string, IChatClient>> _factories = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Action<ChatOptions, AgentSessionConfig>> _optionConfigurators = new(StringComparer.OrdinalIgnoreCase);
 
-    public ChatClientFactory(IProviderConfigRepository configRepo)
+    public ChatClientFactory(IProviderConfigRepository configRepo, IEnumerable<Action<ChatClientFactory>>? setups = null)
     {
         _configRepo = configRepo;
+        if (setups is not null)
+            foreach (var setup in setups)
+                setup(this);
     }
 
     public ChatClientFactory Register(string provider, Func<ProviderConfig, string, IChatClient> factory, Action<ChatOptions, AgentSessionConfig>? configureOptions = null)
