@@ -28,10 +28,4 @@ public static class HaasCliServiceExtensions
         });
         return services;
     }
-
-    public static IServiceCollection AddSignalSources(this IServiceCollection services)
-    {
-        services.AddTransient<ISignalSource, CliSignalSource>();
-        return services;
-    }
 }

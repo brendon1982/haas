@@ -10,17 +10,18 @@ namespace HaaS.Host.CLI;
 public class ChatModule : ICliModule
 {
     private readonly IServiceProvider _provider;
+    private readonly ChatSignalSource _signalSource;
 
     public ChatModule()
     {
+        _signalSource = new ChatSignalSource();
         var services = new ServiceCollection();
         services.AddHaas()
             .WithInMemoryConfig(config =>
             {
                 config.UseOllama();
                 config.UseOpenRouter();
-            })
-            .AddSignalSources();
+            });
         _provider = services.BuildServiceProvider();
     }
 
@@ -39,7 +40,7 @@ public class ChatModule : ICliModule
 
         var signalSourceConfigRepo = _provider.GetRequiredService<ISignalSourceConfigRepository>();
         await signalSourceConfigRepo.SaveAsync(new SignalSourceConfig(
-            SourceType: "cli",
+            SourceType: "chat",
             Provider: providerName,
             ModelId: modelId,
             SystemPrompt: "You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.",
@@ -64,10 +65,9 @@ public class ChatModule : ICliModule
             Console.Out.Flush();
 
             var useCase = _provider.GetRequiredService<RunSessionUseCase>();
-            var signalSource = _provider.GetRequiredService<ISignalSource>();
             var presenter = new CliSignalPresenter();
 
-            await signalSource.ListenAsync(async signal =>
+            await _signalSource.ListenAsync(async signal =>
             {
                 var signalWithSession = signal with { SessionId = presenter.LastSessionId };
                 await useCase.ExecuteAsync(signalWithSession, presenter);
