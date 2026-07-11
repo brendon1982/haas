@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RunSessionUseCase>();
+        services.AddSingleton<IHaasEngine, HaasEngine>();
 
         return new HaasBuilder(services);
     }

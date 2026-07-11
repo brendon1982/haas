@@ -57,7 +57,37 @@ public class TicTacToeSignalSource : ISignalSource
                 $"The player (X) just moved at position {pos}. It's your turn (O). Make your move.",
                 "tictactoe");
 
-            await handler(signal);
+            var boardBefore = _game.Board.ToArray();
+
+            Console.WriteLine();
+            Console.Write("AI is thinking");
+            
+            using var cts = new CancellationTokenSource();
+            var thinkingTask = Task.Run(async () =>
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    Console.Write(".");
+                    await Task.Delay(500, cts.Token).ContinueWith(_ => { });
+                }
+            });
+
+            try
+            {
+                await handler(signal);
+            }
+            finally
+            {
+                cts.Cancel();
+                await thinkingTask;
+                Console.WriteLine();
+            }
+
+            if (_game.Board.SequenceEqual(boardBefore))
+            {
+                Console.WriteLine("The AI did not make a valid move. Press any key to continue...");
+                Console.ReadKey(true);
+            }
         }
     }
 
