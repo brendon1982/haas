@@ -8,7 +8,7 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static IServiceCollection WithInMemoryConfig(
+    public static HaasBuilder WithInMemoryConfig(
         this HaasBuilder builder,
         Action<HaasInMemoryConfig>? configure = null)
     {
@@ -26,6 +26,6 @@ public static class HaasCliServiceExtensions
                 register(factory);
             return factory;
         });
-        return services;
+        return builder;
     }
 }

@@ -20,10 +20,15 @@ public class TicTacToeModule : ICliModule
     public async Task RunAsync(CancellationToken ct = default)
     {
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
-        var modelId = "gemma2";
+        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
 
         var services = new ServiceCollection();
         services.AddHaas()
+            .WithInMemoryConfig(config =>
+            {
+                config.UseOllama();
+                config.UseOpenRouter();
+            })
             .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)

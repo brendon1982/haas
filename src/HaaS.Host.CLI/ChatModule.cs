@@ -12,11 +12,16 @@ public class ChatModule : ICliModule
 
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var modelId = "gemma2";
+        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
 
         var services = new ServiceCollection();
         services.AddHaas()
+            .WithInMemoryConfig(config =>
+            {
+                config.UseOllama();
+                config.UseOpenRouter();
+            })
             .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)
