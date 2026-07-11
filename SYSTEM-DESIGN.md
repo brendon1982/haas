@@ -107,11 +107,19 @@ The heart of the system. Contains no infrastructure concerns.
 
 Orchestrates domain objects to fulfill use cases.
 
+**Engine & Orchestration:**
+
+| Component | Responsibility |
+|-----------|---------------|
+| `IHaasEngine` | Entry point for the application. Starts all registered signal sources and coordinates the execution of signals. |
+| `HaasEngine` | Implementation of `IHaasEngine`. Wires up `SignalSourceRegistration`s, ensures configurations are persisted, and manages the execution lifecycle of multiple concurrent signal sources. |
+| `SignalSourceRegistration` | Links a `ISignalSource` with its corresponding `ISignalPresenter` and `SignalSourceConfig`. Maintains session continuity state (last known session ID). |
+
 **Use Cases:**
 
 | Use Case | Description |
 |----------|-------------|
-| `ReceiveSignal` | Called by the queue worker after dequeuing. Accepts authenticated signal, resolves config (merges global defaults with per-signal overrides). If signal carries a valid `session_id` and the source permits continuation, loads the existing session with new input appended; otherwise creates a new session. Routes to agent loop. |
+| `RunSessionUseCase` | Accepts an incoming signal and a presenter. Resolves session configuration (loads existing session or creates new one). Executes the agent strategy and presents the result. |
 | `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
 | `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
 | `ListSessions` | Queries active/completed sessions |

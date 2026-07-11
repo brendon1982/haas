@@ -1,4 +1,4 @@
-using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Infrastructure;
 
@@ -8,7 +8,7 @@ public class SignalSourceConfigBuilder
     private string _provider = "openai";
     private string _modelId = "gpt-4o";
     private string _systemPrompt = "You are a helpful assistant.";
-    private int _thinkingLevel = 0;
+    private string _thinkingLevel = "off";
     private readonly List<string> _toolBelt = new();
 
     public SignalSourceConfigBuilder(string sourceType)
@@ -34,7 +34,7 @@ public class SignalSourceConfigBuilder
         return this;
     }
 
-    public SignalSourceConfigBuilder UseThinkingLevel(int level)
+    public SignalSourceConfigBuilder UseThinkingLevel(string level)
     {
         _thinkingLevel = level;
         return this;
@@ -46,22 +46,14 @@ public class SignalSourceConfigBuilder
         return this;
     }
 
-    internal ISignalSourceConfig Build()
+    public SignalSourceConfig Build()
     {
         return new SignalSourceConfig(
             _sourceType,
             _provider,
             _modelId,
             _systemPrompt,
-            _toolBelt,
+            new ToolBelt(_toolBelt),
             _thinkingLevel);
     }
-
-    private record SignalSourceConfig(
-        string Source,
-        string Provider,
-        string ModelId,
-        string SystemPrompt,
-        IReadOnlyList<string> ToolBelt,
-        int ThinkingLevel) : ISignalSourceConfig;
 }

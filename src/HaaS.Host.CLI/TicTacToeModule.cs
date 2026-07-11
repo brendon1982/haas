@@ -1,4 +1,5 @@
 using HaaS.Domain.Ports;
+using HaaS.Adapters.Agent;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -84,6 +85,4 @@ public class TicTacToeModule : ICliModule
 
             Explain your reasoning briefly, then call `place_marker`. You MUST call `place_marker` each turn — do not respond with text alone.
             """;
-}
-
 }

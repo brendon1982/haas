@@ -1,4 +1,5 @@
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Application;
 
@@ -7,7 +8,7 @@ public class SignalSourceRegistration
     public SignalSourceRegistration(
         ISignalSource source,
         ISignalPresenter presenter,
-        ISignalSourceConfig config)
+        SignalSourceConfig config)
     {
         Source = source;
         Presenter = presenter;
@@ -16,6 +17,6 @@ public class SignalSourceRegistration
 
     public ISignalSource Source { get; }
     public ISignalPresenter Presenter { get; }
-    public ISignalSourceConfig Config { get; }
+    public SignalSourceConfig Config { get; }
     public Guid? LastSessionId { get; set; }
 }

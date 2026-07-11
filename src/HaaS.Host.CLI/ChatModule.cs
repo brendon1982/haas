@@ -1,4 +1,5 @@
 using HaaS.Domain.Ports;
+using HaaS.Adapters.Agent;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -3,6 +3,7 @@ using HaaS.Adapters.Observability;
 using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
+using HaaS.Application;
 using HaaS.Domain.Ports;
 using Microsoft.Extensions.DependencyInjection;
 
