@@ -16,7 +16,7 @@ Enterprise customers need an on-premise AI orchestration platform that:
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                        Signal Sources                            │
-│  (HTTP Webhook, Slack, Kafka, CLI, Poller, ...)                  │
+│           (Consumer Implemented: HTTP, Slack, CLI, etc.)         │
 └─────────────────────────┬────────────────────────────────────────┘
                           │
                           ▼
@@ -45,10 +45,10 @@ Enterprise customers need an on-premise AI orchestration platform that:
                           │
                           ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    Agent Loop (pi-coding-agent)                   │
+│                    Agent Loop (Microsoft Agent Framework)         │
 │  Iterates: think → tool_call → observe → decide                 │
 │  Runs with tools pre-filtered by policy; observability per iteration │
-└──┬────────────────────┬──────────────────────┬───────────────────┘
+└──────────────────────────────────────────────────────────────────┘
    │                    │                      │
    ▼                    ▼                      ▼
 ┌────────┐     ┌──────────────┐     ┌──────────────────┐
@@ -64,7 +64,7 @@ Enterprise customers need an on-premise AI orchestration platform that:
 
 ## 3. Layer Definitions
 
-### 3.1 Domain Layer (`src/domain/`)
+### 3.1 Domain Layer (`src/HaaS.Domain/`)
 
 The heart of the system. Contains no infrastructure concerns.
 
@@ -103,7 +103,7 @@ The heart of the system. Contains no infrastructure concerns.
 - `AuthService` — resolves identity from raw signal metadata
 - `AgentStrategy` — orchestration pattern for the agent loop (single-agent, supervisor+worker, swarm, router)
 
-### 3.2 Application Layer (`src/application/`)
+### 3.2 Application Layer (`src/HaaS.Application/`)
 
 Orchestrates domain objects to fulfill use cases.
 
@@ -128,7 +128,7 @@ Orchestrates domain objects to fulfill use cases.
 
 **Pattern:** Each use case is a class accepting domain ports via constructor injection, with async methods that throw on error.
 
-### 3.3 Adapter Layer (`src/adapter/`)
+### 3.3 Adapter Layer (`src/HaaS.Adapters/`)
 
 Implements the ports defined in `domain/`. Swappable by configuration.
 
@@ -136,11 +136,11 @@ Implements the ports defined in `domain/`. Swappable by configuration.
 
 Signal adapters receive raw input and may include optional per-signal config overrides (inline or by reference) alongside the payload. Each source can optionally declare `allowSessionContinuation` in its config — when true, the adapter inspects the incoming signal for a `session_id` field and, if valid, loads the existing session rather than creating a new one.
 
-- `HttpWebhookSignalSource` — Express/Koa route handler
-- `SlackSignalSource` — Slack Events API adapter
-- `KafkaSignalSource` — Kafka consumer
-- `CliStdinSignalSource` — reads from stdin/pipe
-- `ScheduledPollerSignalSource` — cron-based polling
+- `HttpWebhookSignalSource` — Potential HTTP webhook adapter
+- `SlackSignalSource` — Potential Slack Events API adapter
+- `KafkaSignalSource` — Potential Kafka consumer
+- `CliStdinSignalSource` — Potential CLI stdin adapter
+- `ScheduledPollerSignalSource` — Potential cron-based poller adapter
 
 **Observability Providers (`ObservabilityProvider`):**
 
@@ -173,28 +173,28 @@ Each port is backed by an adapter that chooses its own storage topology. The por
 
 No cross-DB joins are needed because each port serves a distinct purpose — write paths are naturally separated. The only coordination is at the worker level: dequeue a signal (signal queue) → load session (sessions) → execute iteration (tasks + memory per session) → record trace (observability). Each step touches different files.
 
-### 3.4 Infrastructure Layer (`src/infra/`)
+### 3.4 Infrastructure Layer (`src/HaaS.Infrastructure/`)
 
-Wires everything together. Configuration, dependency injection, SQLite setup, HTTP server bootstrap.
+Wires everything together. Configuration, dependency injection, SQLite setup, and host bootstrap.
 
 **Key Components:**
 
-- `di-container.ts` — manual DI or lightweight container wiring
-- `config.ts` — reads config via `SharedSqliteConfigRepository` (seeded from a YAML bootstrap file on first run, stored in SQLite for runtime), resolves adapter implementations
-- `sqlite.ts` — manages multiple DB connections per the adapter topology (shared DBs + per-session DBs), each in WAL mode
-- `http-server.ts` — Express/Fastify server mounting signal source routes
-- `logging.ts` — logger setup
+- `Program.cs` — Application entry point and DI container wiring
+- `appsettings.json` — Configuration file, resolved via `Microsoft.Extensions.Configuration`
+- `DatabaseContext.cs` — Manages multiple SQLite DB connections per the adapter topology (shared DBs + per-session DBs)
+- `LoggingConfiguration.cs` — structured logging and telemetry setup
 
 ## 4. Extension Points
 
-Every extension point is a **port** (interface) in `domain/`. Adapters live in `adapter/` and are selected via configuration.
+Every extension point is a **port** (interface) in `HaaS.Domain`. Adapters live in `HaaS.Adapters` and are selected via configuration.
 
-```typescript
+```csharp
 // Example port definition
-interface SignalSource {
-  readonly type: string;
-  listen(handler: SignalHandler): Promise<void>;
-  shutdown(): Promise<void>;
+public interface ISignalSource
+{
+    string Type { get; }
+    Task ListenAsync(Func<Signal, Task> handler);
+    Task ShutdownAsync();
 }
 ```
 
@@ -213,7 +213,7 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 5. If signal carries a session_id and the source permits continuation, SessionManager loads the existing session with new input appended. Otherwise, creates a new session with resolved config.
 6. PolicyEngine checks: is this source+identity allowed to start or continue this session?
 7. PolicyEngine resolves the set of tools permitted for this session.
-8. Agent loop begins (pi-coding-agent) with tools pre-filtered by policy and resolved model/prompts/skills:
+8. Agent loop begins (Microsoft Agent Framework) with tools pre-filtered by policy and resolved model/prompts/skills:
    a. Agent thinks → calls a tool
    b. Execute tool (reads/writes Knowledge stores)
    c. ObservabilityProvider records the iteration
@@ -234,7 +234,7 @@ The `AgentStrategy` port allows different orchestration patterns:
 | `Swarm` | Multiple agents collaborate on the same session |
 | `Router` | Incoming signal is classified and routed to specialized agents |
 
-Each strategy wraps `pi-coding-agent`'s loop with additional coordination logic.
+Each strategy wraps the Microsoft Agent Framework loop with additional coordination logic.
 
 ## 7. Session Lifecycle
 
@@ -275,22 +275,17 @@ Policy rules are stored in SQLite and support:
 
 ## 9. Observability
 
-Agent iteration traces are one aspect of observability. The system also needs **system logging** (app-level lifecycle, errors, warnings) and **metrics** (aggregated counters, gauges, histograms — signals received, sessions completed, iteration latency). Every concern is behind the same `ObservabilityProvider` port, so new providers (e.g., Prometheus for metrics, structured file logging for system logs) can be added without domain changes.
+Observability is a core pillar. The system leverages the **Microsoft Agent Framework's** built-in telemetry for agent-level metrics and tracing, while HaaS provides custom **logging and telemetry** for session lifecycle, governance decisions, and adapter-specific events.
 
-Every agent loop iteration produces a structured event:
+System logging (app-level lifecycle, errors, warnings) and metrics (aggregated counters, gauges, histograms) are handled via `ILogger` and `ActivitySource`. Every concern is behind a port, allowing for stdout, OpenTelemetry, or other providers without domain changes.
 
-```typescript
-interface AgentIterationEvent {
-  sessionId: SessionId;
-  iteration: number;
-  phase: 'think' | 'tool_call' | 'observe' | 'decide';
-  input?: unknown;
-  output?: unknown;
-  timestamp: Date;
-}
-```
+Every significant agent action produces telemetry spans and log entries:
 
-Observability providers receive these events. The console provider writes JSON lines; OpenTelemetry provider converts to spans.
+- **Session Lifecycle:** Start, completion, and error states.
+- **Governance:** Policy evaluation results (allow/deny).
+- **Execution:** Agent iteration steps and tool invocations.
+
+Observability providers receive these events via standard .NET diagnostic listeners.
 
 ## 10. Configuration Model
 
@@ -430,13 +425,13 @@ agent_iterations:
 | **Exceptions for control flow** | Throw on error, let the caller catch. Simple, familiar, no wrapper types. |
 | **SQLite with WAL mode** | Zero-ops, ACID, good enough for single-tenant on-prem. WAL allows concurrent reads during writes. |
 | **No barrel files** | Prevents circular dependencies, keeps import graph explicit |
-| **`pi-coding-agent` wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps each iteration. |
+| **Microsoft Agent Framework wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps the process. |
 | **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it. Session auth reaches custom tools via the `tool_call` extension hook (see `IMPLEMENTATION-CONSIDERATIONS.md`).
 | **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
 | **Per-signal config resolution** | Each signal carries optional overrides (inline or by reference) for model, policies, prompt, skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts. Keeps global config simple while enabling fine-grained per-signal tuning without ad-hoc env vars. |
 | **Session continuation opt-in** | Only signal sources that declare `allowSessionContinuation` inspect incoming signals for a `session_id`. This avoids accidental hijacking — a Kafka consumer or public webhook will never load an arbitrary session. Continuation appends new input to the agent loop context, enabling multi-turn interactions across signals. |
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
-| **`typebox` for JSON schema** | Used for tool parameter schemas (via pi-coding-agent SDK), domain DTO validation, and config shape. Same library everywhere — no reason to introduce a second schema lib. |
+| **Native C# Schema Validation** | Used for tool parameter schemas, domain record validation, and configuration shape. Leverages native language features and attributes for consistency. |
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
 | **Federated storage via ports** | Each store port in domain resolves to a different adapter topology: shared DBs for global state (queue, registry, config), and a single per-session DB per session for hot-path writes (tasks, memory, agent iterations). The domain layer knows nothing about this — the adapter layer decides. This prevents any single SQLite file from becoming a bottleneck. Cross-DB joins are never needed because each port addresses a separate concern. |
 
@@ -444,17 +439,7 @@ agent_iterations:
 
 Some signal sources expect a response — HTTP returns 200 with a body, Slack replies in a thread, CLI prints to stdout. Others are fire-and-forget (Kafka, scheduled poller).
 
-### Approach
-
-Each signal source config specifies a reply tool (e.g., `reply_to_user` for CLI). The agent strategy sets `ChatToolMode.RequireSpecific(replyTool)` on the chat options, forcing the LLM to call that tool whenever it produces a response. The reply tool handler writes the output to its configured destination (e.g., console for CLI, HTTP response for webhooks).
-
-| Signal Source | Reply Tool | Mechanism |
-|---------------|------------|-----------|
-| `HttpWebhookSignalSource` | `reply_to_http` | Tool handler writes body + status code to the HTTP response |
-| `SlackSignalSource` | `reply_to_slack` | Tool handler posts to the Slack thread |
-| `CliStdinSignalSource` | `reply_to_user` | Tool handler writes to stdout |
-| `KafkaSignalSource` | *(none — fire-and-forget)* | No reply tool configured; agent uses `ChatToolMode.Auto` |
-| `ScheduledPollerSignalSource` | *(none — fire-and-forget)* | No reply tool configured; agent uses `ChatToolMode.Auto` |
+Each signal source can define its own mechanism for delivering these responses, typically by implementing a corresponding tool that the agent calls to produce output.
 
 ### How it works
 
@@ -482,7 +467,7 @@ Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ repl
 
 ## 14. Supplemental: Signal Queuing and Concurrent Processing
 
-Enterprise signal volumes can exceed the throughput of a single sequential agent loop. The agent loop is I/O-bound (LLM API calls, DB reads/writes), so a single Node.js process can handle many concurrent sessions via async concurrency. However, without a queue, bursts of signals either overload the process or get dropped.
+Enterprise signal volumes can exceed the throughput of a single sequential agent loop. The agent loop is I/O-bound (LLM API calls, DB reads/writes), so the .NET runtime can handle many concurrent sessions via async tasks. However, without a queue, bursts of signals either overload the system or get dropped.
 
 ### Queue architecture
 
@@ -501,7 +486,7 @@ Signal arrives ──→ Auth ──→ signal_queue ──→ dequeue ──→
 This works because the queue decouples *processing capacity* from *ingestion*, but response delivery still happens inline — the signal source adapter holds an in-memory promise that the worker resolves when the session finishes. `maxConcurrentSessions` limits how many connections can be *in-flight*, not how many signals can be queued.
 
 Per-source response behaviour:
-- **HTTP** — Handler enqueues, then `await`s a deferred promise. Node.js holds the connection open (async I/O, not blocking). If the queue is full, the handler rejects with 503 *before* enqueuing — no dangling connection.
+- **HTTP** — Handler enqueues, then `await`s a deferred Task completion. The host holds the connection open (async I/O, not blocking). If the queue is full, the handler rejects with 503 *before* enqueuing — no dangling connection.
 - **Slack** — Slack's Events API requires a 200 OK within 3 seconds just to acknowledge receipt. Handler enqueues, returns 200 immediately. Worker posts the reply to Slack's `response_url` later.
 - **CLI** — Holds stdin/stdout open awaiting a deferred response (same as HTTP), or prints a session ID for polling.
 
@@ -512,16 +497,16 @@ The `signal_queue` table lives in its own DB (`signal_queue.db`). See Section 11
 ### Worker pool
 
 - **Configurable concurrency** — `maxConcurrentSessions` in config controls how many sessions run simultaneously.
-- **Async I/O concurrency** — Within a single Node.js process, one worker can manage many sessions because the loop is almost entirely I/O (LLM HTTP calls). CPU-bound post-processing would need `worker_threads`.
+- **Async I/O concurrency** — Within the .NET process, the engine can manage many sessions because the loop is almost entirely I/O (LLM HTTP calls).
 - **Polling** — Workers poll `signal_queue` for `pending` rows, atomically transition to `processing` via `UPDATE ... WHERE status = 'pending' LIMIT 1` (SQLite serializes writes, so no race).
 - **Pick timeout** — If a worker crashes, sessions stuck in `processing` with a stale `picked_at` are retried after a grace period.
 
 ### Multi-process scaling (future)
 
-When one Node.js process isn't enough:
+When the host process isn't enough:
 
-1. **Multiple processes, shared SQLite** — WAL mode allows concurrent readers. Workers in separate processes poll the same queue. SQLite write contention becomes the bottleneck under high load.
-2. **Dedicated queue** — Swap the SQLite-backed queue for Redis or Bull. The `SignalQueue` port abstracts this — same pattern as `ConfigRepository`.
+1. **Multiple instances, shared SQLite** — WAL mode allows concurrent readers. Workers in separate processes poll the same queue. SQLite write contention becomes the bottleneck under high load.
+2. **Dedicated queue** — Swap the SQLite-backed queue for a distributed queue like RabbitMQ or Azure Service Bus. The `SignalQueue` port abstracts this.
 3. **Stateless workers** — Workers hold no in-memory state. They can be scaled horizontally behind a proper queue without changes to domain or application layers.
 
 ### Backpressure
@@ -532,8 +517,8 @@ When one Node.js process isn't enough:
 
 ### What changes
 
-- **`domain/signal-queue.ts`** — New `SignalQueue` port: `enqueue`, `dequeue`, `ack`, `nack`.
-- **`adapter/sqlite-signal-queue.ts`** — SQLite-backed adapter using the table above.
-- **`application/queue-worker.ts`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration flow per item.
-- **`infra/`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
+- **`HaaS.Domain`** — New `ISignalQueue` port: `EnqueueAsync`, `DequeueAsync`, `AckAsync`, `NackAsync`.
+- **`HaaS.Adapters`** — SQLite-backed adapter using the table above.
+- **`HaaS.Application`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration flow per item.
+- **`HaaS.Infrastructure`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
 - **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).
