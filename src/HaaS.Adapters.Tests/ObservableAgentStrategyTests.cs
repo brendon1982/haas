@@ -118,13 +118,16 @@ file sealed class SutBuilder
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
-        => presenter.PresentAsync(result);
+    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    {
+        await presenter.PresentAsync(result);
+        return result;
+    }
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
         => throw error;
 }
 

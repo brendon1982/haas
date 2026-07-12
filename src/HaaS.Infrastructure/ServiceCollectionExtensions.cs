@@ -7,6 +7,7 @@ using HaaS.Application.UseCases;
 using HaaS.Application;
 using HaaS.Domain.Ports;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Infrastructure;
 
@@ -53,7 +54,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISignalSourceRegistry, SignalSourceRegistry>();
 
         services.AddTransient<SignalWorker>();
-        services.AddSingleton<HaasEngine>();
+        
+        services.AddSingleton<DirectHaasEngine>();
+        services.AddSingleton<QueuedHaasEngine>();
+        
         services.AddSingleton<IHaasEngine>(sp =>
         {
             var registry = sp.GetRequiredService<ISignalSourceRegistry>();
@@ -61,11 +65,38 @@ public static class ServiceCollectionExtensions
             {
                 registry.Register(reg);
             }
-            var inner = sp.GetRequiredService<HaasEngine>();
+            
+            // We return a composite engine or just one that runs both?
+            // Actually, we can return a decorator that starts both if we want to keep IHaasEngine interface working for manual start.
+            // But the user said we don't have to run/start it.
+            
+            var direct = sp.GetRequiredService<DirectHaasEngine>();
+            var queued = sp.GetRequiredService<QueuedHaasEngine>();
             var logger = sp.GetRequiredService<ILogger>();
-            return new ObservableHaasEngine(inner, logger);
+            
+            var composite = new CompositeHaasEngine(direct, queued);
+            return new ObservableHaasEngine(composite, logger);
         });
 
+        services.AddHostedService<ObservableHaasEngine>(sp => (ObservableHaasEngine)sp.GetRequiredService<IHaasEngine>());
+
         return new HaasBuilder(services);
+    }
+}
+
+internal class CompositeHaasEngine : IHaasEngine
+{
+    private readonly DirectHaasEngine _direct;
+    private readonly QueuedHaasEngine _queued;
+
+    public CompositeHaasEngine(DirectHaasEngine direct, QueuedHaasEngine queued)
+    {
+        _direct = direct;
+        _queued = queued;
+    }
+
+    public async Task RunAsync(CancellationToken ct = default)
+    {
+        await Task.WhenAll(_direct.RunAsync(ct), _queued.RunAsync(ct));
     }
 }

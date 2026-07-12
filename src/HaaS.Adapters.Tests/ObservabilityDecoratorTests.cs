@@ -18,8 +18,9 @@ public class ObservableRunSessionUseCaseTests
     {
         // Arrange
         var inner = Substitute.For<IRunSessionUseCase>();
+        var expected = new SessionResult("hello", "sess-42");
         inner.ExecuteAsync(Arg.Any<SignalValue>(), Arg.Any<ISignalPresenter>())
-             .Returns(Task.FromResult("sess-42"));
+             .Returns(Task.FromResult(expected));
         
         var logger = new FakeLogger();
         var sut = new ObservableRunSessionUseCase(inner, logger);
@@ -31,7 +32,7 @@ public class ObservableRunSessionUseCaseTests
         var result = await sut.ExecuteAsync(signal, presenter);
 
         // Assert
-        Expect(result).To.Equal("sess-42");
+        Expect(result).To.Equal(expected);
         var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
         Expect(infoLogs).To.Contain.Exactly(2);
         Expect(infoLogs[0].Message).To.Contain("Session processing started");
@@ -45,7 +46,7 @@ public class ObservableRunSessionUseCaseTests
         // Arrange
         var inner = Substitute.For<IRunSessionUseCase>();
         inner.ExecuteAsync(Arg.Any<SignalValue>(), Arg.Any<ISignalPresenter>())
-             .Returns(Task.FromException<string>(new InvalidOperationException("fail")));
+             .Returns(Task.FromException<SessionResult>(new InvalidOperationException("fail")));
         
         var logger = new FakeLogger();
         var sut = new ObservableRunSessionUseCase(inner, logger);

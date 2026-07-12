@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using HaaS.Domain.Ports;
 
+using Microsoft.Extensions.Hosting;
+
 namespace HaaS.Adapters.Observability;
 
-public sealed class ObservableHaasEngine : IHaasEngine
+public sealed class ObservableHaasEngine : IHaasEngine, IHostedService
 {
     private static readonly ActivitySource ActivitySource = new("HaaS.Engine");
 
@@ -27,6 +29,10 @@ public sealed class ObservableHaasEngine : IHaasEngine
             await _inner.RunAsync(ct);
             _logger.LogInformation("HaaS Engine stopped");
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            _logger.LogInformation("HaaS Engine stopped (canceled)");
+        }
         catch (Exception ex)
         {
             activity?.SetTag("error", true);
@@ -35,4 +41,12 @@ public sealed class ObservableHaasEngine : IHaasEngine
             throw;
         }
     }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _ = RunAsync(cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

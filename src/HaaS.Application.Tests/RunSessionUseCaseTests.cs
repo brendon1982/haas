@@ -224,16 +224,17 @@ file sealed class FakeTimeProvider(DateTimeOffset fixedTime) : TimeProvider
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public Task ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
     {
         var updated = result with { SessionId = sessionId };
-        return presenter.PresentAsync(updated);
+        await presenter.PresentAsync(updated);
+        return updated;
     }
 }
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
         => throw error;
 }
 

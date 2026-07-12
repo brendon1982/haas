@@ -26,7 +26,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         _toolRegistry = toolRegistry;
     }
 
-    public async Task ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
     {
         var record = await _sessionRepository.LoadAsync(sessionId)
             ?? throw new InvalidOperationException($"Session {sessionId} not found.");
@@ -75,6 +75,8 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var response = await agent.RunAsync(messages, session);
 
-        await presenter.PresentAsync(new SessionResult(Output: response.Text, SessionId: sessionId));
+        var result = new SessionResult(Output: response.Text, SessionId: sessionId);
+        await presenter.PresentAsync(result);
+        return result;
     }
 }

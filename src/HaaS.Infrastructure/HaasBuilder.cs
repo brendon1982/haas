@@ -40,17 +40,10 @@ public readonly struct HaasBuilder
             var sourceOptions = sp.GetServices<SignalSourceOptions>()
                 .First(o => o.SourceType == typeof(TSource));
             
-            ISignalPresenter finalPresenter = presenter;
-            if (sourceOptions.IsQueued)
-            {
-                var resultStore = sp.GetRequiredService<IDeferredSessionResultStore>();
-                finalPresenter = new DeferredPresenter(presenter, resultStore);
-            }
-            
             var builder = new SignalSourceConfigBuilder(source.Type);
             configure(builder);
 
-            return new SignalSourceRegistration(source, finalPresenter, builder.Build(), sourceOptions.IsQueued);
+            return new SignalSourceRegistration(source, presenter, builder.Build(), sourceOptions.IsQueued);
         });
 
         return new SignalSourceBuilder(Services, options);

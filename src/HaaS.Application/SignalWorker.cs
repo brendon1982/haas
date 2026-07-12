@@ -8,17 +8,20 @@ public class SignalWorker
     private readonly ISignalQueue _queue;
     private readonly IRunSessionUseCase _runSessionUseCase;
     private readonly ISignalSourceRegistry _registry;
+    private readonly IDeferredSessionResultStore _resultStore;
     private readonly ILogger _logger;
 
     public SignalWorker(
         ISignalQueue queue,
         IRunSessionUseCase runSessionUseCase,
         ISignalSourceRegistry registry,
+        IDeferredSessionResultStore resultStore,
         ILogger logger)
     {
         _queue = queue;
         _runSessionUseCase = runSessionUseCase;
         _registry = registry;
+        _resultStore = resultStore;
         _logger = logger;
     }
 
@@ -44,7 +47,9 @@ public class SignalWorker
                 return;
             }
 
-            await _runSessionUseCase.ExecuteAsync(queued.Signal, registration.Presenter);
+            var result = await _runSessionUseCase.ExecuteAsync(queued.Signal, registration.Presenter);
+            _resultStore.SetResult(result.SessionId, result);
+            
             await _queue.AckAsync(queued.Id);
             _logger.LogInformation("Successfully completed signal {0}", queued.Id);
         }

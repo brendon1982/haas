@@ -18,7 +18,7 @@ public sealed class ObservableRunSessionUseCase : IRunSessionUseCase
         _logger = logger;
     }
 
-    public async Task<string> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
     {
         using var activity = ActivitySource.StartActivity("RunSession");
         activity?.SetTag("signal.source", signal.Source);
@@ -28,14 +28,14 @@ public sealed class ObservableRunSessionUseCase : IRunSessionUseCase
 
         try
         {
-            var sessionId = await _inner.ExecuteAsync(signal, presenter);
+            var result = await _inner.ExecuteAsync(signal, presenter);
             sw.Stop();
 
-            activity?.SetTag("session.id", sessionId);
+            activity?.SetTag("session.id", result.SessionId);
             activity?.SetTag("duration_ms", sw.ElapsedMilliseconds);
 
-            _logger.LogInformation("Session processing completed — session: {0}, duration: {1}ms", sessionId, sw.ElapsedMilliseconds);
-            return sessionId;
+            _logger.LogInformation("Session processing completed — session: {0}, duration: {1}ms", result.SessionId, sw.ElapsedMilliseconds);
+            return result;
         }
         catch (Exception ex)
         {
