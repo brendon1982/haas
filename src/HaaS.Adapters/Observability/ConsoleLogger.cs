@@ -44,7 +44,16 @@ public class ConsoleLogger : ILogger
 
     private void WriteLine(string level, string message, params object?[] args)
     {
-        var formatted = args.Length > 0 ? string.Format(null, message, args) : message;
+        string formatted;
+        try
+        {
+            formatted = args.Length > 0 ? string.Format(null, message, args) : message;
+        }
+        catch (FormatException)
+        {
+            formatted = $"{message} (Args: {string.Join(", ", args)})";
+        }
+        
         var timestamp = DateTime.UtcNow.ToString("O");
         _writer.WriteLine($"[{timestamp}] [{level}] {formatted}");
     }

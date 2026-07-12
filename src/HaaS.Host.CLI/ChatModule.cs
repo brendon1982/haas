@@ -18,12 +18,12 @@ public class ChatModule : ICliModule
 
         var services = new ServiceCollection();
         services.AddHaas()
+            .WithSqlitePersistence("data", includeConfig: false)
             .WithInMemoryConfig(config =>
             {
                 config.UseOllama();
                 config.UseOpenRouter();
             })
-            .WithSqlitePersistence("data")
             .WithWorkerPool(3)
             .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
             {

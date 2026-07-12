@@ -26,7 +26,7 @@ public class EnqueueSignalUseCase : IEnqueueSignalUseCase
         };
 
         await _queue.EnqueueAsync(signalWithMetadata, Identity.Anonymous);
-        _logger.LogInformation("Enqueued signal for source {Source}, SessionId: {SessionId}", signal.Source, sessionId);
+        _logger.LogInformation("Enqueued signal for source {0}, SessionId: {1}", signal.Source, sessionId);
 
         return sessionId;
     }

@@ -8,27 +8,59 @@ public static class HaasSqliteExtensions
 {
     public static HaasBuilder WithSqlitePersistence(
         this HaasBuilder builder,
-        string sharedDbDirectory)
+        string sharedDbDirectory,
+        bool includeConfig = true)
     {
-        var services = builder.Services;
-        
-        if (!Directory.Exists(sharedDbDirectory))
+        builder.WithSqliteSessionRepository(sharedDbDirectory)
+               .WithSqliteMessageStore(sharedDbDirectory)
+               .WithSqliteQueue(sharedDbDirectory);
+
+        if (includeConfig)
         {
-            Directory.CreateDirectory(sharedDbDirectory);
+            builder.WithSqliteConfig(sharedDbDirectory);
         }
 
-        var sessionsDbPath = Path.Combine(sharedDbDirectory, "sessions.db");
-        var configDbPath = Path.Combine(sharedDbDirectory, "config.db");
-        var signalQueueDbPath = Path.Combine(sharedDbDirectory, "signal_queue.db");
-        var perSessionDir = Path.Combine(sharedDbDirectory, "sessions");
-
-        // Use SQLite repositories instead of in-memory ones
-        services.AddSingleton<ISessionRepository>(new SharedSqliteSessionRepository(sessionsDbPath));
-        services.AddSingleton<ISignalSourceConfigRepository>(new SharedSqliteSignalSourceConfigRepository(configDbPath));
-        services.AddSingleton<IProviderConfigRepository>(new SharedSqliteProviderConfigRepository(configDbPath));
-        services.AddSingleton<IMessageStore>(new PerSessionSqliteMessageStore(perSessionDir));
-        services.AddSingleton<ISignalQueue>(new SharedSqliteSignalQueueStore(signalQueueDbPath));
-
         return builder;
+    }
+
+    public static HaasBuilder WithSqliteSessionRepository(this HaasBuilder builder, string sharedDbDirectory)
+    {
+        var dbPath = Path.Combine(sharedDbDirectory, "sessions.db");
+        EnsureDirectory(sharedDbDirectory);
+        builder.Services.AddSingleton<ISessionRepository>(new SharedSqliteSessionRepository(dbPath));
+        return builder;
+    }
+
+    public static HaasBuilder WithSqliteConfig(this HaasBuilder builder, string sharedDbDirectory)
+    {
+        var dbPath = Path.Combine(sharedDbDirectory, "config.db");
+        EnsureDirectory(sharedDbDirectory);
+        builder.Services.AddSingleton<ISignalSourceConfigRepository>(new SharedSqliteSignalSourceConfigRepository(dbPath));
+        builder.Services.AddSingleton<IProviderConfigRepository>(new SharedSqliteProviderConfigRepository(dbPath));
+        return builder;
+    }
+
+    public static HaasBuilder WithSqliteMessageStore(this HaasBuilder builder, string sharedDbDirectory)
+    {
+        var perSessionDir = Path.Combine(sharedDbDirectory, "sessions");
+        EnsureDirectory(sharedDbDirectory);
+        builder.Services.AddSingleton<IMessageStore>(new PerSessionSqliteMessageStore(perSessionDir));
+        return builder;
+    }
+
+    public static HaasBuilder WithSqliteQueue(this HaasBuilder builder, string sharedDbDirectory)
+    {
+        var dbPath = Path.Combine(sharedDbDirectory, "signal_queue.db");
+        EnsureDirectory(sharedDbDirectory);
+        builder.Services.AddSingleton<ISignalQueue>(new SharedSqliteSignalQueueStore(dbPath));
+        return builder;
+    }
+
+    private static void EnsureDirectory(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
     }
 }

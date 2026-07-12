@@ -70,4 +70,19 @@ public class ConsoleLoggerTests
         var output = writer.ToString();
         Expect(output).To.Contain("User alice logged in from 10.0.0.1");
     }
+
+    [Test]
+    public void InvalidFormat_DoesNotCrash_AndPrintsRawMessageWithArgs()
+    {
+        // Arrange
+        var writer = new StringWriter();
+        var sut = new ConsoleLogger(writer);
+
+        // Act
+        sut.LogInformation("Invalid {Source}", "chat");
+
+        // Assert
+        var output = writer.ToString();
+        Expect(output).To.Contain("Invalid {Source} (Args: chat)");
+    }
 }

@@ -32,13 +32,13 @@ public class SignalWorker
 
         try
         {
-            _logger.LogInformation("Processing signal {Id} for source {Source}, SessionId: {SessionId}", 
+            _logger.LogInformation("Processing signal {0} for source {1}, SessionId: {2}", 
                 queued.Id, queued.Signal.Source, queued.Signal.SessionId);
             
             var registration = _registry.GetBySourceType(queued.Signal.Source);
             if (registration == null)
             {
-                _logger.LogWarning("No registration found for source type {Source}. Nacking signal {Id}", 
+                _logger.LogWarning("No registration found for source type {0}. Nacking signal {1}", 
                     queued.Signal.Source, queued.Id);
                 await _queue.NackAsync(queued.Id);
                 return;
@@ -46,11 +46,11 @@ public class SignalWorker
 
             await _runSessionUseCase.ExecuteAsync(queued.Signal, registration.Presenter);
             await _queue.AckAsync(queued.Id);
-            _logger.LogInformation("Successfully completed signal {Id}", queued.Id);
+            _logger.LogInformation("Successfully completed signal {0}", queued.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process signal {Id}. Nacking.", queued.Id);
+            _logger.LogError(ex, "Failed to process signal {0}. Nacking.", queued.Id);
             await _queue.NackAsync(queued.Id);
             throw;
         }

@@ -25,12 +25,12 @@ public class TicTacToeModule : ICliModule
 
         var services = new ServiceCollection();
         services.AddHaas()
+            .WithSqlitePersistence("data", includeConfig: false)
             .WithInMemoryConfig(config =>
             {
                 config.UseOllama();
                 config.UseOpenRouter();
             })
-            .WithSqlitePersistence("data")
             .WithWorkerPool(1)
             .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
             {
