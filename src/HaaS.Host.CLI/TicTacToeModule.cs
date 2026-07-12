@@ -33,17 +33,18 @@ public class TicTacToeModule : ICliModule
                         config.UseOllama();
                         config.UseOpenRouter();
                     })
-                    .WithWorkerPool(1)
-                    .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
+                    .AddQueuedWorkerPool(1, pool =>
                     {
-                        config.UseProvider(providerName)
-                            .UseModel(modelId)
-                            .UseSystemPrompt(GetSystemPrompt())
-                            .AddTool("get_board")
-                            .AddTool("get_valid_moves")
-                            .AddTool("place_marker");
-                    })
-                    .WithQueuedProcessing();
+                        pool.AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
+                        {
+                            config.UseProvider(providerName)
+                                .UseModel(modelId)
+                                .UseSystemPrompt(GetSystemPrompt())
+                                .AddTool("get_board")
+                                .AddTool("get_valid_moves")
+                                .AddTool("place_marker");
+                        });
+                    });
 
                 services.AddSingleton(_game);
             })

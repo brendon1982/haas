@@ -16,13 +16,37 @@ public readonly struct HaasBuilder
         Services = services;
     }
 
-    public HaasBuilder WithWorkerPool(int workerCount)
+    public HaasBuilder AddQueuedWorkerPool(int workerCount, Action<HaasQueuedPoolBuilder> configure)
     {
         Services.AddSingleton<IQueuedHaasEngineConfigure>(sp => new QueuedHaasEngineConfigure(workerCount));
+        var poolBuilder = new HaasQueuedPoolBuilder(this);
+        configure(poolBuilder);
         return this;
     }
 
-    public SignalSourceBuilder AddSignalSource<TSource, TPresenter>(Action<SignalSourceConfigBuilder> configure)
+    public class HaasQueuedPoolBuilder
+    {
+        private readonly HaasBuilder _parent;
+
+        public HaasQueuedPoolBuilder(HaasBuilder parent)
+        {
+            _parent = parent;
+        }
+
+        public HaasQueuedPoolBuilder AddSignalSource<TSource, TPresenter>(Action<SignalSourceConfigBuilder>? configure = null)
+            where TSource : class, ISignalSource
+            where TPresenter : class, ISignalPresenter
+        {
+            _parent.AddSignalSource<TSource, TPresenter>(config =>
+            {
+                configure?.Invoke(config);
+            }).WithQueuedProcessing();
+            
+            return this;
+        }
+    }
+
+    public SignalSourceBuilder<TSource, TPresenter> AddSignalSource<TSource, TPresenter>(Action<SignalSourceConfigBuilder> configure)
         where TSource : class, ISignalSource
         where TPresenter : class, ISignalPresenter
     {
@@ -45,7 +69,7 @@ public readonly struct HaasBuilder
             return new SignalSourceRegistration(source, presenter, builder.Build(), sourceOptions.IsQueued);
         });
 
-        return new SignalSourceBuilder(Services, options);
+        return new SignalSourceBuilder<TSource, TPresenter>(Services, options);
     }
 }
 

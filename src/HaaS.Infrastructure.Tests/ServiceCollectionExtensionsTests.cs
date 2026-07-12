@@ -97,6 +97,28 @@ public class ServiceCollectionExtensionsTests
         Expect(providers).To.Contain(provider2);
     }
 
+    [Test]
+    public void AddQueuedWorkerPool_ShouldRegisterSourcesWithQueuedProcessing()
+    {
+        // Arrange
+        var services = new SutBuilder()
+            .Build();
+        var builder = services.AddHaas();
+        var expectedProvider = "queued-provider";
+
+        // Act
+        builder.AddQueuedWorkerPool(3, pool =>
+        {
+            pool.AddSignalSource<TestSignalSource, TestSignalPresenter>(c => c.UseProvider(expectedProvider));
+        });
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        var registration = provider.GetRequiredService<SignalSourceRegistration>();
+        Expect(registration.IsQueued).To.Be.True();
+        Expect(registration.Config.Provider).To.Equal(expectedProvider);
+    }
+
     private class TestSignalSource : ISignalSource
     {
         public string Type => "test";

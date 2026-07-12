@@ -37,8 +37,15 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
             await ConfigRepository.SaveAsync(reg.Config);
         }
 
-        var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken));
-        await Task.WhenAll(tasks);
+        var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken)).ToList();
+        
+        // Use a TaskCompletionSource to keep the engine running as long as the stoppingToken is not cancelled
+        // This prevents the application from exiting if all ListenAsync calls finish (e.g. CLI input ends)
+        // but we still want to keep the host alive for other background work or until external termination.
+        var tcs = new TaskCompletionSource();
+        using var registration = stoppingToken.Register(() => tcs.TrySetResult());
+
+        await Task.WhenAll(tasks.Concat(new[] { tcs.Task }));
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();

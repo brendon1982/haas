@@ -1,9 +1,13 @@
 using System;
+using HaaS.Application;
+using HaaS.Domain.Ports;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HaaS.Infrastructure;
 
-public readonly struct SignalSourceBuilder
+public readonly struct SignalSourceBuilder<TSource, TPresenter>
+    where TSource : class, ISignalSource
+    where TPresenter : class, ISignalPresenter
 {
     private readonly IServiceCollection _services;
     private readonly SignalSourceOptions _options;
@@ -20,5 +24,5 @@ public readonly struct SignalSourceBuilder
         return new HaasBuilder(_services);
     }
 
-    public static implicit operator HaasBuilder(SignalSourceBuilder builder) => new HaasBuilder(builder._services);
+    public static implicit operator HaasBuilder(SignalSourceBuilder<TSource, TPresenter> builder) => new HaasBuilder(builder._services);
 }
