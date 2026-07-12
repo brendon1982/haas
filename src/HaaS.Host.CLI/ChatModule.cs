@@ -20,7 +20,7 @@ public class ChatModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithSqlitePersistence("data", includeConfig: false)
+                    .WithSqlitePersistence("chat-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
                         config.UseOllama();

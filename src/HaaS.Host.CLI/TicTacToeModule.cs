@@ -27,7 +27,7 @@ public class TicTacToeModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithSqlitePersistence("data", includeConfig: false)
+                    .WithSqlitePersistence("tictactoe-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
                         config.UseOllama();
