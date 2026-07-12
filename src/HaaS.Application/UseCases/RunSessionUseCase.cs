@@ -3,7 +3,7 @@ using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Application.UseCases;
 
-public class RunSessionUseCase
+public class RunSessionUseCase : IRunSessionUseCase
 {
     private readonly IAgentStrategy _agentStrategy;
     private readonly ISessionRepository _sessionRepository;

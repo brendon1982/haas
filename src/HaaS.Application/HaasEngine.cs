@@ -6,12 +6,12 @@ namespace HaaS.Application;
 public class HaasEngine : IHaasEngine
 {
     private readonly IEnumerable<SignalSourceRegistration> _registrations;
-    private readonly RunSessionUseCase _runSessionUseCase;
+    private readonly IRunSessionUseCase _runSessionUseCase;
     private readonly ISignalSourceConfigRepository _configRepository;
 
     public HaasEngine(
         IEnumerable<SignalSourceRegistration> registrations,
-        RunSessionUseCase runSessionUseCase,
+        IRunSessionUseCase runSessionUseCase,
         ISignalSourceConfigRepository configRepository)
     {
         _registrations = registrations;

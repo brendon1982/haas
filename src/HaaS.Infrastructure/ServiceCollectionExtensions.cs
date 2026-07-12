@@ -37,7 +37,20 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<RunSessionUseCase>();
-        services.AddSingleton<IHaasEngine, HaasEngine>();
+        services.AddSingleton<IRunSessionUseCase>(sp =>
+        {
+            var inner = sp.GetRequiredService<RunSessionUseCase>();
+            var logger = sp.GetRequiredService<ILogger>();
+            return new ObservableRunSessionUseCase(inner, logger);
+        });
+
+        services.AddSingleton<HaasEngine>();
+        services.AddSingleton<IHaasEngine>(sp =>
+        {
+            var inner = sp.GetRequiredService<HaasEngine>();
+            var logger = sp.GetRequiredService<ILogger>();
+            return new ObservableHaasEngine(inner, logger);
+        });
 
         return new HaasBuilder(services);
     }
