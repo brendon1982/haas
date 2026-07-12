@@ -40,7 +40,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             {
                 await _messageStore.AppendMessagesAsync(
                     sessionId,
-                    [JsonSerializer.Serialize(new ChatMessage(new ChatRole("system"), config.SystemPrompt))]);
+                    [JsonSerializer.Serialize(new ChatMessage(ChatRole.System, config.SystemPrompt))]);
             }
         }
 

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
@@ -83,8 +84,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         // Assert
         var messages = await messageStore.GetMessagesAsync(sessionId);
         var systemMessage = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
-        Expect(systemMessage!.Role.Value).To.Equal("system");
-        Expect(systemMessage.Text).To.Equal("You are a helpful bot.");
+        Expect(systemMessage!.Role).To.Equal(ChatRole.System);
+        Expect(systemMessage.Text).To.Equal(record.SystemPrompt);
     }
 
     [Test]
@@ -92,10 +93,12 @@ public class MicrosoftAgentFrameworkStrategyTests
     {
         // Arrange
         var sessionId = "sess-1";
+        var expectedProvider = "openai";
+        var expectedModelId = "gpt-4";
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId(sessionId)
-            .WithProvider("openai")
-            .WithModelId("gpt-4")
+            .WithProvider(expectedProvider)
+            .WithModelId(expectedModelId)
             .WithSystemPrompt("You are a helpful bot.")
             .WithToolBelt(new ToolBelt(["tool1", "tool2"]))
             .WithThinkingLevel("high")
@@ -118,8 +121,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
 
         // Assert
-        Expect(factory.LastProvider).To.Equal("openai");
-        Expect(factory.LastModelId).To.Equal("gpt-4");
+        Expect(factory.LastProvider).To.Equal(expectedProvider);
+        Expect(factory.LastModelId).To.Equal(expectedModelId);
     }
 
     [Test]
@@ -150,11 +153,13 @@ public class MicrosoftAgentFrameworkStrategyTests
     {
         // Arrange
         var expectedResponse = "response";
+        var expectedProvider = "ollama";
+        var expectedModelId = "gemma4";
         var sessionId = "sess-multi";
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId(sessionId)
-            .WithProvider("ollama")
-            .WithModelId("gemma4")
+            .WithProvider(expectedProvider)
+            .WithModelId(expectedModelId)
             .Build();
         var repo = new InMemorySessionRepository();
         await repo.SaveAsync(record);
@@ -187,8 +192,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(presenter.Results[0].Output).To.Equal(expectedResponse);
         Expect(presenter.Results[1].Output).To.Equal(expectedResponse);
         Expect(factory.CallCount).To.Equal(2);
-        Expect(factory.LastProvider).To.Equal("ollama");
-        Expect(factory.LastModelId).To.Equal("gemma4");
+        Expect(factory.LastProvider).To.Equal(expectedProvider);
+        Expect(factory.LastModelId).To.Equal(expectedModelId);
 
         // system prompt seeded once + 2 turns × (1 user + 1 assistant)
         var messages = await messageStore.GetMessagesAsync(sessionId);
@@ -200,10 +205,11 @@ public class MicrosoftAgentFrameworkStrategyTests
     {
         // Arrange
         var sessionId = "sess-1";
+        var expectedTool = "test_tool";
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId(sessionId)
             .WithSourceType("cli")
-            .WithToolBelt(new ToolBelt(["test_tool"]))
+            .WithToolBelt(new ToolBelt([expectedTool]))
             .Build();
         var repo = new InMemorySessionRepository();
         await repo.SaveAsync(record);
@@ -212,7 +218,7 @@ public class MicrosoftAgentFrameworkStrategyTests
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
         var toolRegistry = new FakeToolRegistry();
-        toolRegistry.Register("test_tool", (Func<string, Task<string>>)(async input => $"processed: {input}"));
+        toolRegistry.Register(expectedTool, (Func<string, Task<string>>)(async input => $"processed: {input}"));
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
@@ -230,8 +236,8 @@ public class MicrosoftAgentFrameworkStrategyTests
         var lastOptions = capturedOptions.LastOrDefault();
         Expect(lastOptions).Not.To.Be.Null();
         Expect(lastOptions!.Tools).Not.To.Be.Null();
-        Expect(lastOptions.Tools.Count).To.Equal(1);
-        Expect(lastOptions.Tools[0].Name).To.Equal("test_tool");
+        Expect(lastOptions.Tools!.Count).To.Equal(1);
+        Expect(lastOptions.Tools[0].Name).To.Equal(expectedTool);
         Expect(lastOptions.ToolMode).To.Be.Null();
     }
 }
@@ -303,7 +309,7 @@ file sealed class FakeChatClient(string response) : IChatClient
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.CompletedTask;
         yield break;
@@ -329,7 +335,7 @@ file sealed class CapturingChatOptionsClient(string response, List<ChatOptions?>
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.CompletedTask;
         yield break;

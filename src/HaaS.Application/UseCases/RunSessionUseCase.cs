@@ -35,7 +35,7 @@ public class RunSessionUseCase : IRunSessionUseCase
             var record = new SessionRecord(
                 sessionId,
                 signal.Source,
-                "running",
+                SessionRecord.Statuses.Running,
                 config.Provider,
                 config.ModelId,
                 config.SystemPrompt,
@@ -57,7 +57,7 @@ public class RunSessionUseCase : IRunSessionUseCase
             {
                 failed = failed with
                 {
-                    Status = "failed",
+                    Status = SessionRecord.Statuses.Failed,
                     UpdatedAt = _timeProvider.GetUtcNow()
                 };
                 await _sessionRepository.SaveAsync(failed);
@@ -71,7 +71,7 @@ public class RunSessionUseCase : IRunSessionUseCase
         {
             updated = updated with
             {
-                Status = "completed",
+                Status = SessionRecord.Statuses.Completed,
                 UpdatedAt = _timeProvider.GetUtcNow()
             };
             await _sessionRepository.SaveAsync(updated);
@@ -80,15 +80,8 @@ public class RunSessionUseCase : IRunSessionUseCase
         return sessionId;
     }
 
-    private async Task<string> ResolveSessionIdAsync(Signal signal)
+    private Task<string> ResolveSessionIdAsync(Signal signal)
     {
-        if (signal.SessionId is not null)
-        {
-            var existing = await _sessionRepository.LoadAsync(signal.SessionId);
-            if (existing is not null)
-                return existing.SessionId;
-        }
-
-        return Guid.NewGuid().ToString();
+        return Task.FromResult(signal.SessionId ?? Guid.NewGuid().ToString());
     }
 }

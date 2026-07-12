@@ -1,5 +1,6 @@
 #pragma warning disable MAAI001
 
+using System.Runtime.CompilerServices;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
@@ -18,15 +19,14 @@ public class PersistedChatHistoryProviderTests
     public async Task ProvideChatHistoryAsync_WithSessionIdInStateBag_ReturnsMessagesFromStore()
     {
         // Arrange
-        var store = new InMemorySessionMessageStore();
         var sessionId = "test-session";
-        await store.AppendMessagesAsync(sessionId,
-        [
-            System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.User, "stored question")),
-            System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.Assistant, "stored answer"))
-        ]);
-
-        var sut = new PersistedChatHistoryProvider(store);
+        var sut = ProviderSutBuilder.Create()
+            .WithMessages(sessionId,
+            [
+                System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.User, "stored question")),
+                System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.Assistant, "stored answer"))
+            ])
+            .Build();
         var (agent, session) = await CreateSessionWithAgentAsync(sessionId);
         var context = new ChatHistoryProvider.InvokingContext(
             agent,
@@ -47,8 +47,7 @@ public class PersistedChatHistoryProviderTests
     public async Task ProvideChatHistoryAsync_WithoutSessionId_ReturnsOnlyCallerMessages()
     {
         // Arrange
-        var store = new InMemorySessionMessageStore();
-        var sut = new PersistedChatHistoryProvider(store);
+        var sut = ProviderSutBuilder.Create().Build();
         var (agent, _) = await CreateSessionWithAgentAsync("unused");
         var context = new ChatHistoryProvider.InvokingContext(
             agent,
@@ -67,11 +66,11 @@ public class PersistedChatHistoryProviderTests
     public async Task StoreChatHistoryAsync_AppendsMessagesToStore()
     {
         // Arrange
-        var store = new InMemorySessionMessageStore();
         var sessionId = "test-session";
         var (agent, session) = await CreateSessionWithAgentAsync(sessionId);
 
-        var sut = new PersistedChatHistoryProvider(store);
+        var builder = ProviderSutBuilder.Create();
+        var sut = builder.Build();
         var context = new ChatHistoryProvider.InvokedContext(
             agent,
             session,
@@ -82,7 +81,7 @@ public class PersistedChatHistoryProviderTests
         await sut.InvokedAsync(context);
 
         // Assert
-        var messages = await store.GetMessagesAsync(sessionId);
+        var messages = await builder.MessageStore.GetMessagesAsync(sessionId);
         Expect(messages.Count).To.Equal(2);
         var deserialized0 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
         var deserialized1 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[1]);
@@ -94,8 +93,8 @@ public class PersistedChatHistoryProviderTests
     public async Task StoreChatHistoryAsync_WithoutSessionId_DoesNothing()
     {
         // Arrange
-        var store = new InMemorySessionMessageStore();
-        var sut = new PersistedChatHistoryProvider(store);
+        var builder = ProviderSutBuilder.Create();
+        var sut = builder.Build();
         var (agent, _) = await CreateSessionWithAgentAsync("unused");
         var context = new ChatHistoryProvider.InvokedContext(
             agent,
@@ -107,7 +106,7 @@ public class PersistedChatHistoryProviderTests
         await sut.InvokedAsync(context);
 
         // Assert
-        var messages = await store.GetMessagesAsync("any-session");
+        var messages = await builder.MessageStore.GetMessagesAsync("any-session");
         Expect(messages.Count).To.Equal(0);
     }
 
@@ -115,7 +114,7 @@ public class PersistedChatHistoryProviderTests
     public void StateKeys_ReturnsDefaultTypeName()
     {
         // Arrange
-        var sut = new PersistedChatHistoryProvider(new InMemorySessionMessageStore());
+        var sut = ProviderSutBuilder.Create().Build();
 
         // Act
         var keys = sut.StateKeys;
@@ -137,6 +136,25 @@ public class PersistedChatHistoryProviderTests
 
 // --- harness (local) ---
 
+file sealed class ProviderSutBuilder
+{
+    private readonly InMemorySessionMessageStore _messageStore = new();
+
+    private ProviderSutBuilder() { }
+
+    public static ProviderSutBuilder Create() => new();
+
+    public ProviderSutBuilder WithMessages(string sessionId, IEnumerable<string> messages)
+    {
+        _messageStore.AppendMessagesAsync(sessionId, messages).Wait();
+        return this;
+    }
+
+    public PersistedChatHistoryProvider Build() => new(_messageStore);
+
+    public IMessageStore MessageStore => _messageStore;
+}
+
 file sealed class StubChatClient : IChatClient
 {
     public Task<ChatResponse> GetResponseAsync(
@@ -150,7 +168,7 @@ file sealed class StubChatClient : IChatClient
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.CompletedTask;
         yield break;

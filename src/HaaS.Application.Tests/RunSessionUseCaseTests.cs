@@ -44,7 +44,7 @@ public class RunSessionUseCaseTests
         // Assert
         var record = await repo.LoadAsync(presenter.LastSessionId!);
         Expect(record).Not.To.Be.Null();
-        Expect(record!.Status).To.Equal("completed");
+        Expect(record!.Status).To.Equal(SessionRecord.Statuses.Completed);
         Expect(record.Provider).To.Equal(sourceConfig.Provider);
         Expect(record.ModelId).To.Equal(sourceConfig.ModelId);
         Expect(record.SystemPrompt).To.Equal(sourceConfig.SystemPrompt);
@@ -58,7 +58,7 @@ public class RunSessionUseCaseTests
     {
         // Arrange
         var storedRecord = new SessionRecord(
-            "sess-existing", "cli", "running",
+            "sess-existing", "cli", SessionRecord.Statuses.Running,
             "ollama", "gemma4", "Stored system prompt",
             "[]", "off",
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
@@ -95,7 +95,7 @@ public class RunSessionUseCaseTests
         Expect(presenter.LastSessionId).To.Equal("sess-existing");
         var record = await repo.LoadAsync(presenter.LastSessionId!);
         Expect(record).Not.To.Be.Null();
-        Expect(record!.Status).To.Equal("completed");
+        Expect(record!.Status).To.Equal(SessionRecord.Statuses.Completed);
         Expect(record.Provider).To.Equal("ollama"); // stored config preserved
         Expect(record.ModelId).To.Equal("gemma4");
         Expect(record.SystemPrompt).To.Equal("Stored system prompt");
@@ -132,7 +132,7 @@ public class RunSessionUseCaseTests
 
         var allRecords = repo.AllRecords();
         Expect(allRecords).To.Contain.Exactly(1);
-        Expect(allRecords[0].Status).To.Equal("failed");
+        Expect(allRecords[0].Status).To.Equal(SessionRecord.Statuses.Failed);
         Expect(allRecords[0].UpdatedAt).To.Equal(time.UtcNow);
     }
 

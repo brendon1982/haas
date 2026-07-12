@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Store;
+using HaaS.Domain.ValueObjects;
 using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
 
@@ -18,7 +19,7 @@ public class InMemorySessionRepositoryTests
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId("sess-1")
             .WithSourceType("cli")
-            .WithStatus("running")
+            .WithStatus(SessionRecord.Statuses.Running)
             .WithCreatedAt(now)
             .WithUpdatedAt(now)
             .Build();
@@ -57,14 +58,14 @@ public class InMemorySessionRepositoryTests
         var original = SessionRecordTestBuilder.Create()
             .WithSessionId("sess-1")
             .WithSourceType("cli")
-            .WithStatus("created")
+            .WithStatus(SessionRecord.Statuses.Created)
             .Build();
         await sut.SaveAsync(original);
 
         var now = DateTime.UtcNow;
         var updated = original with
         {
-            Status = "completed",
+            Status = SessionRecord.Statuses.Completed,
             UpdatedAt = now
         };
 
