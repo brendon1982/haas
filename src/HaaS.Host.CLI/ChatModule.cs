@@ -2,6 +2,7 @@ using HaaS.Domain.Ports;
 using HaaS.Adapters.Agent;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Host.CLI;
 
@@ -23,6 +24,7 @@ public class ChatModule : ICliModule
                 config.UseOpenRouter();
             })
             .WithSqlitePersistence("data")
+            .WithWorkerPool(3)
             .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)
@@ -33,6 +35,13 @@ public class ChatModule : ICliModule
 
         var provider = services.BuildServiceProvider();
 
+        // Start background workers
+        var hostedServices = provider.GetServices<IHostedService>();
+        foreach (var service in hostedServices)
+        {
+            await service.StartAsync(ct);
+        }
+
         var toolRegistry = provider.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
             $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
@@ -40,11 +49,21 @@ public class ChatModule : ICliModule
 
         var engine = provider.GetRequiredService<IHaasEngine>();
 
-        Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
+        Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId} (Worker Pool: 3)");
         Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
         Console.Out.Write("> ");
         Console.Out.Flush();
 
-        await engine.RunAsync(ct);
+        try
+        {
+            await engine.RunAsync(ct);
+        }
+        finally
+        {
+            foreach (var service in hostedServices)
+            {
+                await service.StopAsync(CancellationToken.None);
+            }
+        }
     }
 }

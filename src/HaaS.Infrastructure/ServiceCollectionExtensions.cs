@@ -1,3 +1,4 @@
+using HaaS.Adapters.Deferred;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Observability;
 using HaaS.Adapters.Persistence;
@@ -17,6 +18,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProviderConfigRepository, InMemoryProviderConfigRepository>();
         services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
         services.AddSingleton<IMessageStore, InMemorySessionMessageStore>();
+        services.AddSingleton<ISignalQueue, InMemorySignalQueue>();
+        services.AddSingleton<IDeferredSessionResultStore, DeferredSessionResultStore>();
         services.AddSingleton<ILogger, ConsoleLogger>();
 
         services.AddSingleton<ChatClientFactory>();
@@ -44,9 +47,20 @@ public static class ServiceCollectionExtensions
             return new ObservableRunSessionUseCase(inner, logger);
         });
 
+        services.AddSingleton<EnqueueSignalUseCase>();
+        services.AddSingleton<IEnqueueSignalUseCase>(sp => sp.GetRequiredService<EnqueueSignalUseCase>());
+
+        services.AddSingleton<ISignalSourceRegistry, SignalSourceRegistry>();
+
+        services.AddTransient<SignalWorker>();
         services.AddSingleton<HaasEngine>();
         services.AddSingleton<IHaasEngine>(sp =>
         {
+            var registry = sp.GetRequiredService<ISignalSourceRegistry>();
+            foreach (var reg in sp.GetServices<SignalSourceRegistration>())
+            {
+                registry.Register(reg);
+            }
             var inner = sp.GetRequiredService<HaasEngine>();
             var logger = sp.GetRequiredService<ILogger>();
             return new ObservableHaasEngine(inner, logger);

@@ -1,3 +1,4 @@
+using HaaS.Adapters.Deferred;
 using HaaS.Infrastructure;
 using HaaS.Application;
 using HaaS.Domain.Ports;
@@ -65,7 +66,7 @@ public class ServiceCollectionExtensionsTests
         
         var registration = provider.GetRequiredService<SignalSourceRegistration>();
         Expect(registration.Source).To.Be.An.Instance.Of<TestSignalSource>();
-        Expect(registration.Presenter).To.Be.An.Instance.Of<TestSignalPresenter>();
+        Expect(registration.Presenter).To.Be.An.Instance.Of<DeferredPresenter>();
         Expect(registration.Config.Provider).To.Equal(expectedProvider);
         Expect(registration.Config.ModelId).To.Equal(expectedModel);
         Expect(registration.Config.SystemPrompt).To.Equal(expectedPrompt);
@@ -99,7 +100,7 @@ public class ServiceCollectionExtensionsTests
     private class TestSignalSource : ISignalSource
     {
         public string Type => "test";
-        public Task ListenAsync(Func<Signal, Task> handler) => Task.CompletedTask;
+        public Task ListenAsync(Func<Signal, Task<string>> handler) => Task.CompletedTask;
         public Task ShutdownAsync() => Task.CompletedTask;
     }
 

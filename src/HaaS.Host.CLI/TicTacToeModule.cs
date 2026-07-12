@@ -2,6 +2,7 @@ using HaaS.Domain.Ports;
 using HaaS.Adapters.Agent;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Host.CLI;
 
@@ -30,6 +31,7 @@ public class TicTacToeModule : ICliModule
                 config.UseOpenRouter();
             })
             .WithSqlitePersistence("data")
+            .WithWorkerPool(1)
             .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)
@@ -42,6 +44,13 @@ public class TicTacToeModule : ICliModule
 
         services.AddSingleton(_game);
         var provider = services.BuildServiceProvider();
+
+        // Start background workers
+        var hostedServices = provider.GetServices<IHostedService>();
+        foreach (var service in hostedServices)
+        {
+            await service.StartAsync(ct);
+        }
 
         var toolRegistry = provider.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_board", () => _game.FormatBoard(), "Returns the current Tic-Tac-Toe board as a formatted string.");
@@ -57,7 +66,17 @@ public class TicTacToeModule : ICliModule
 
         var engine = provider.GetRequiredService<IHaasEngine>();
 
-        await engine.RunAsync(ct);
+        try
+        {
+            await engine.RunAsync(ct);
+        }
+        finally
+        {
+            foreach (var service in hostedServices)
+            {
+                await service.StopAsync(CancellationToken.None);
+            }
+        }
 
         Console.WriteLine();
         Console.WriteLine("Game over. Press any key to return to menu...");

@@ -1,3 +1,4 @@
+using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using Signal = HaaS.Domain.ValueObjects.Signal;
 
@@ -6,15 +7,17 @@ namespace HaaS.Host.CLI;
 public class TicTacToeSignalSource : ISignalSource
 {
     private readonly TicTacToeGame _game;
+    private readonly IDeferredSessionResultStore _resultStore;
 
-    public TicTacToeSignalSource(TicTacToeGame game)
+    public TicTacToeSignalSource(TicTacToeGame game, IDeferredSessionResultStore resultStore)
     {
         _game = game;
+        _resultStore = resultStore;
     }
 
     public string Type => "tictactoe";
 
-    public async Task ListenAsync(Func<Signal, Task> handler)
+    public async Task ListenAsync(Func<Signal, Task<string>> handler)
     {
         while (true)
         {
@@ -74,7 +77,8 @@ public class TicTacToeSignalSource : ISignalSource
 
             try
             {
-                await handler(signal);
+                var sessionId = await handler(signal);
+                await _resultStore.WaitForResultAsync(sessionId, cts.Token);
             }
             finally
             {

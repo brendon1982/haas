@@ -1,3 +1,4 @@
+using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
@@ -7,22 +8,24 @@ public class CliSignalSource : ISignalSource
 {
     private readonly TextReader _input;
     private readonly TextWriter _output;
+    private readonly IDeferredSessionResultStore _resultStore;
     private CancellationTokenSource? _cts;
 
-    public CliSignalSource()
-        : this(Console.In, Console.Out)
+    public CliSignalSource(IDeferredSessionResultStore resultStore)
+        : this(Console.In, Console.Out, resultStore)
     {
     }
 
-    public CliSignalSource(TextReader input, TextWriter output)
+    public CliSignalSource(TextReader input, TextWriter output, IDeferredSessionResultStore resultStore)
     {
         _input = input;
         _output = output;
+        _resultStore = resultStore;
     }
 
     public string Type => "cli";
 
-    public async Task ListenAsync(Func<SignalValue, Task> handler)
+    public async Task ListenAsync(Func<SignalValue, Task<string>> handler)
     {
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
@@ -34,7 +37,10 @@ public class CliSignalSource : ISignalSource
                 if (string.IsNullOrWhiteSpace(line))
                     break;
 
-                await handler(new SignalValue(line.Trim(), "cli"));
+                var sessionId = await handler(new SignalValue(line.Trim(), "cli"));
+
+                // Wait for the worker to finish and present the result
+                await _resultStore.WaitForResultAsync(sessionId, token);
 
                 if (token.IsCancellationRequested)
                     break;
