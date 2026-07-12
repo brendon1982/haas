@@ -22,6 +22,7 @@ public class ChatModule : ICliModule
                 config.UseOllama();
                 config.UseOpenRouter();
             })
+            .WithSqlitePersistence("data")
             .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)

@@ -29,6 +29,7 @@ public class TicTacToeModule : ICliModule
                 config.UseOllama();
                 config.UseOpenRouter();
             })
+            .WithSqlitePersistence("data")
             .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)
