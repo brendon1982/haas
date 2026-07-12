@@ -26,32 +26,25 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        var registrations = GetRelevantRegistrations().ToList();
+        if (!registrations.Any())
         {
-            var registrations = GetRelevantRegistrations().ToList();
-            if (!registrations.Any())
-            {
-                return;
-            }
-
-            foreach (var reg in registrations)
-            {
-                await ConfigRepository.SaveAsync(reg.Config);
-            }
-
-            var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken));
-            await Task.WhenAll(tasks);
+            return;
         }
-        finally
+
+        foreach (var reg in registrations)
         {
-            Lifetime?.StopApplication();
+            await ConfigRepository.SaveAsync(reg.Config);
         }
+
+        var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken));
+        await Task.WhenAll(tasks);
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();
     protected abstract Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg);
 
-    private async Task RunSourceAsync(SignalSourceRegistration reg, CancellationToken ct)
+    protected async Task RunSourceAsync(SignalSourceRegistration reg, CancellationToken ct)
     {
         try 
         {

@@ -18,8 +18,7 @@ public readonly struct HaasBuilder
 
     public HaasBuilder WithWorkerPool(int workerCount)
     {
-        Services.AddSingleton<IHostedService>(sp => 
-            new SignalWorkerService(sp, workerCount));
+        Services.AddSingleton<IQueuedHaasEngineConfigure>(sp => new QueuedHaasEngineConfigure(workerCount));
         return this;
     }
 
@@ -47,5 +46,25 @@ public readonly struct HaasBuilder
         });
 
         return new SignalSourceBuilder(Services, options);
+    }
+}
+
+public interface IQueuedHaasEngineConfigure
+{
+    void Configure(QueuedHaasEngine engine);
+}
+
+internal class QueuedHaasEngineConfigure : IQueuedHaasEngineConfigure
+{
+    private readonly int _workerCount;
+
+    public QueuedHaasEngineConfigure(int workerCount)
+    {
+        _workerCount = workerCount;
+    }
+
+    public void Configure(QueuedHaasEngine engine)
+    {
+        engine.SetWorkerCount(_workerCount);
     }
 }

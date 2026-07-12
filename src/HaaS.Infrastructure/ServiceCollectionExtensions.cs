@@ -66,12 +66,15 @@ public static class ServiceCollectionExtensions
                 registry.Register(reg);
             }
             
-            // We return a composite engine or just one that runs both?
-            // Actually, we can return a decorator that starts both if we want to keep IHaasEngine interface working for manual start.
-            // But the user said we don't have to run/start it.
-            
             var direct = sp.GetRequiredService<DirectHaasEngine>();
             var queued = sp.GetRequiredService<QueuedHaasEngine>();
+            
+            var configs = sp.GetServices<IQueuedHaasEngineConfigure>();
+            foreach (var config in configs)
+            {
+                config.Configure(queued);
+            }
+            
             var logger = sp.GetRequiredService<ILogger>();
             
             var composite = new CompositeHaasEngine(direct, queued);
