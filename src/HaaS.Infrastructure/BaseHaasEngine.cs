@@ -43,9 +43,9 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
         // This prevents the application from exiting if all ListenAsync calls finish (e.g. CLI input ends)
         // but we still want to keep the host alive for other background work or until external termination.
         var tcs = new TaskCompletionSource();
-        using var registration = stoppingToken.Register(() => tcs.TrySetResult());
+        await using var registration = stoppingToken.Register(() => tcs.TrySetResult());
 
-        await Task.WhenAll(tasks.Concat(new[] { tcs.Task }));
+        await Task.WhenAll(tasks.Concat([tcs.Task]));
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();
