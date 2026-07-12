@@ -1,3 +1,4 @@
+using System.Linq;
 using HaaS.Adapters.Deferred;
 using HaaS.Application;
 using HaaS.Domain.Ports;
@@ -22,27 +23,36 @@ public readonly struct HaasBuilder
         return this;
     }
 
-    public HaasBuilder AddSignalSource<TSource, TPresenter>(Action<SignalSourceConfigBuilder> configure)
+    public SignalSourceBuilder AddSignalSource<TSource, TPresenter>(Action<SignalSourceConfigBuilder> configure)
         where TSource : class, ISignalSource
         where TPresenter : class, ISignalPresenter
     {
         Services.AddTransient<TSource>();
         Services.AddTransient<TPresenter>();
 
+        var options = new SignalSourceOptions(typeof(TSource));
+        Services.AddSingleton(options);
+
         Services.AddTransient(sp =>
         {
             var source = sp.GetRequiredService<TSource>();
             var presenter = sp.GetRequiredService<TPresenter>();
-            var resultStore = sp.GetRequiredService<IDeferredSessionResultStore>();
+            var sourceOptions = sp.GetServices<SignalSourceOptions>()
+                .First(o => o.SourceType == typeof(TSource));
             
-            var deferredPresenter = new DeferredPresenter(presenter, resultStore);
+            ISignalPresenter finalPresenter = presenter;
+            if (sourceOptions.IsQueued)
+            {
+                var resultStore = sp.GetRequiredService<IDeferredSessionResultStore>();
+                finalPresenter = new DeferredPresenter(presenter, resultStore);
+            }
             
             var builder = new SignalSourceConfigBuilder(source.Type);
             configure(builder);
 
-            return new SignalSourceRegistration(source, deferredPresenter, builder.Build());
+            return new SignalSourceRegistration(source, finalPresenter, builder.Build(), sourceOptions.IsQueued);
         });
 
-        return this;
+        return new SignalSourceBuilder(Services, options);
     }
 }

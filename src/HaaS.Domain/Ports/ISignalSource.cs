@@ -5,6 +5,6 @@ namespace HaaS.Domain.Ports;
 public interface ISignalSource
 {
     string Type { get; }
-    Task ListenAsync(Func<Signal, Task<string>> handler);
+    Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler);
     Task ShutdownAsync();
 }

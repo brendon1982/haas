@@ -24,7 +24,6 @@ public class ChatModule : ICliModule
                 config.UseOllama();
                 config.UseOpenRouter();
             })
-            .WithWorkerPool(3)
             .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
             {
                 config.UseProvider(providerName)
@@ -49,7 +48,7 @@ public class ChatModule : ICliModule
 
         var engine = provider.GetRequiredService<IHaasEngine>();
 
-        Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId} (Worker Pool: 3)");
+        Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
         Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
         Console.Out.Write("> ");
         Console.Out.Flush();

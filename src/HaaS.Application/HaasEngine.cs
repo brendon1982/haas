@@ -7,16 +7,22 @@ public class HaasEngine : IHaasEngine
 {
     private readonly ISignalSourceRegistry _registry;
     private readonly IEnqueueSignalUseCase _enqueueSignalUseCase;
+    private readonly IRunSessionUseCase _runSessionUseCase;
     private readonly ISignalSourceConfigRepository _configRepository;
+    private readonly IDeferredSessionResultStore _resultStore;
 
     public HaasEngine(
         ISignalSourceRegistry registry,
         IEnqueueSignalUseCase enqueueSignalUseCase,
-        ISignalSourceConfigRepository configRepository)
+        IRunSessionUseCase runSessionUseCase,
+        ISignalSourceConfigRepository configRepository,
+        IDeferredSessionResultStore resultStore)
     {
         _registry = registry;
         _enqueueSignalUseCase = enqueueSignalUseCase;
+        _runSessionUseCase = runSessionUseCase;
         _configRepository = configRepository;
+        _resultStore = resultStore;
     }
 
     public async Task RunAsync(CancellationToken ct = default)
@@ -40,14 +46,26 @@ public class HaasEngine : IHaasEngine
                 signal = signal with { SessionId = reg.LastSessionId.Value.ToString() };
             }
 
-            var sessionId = await _enqueueSignalUseCase.ExecuteAsync(signal);
+            string sessionId;
+            ISignalHandle handle;
+
+            if (reg.IsQueued)
+            {
+                sessionId = await _enqueueSignalUseCase.ExecuteAsync(signal);
+                handle = new QueuedSignalHandle(sessionId, _resultStore);
+            }
+            else
+            {
+                sessionId = await _runSessionUseCase.ExecuteAsync(signal, reg.Presenter);
+                handle = new DirectSignalHandle(sessionId);
+            }
             
             if (Guid.TryParse(sessionId, out var guid))
             {
                 reg.LastSessionId = guid;
             }
 
-            return sessionId;
+            return handle;
         });
     }
 }

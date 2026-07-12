@@ -1,6 +1,6 @@
 using HaaS.Domain.ValueObjects;
 
-namespace HaaS.Adapters.Deferred;
+namespace HaaS.Domain.Ports;
 
 public interface IDeferredSessionResultStore
 {

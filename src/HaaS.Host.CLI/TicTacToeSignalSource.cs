@@ -7,17 +7,15 @@ namespace HaaS.Host.CLI;
 public class TicTacToeSignalSource : ISignalSource
 {
     private readonly TicTacToeGame _game;
-    private readonly IDeferredSessionResultStore _resultStore;
 
-    public TicTacToeSignalSource(TicTacToeGame game, IDeferredSessionResultStore resultStore)
+    public TicTacToeSignalSource(TicTacToeGame game)
     {
         _game = game;
-        _resultStore = resultStore;
     }
 
     public string Type => "tictactoe";
 
-    public async Task ListenAsync(Func<Signal, Task<string>> handler)
+    public async Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler)
     {
         while (true)
         {
@@ -77,8 +75,8 @@ public class TicTacToeSignalSource : ISignalSource
 
             try
             {
-                var sessionId = await handler(signal);
-                await _resultStore.WaitForResultAsync(sessionId, cts.Token);
+                var handle = await handler(signal);
+                await handle.WaitForResultAsync(cts.Token);
             }
             finally
             {

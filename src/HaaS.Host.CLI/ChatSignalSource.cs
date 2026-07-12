@@ -8,23 +8,20 @@ public class ChatSignalSource : ISignalSource
 {
     private readonly TextReader _input;
     private readonly TextWriter _output;
-    private readonly IDeferredSessionResultStore _resultStore;
-
-    public ChatSignalSource(IDeferredSessionResultStore resultStore)
-        : this(Console.In, Console.Out, resultStore)
+    public ChatSignalSource()
+        : this(Console.In, Console.Out)
     {
     }
 
-    public ChatSignalSource(TextReader input, TextWriter output, IDeferredSessionResultStore resultStore)
+    public ChatSignalSource(TextReader input, TextWriter output)
     {
         _input = input;
         _output = output;
-        _resultStore = resultStore;
     }
 
     public string Type => "chat";
 
-    public async Task ListenAsync(Func<Signal, Task<string>> handler)
+    public async Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler)
     {
         while (true)
         {
@@ -33,10 +30,10 @@ public class ChatSignalSource : ISignalSource
             if (string.IsNullOrWhiteSpace(line))
                 break;
 
-            var sessionId = await handler(new Signal(line.Trim(), "chat"));
+            var handle = await handler(new Signal(line.Trim(), "chat"));
 
             // Wait for the worker to finish and present the result
-            await _resultStore.WaitForResultAsync(sessionId);
+            await handle.WaitForResultAsync();
 
             await _output.WriteAsync("> ");
             await _output.FlushAsync();

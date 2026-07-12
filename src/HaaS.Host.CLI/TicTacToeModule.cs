@@ -40,7 +40,8 @@ public class TicTacToeModule : ICliModule
                     .AddTool("get_board")
                     .AddTool("get_valid_moves")
                     .AddTool("place_marker");
-            });
+            })
+            .WithQueuedProcessing();
 
         services.AddSingleton(_game);
         var provider = services.BuildServiceProvider();
