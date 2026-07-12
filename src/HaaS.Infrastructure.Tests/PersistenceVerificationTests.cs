@@ -28,9 +28,9 @@ public class PersistenceVerificationTests
         var messageStore = sp.GetRequiredService<IMessageStore>();
 
         // Assert
-        Expect(sessionRepo).To.Be.An.Instance.Of<HaaS.Adapters.Store.SharedSqliteSessionRepository>();
-        Expect(configRepo).To.Be.An.Instance.Of<HaaS.Adapters.Store.SharedSqliteSignalSourceConfigRepository>();
-        Expect(messageStore).To.Be.An.Instance.Of<HaaS.Adapters.Store.PerSessionSqliteMessageStore>();
+        Expect(sessionRepo).To.Be.An.Instance.Of<SharedSqliteSessionRepository>();
+        Expect(configRepo).To.Be.An.Instance.Of<SharedSqliteSignalSourceConfigRepository>();
+        Expect(messageStore).To.Be.An.Instance.Of<PerSessionSqliteMessageStore>();
 
         Expect(File.Exists(Path.Combine(tempDir, "sessions.db"))).To.Be.True();
         Expect(File.Exists(Path.Combine(tempDir, "config.db"))).To.Be.True();

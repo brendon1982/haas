@@ -8,18 +8,15 @@ namespace HaaS.Infrastructure;
 public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
 {
     protected readonly ISignalSourceRegistry Registry;
-    protected readonly ISignalSourceConfigRepository ConfigRepository;
     protected readonly IHostApplicationLifetime? Lifetime;
     protected readonly ILogger Logger;
 
     protected BaseHaasEngine(
         ISignalSourceRegistry registry, 
-        ISignalSourceConfigRepository configRepository,
         ILogger logger,
         IHostApplicationLifetime? lifetime = null)
     {
         Registry = registry;
-        ConfigRepository = configRepository;
         Logger = logger;
         Lifetime = lifetime;
     }
@@ -30,11 +27,6 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
         if (!registrations.Any())
         {
             return;
-        }
-
-        foreach (var reg in registrations)
-        {
-            await ConfigRepository.SaveAsync(reg.Config);
         }
 
         var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken)).ToList();

@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Store;
@@ -10,11 +12,16 @@ namespace HaaS.Adapters.Tests.Store;
 public class SharedSqliteSignalSourceConfigRepositoryTests
 {
     private string _dbPath = default!;
+    private string _connectionString = default!;
 
     [SetUp]
     public void SetUp()
     {
         _dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db");
+        _connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = _dbPath
+        }.ToString();
     }
 
     [TearDown]
@@ -28,16 +35,16 @@ public class SharedSqliteSignalSourceConfigRepositoryTests
     }
 
     [Test]
-    public async Task SaveAndLoad_ShouldPersistConfig()
+    public async Task GetBySourceTypeAsync_ShouldReturnPersistedConfig()
     {
         // Arrange
         var sut = new SharedSqliteSignalSourceConfigRepository(_dbPath);
         var config = new SignalSourceConfig(
             "cli", "openai", "gpt-4", "System prompt", 
             new ToolBelt(["tool1"]), "off");
+        await SeedConfigAsync(config);
 
         // Act
-        await sut.SaveAsync(config);
         var loaded = await sut.GetBySourceTypeAsync("cli");
 
         // Assert
@@ -50,25 +57,26 @@ public class SharedSqliteSignalSourceConfigRepositoryTests
         Expect(loaded.ThinkingLevel).To.Equal(config.ThinkingLevel);
     }
 
-    [Test]
-    public async Task Save_Twice_ShouldUpdateConfig()
+    private async Task SeedConfigAsync(SignalSourceConfig config)
     {
-        // Arrange
-        var sut = new SharedSqliteSignalSourceConfigRepository(_dbPath);
-        var config = new SignalSourceConfig(
-            "cli", "openai", "gpt-4", "System prompt", 
-            ToolBelt.Empty, "off");
-        await sut.SaveAsync(config);
+        using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
 
-        var updated = config with { ModelId = "gpt-4o", ThinkingLevel = "high" };
+        var command = connection.CreateCommand();
+        command.CommandText = 
+            @"INSERT INTO signal_source_configs (
+                SourceType, Provider, ModelId, SystemPrompt, ToolBelt, ThinkingLevel
+            ) VALUES (
+                $type, $provider, $model, $prompt, $tools, $thinking
+            );";
 
-        // Act
-        await sut.SaveAsync(updated);
-        var loaded = await sut.GetBySourceTypeAsync("cli");
+        command.Parameters.AddWithValue("$type", config.SourceType);
+        command.Parameters.AddWithValue("$provider", config.Provider);
+        command.Parameters.AddWithValue("$model", config.ModelId);
+        command.Parameters.AddWithValue("$prompt", config.SystemPrompt);
+        command.Parameters.AddWithValue("$tools", JsonSerializer.Serialize(config.ToolBelt));
+        command.Parameters.AddWithValue("$thinking", config.ThinkingLevel);
 
-        // Assert
-        Expect(loaded).Not.To.Be.Null();
-        Expect(loaded!.ModelId).To.Equal("gpt-4o");
-        Expect(loaded.ThinkingLevel).To.Equal("high");
+        await command.ExecuteNonQueryAsync();
     }
 }

@@ -13,11 +13,10 @@ public class DirectHaasEngine : BaseHaasEngine
 
     public DirectHaasEngine(
         ISignalSourceRegistry registry, 
-        ISignalSourceConfigRepository configRepository,
         IRunSessionUseCase runSessionUseCase,
         ILogger logger,
         IHostApplicationLifetime? lifetime = null)
-        : base(registry, configRepository, logger, lifetime)
+        : base(registry, logger, lifetime)
     {
         _runSessionUseCase = runSessionUseCase;
     }

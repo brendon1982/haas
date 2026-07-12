@@ -61,32 +61,4 @@ public class SharedSqliteSignalSourceConfigRepository : ISignalSourceConfigRepos
 
         return null;
     }
-
-    public async Task SaveAsync(SignalSourceConfig config)
-    {
-        using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync();
-
-        var command = connection.CreateCommand();
-        command.CommandText = 
-            @"INSERT INTO signal_source_configs (
-                SourceType, Provider, ModelId, SystemPrompt, ToolBelt, ThinkingLevel
-            ) VALUES (
-                $type, $provider, $model, $prompt, $tools, $thinking
-            ) ON CONFLICT(SourceType) DO UPDATE SET
-                Provider = excluded.Provider,
-                ModelId = excluded.ModelId,
-                SystemPrompt = excluded.SystemPrompt,
-                ToolBelt = excluded.ToolBelt,
-                ThinkingLevel = excluded.ThinkingLevel;";
-
-        command.Parameters.AddWithValue("$type", config.SourceType);
-        command.Parameters.AddWithValue("$provider", config.Provider);
-        command.Parameters.AddWithValue("$model", config.ModelId);
-        command.Parameters.AddWithValue("$prompt", config.SystemPrompt);
-        command.Parameters.AddWithValue("$tools", JsonSerializer.Serialize(config.ToolBelt));
-        command.Parameters.AddWithValue("$thinking", config.ThinkingLevel);
-
-        await command.ExecuteNonQueryAsync();
-    }
 }

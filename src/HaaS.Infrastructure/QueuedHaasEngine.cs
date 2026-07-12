@@ -17,13 +17,12 @@ public class QueuedHaasEngine : BaseHaasEngine
 
     public QueuedHaasEngine(
         ISignalSourceRegistry registry, 
-        ISignalSourceConfigRepository configRepository,
         IEnqueueSignalUseCase enqueueSignalUseCase,
         IDeferredSessionResultStore resultStore,
         IServiceProvider serviceProvider,
         ILogger logger,
         IHostApplicationLifetime? lifetime = null)
-        : base(registry, configRepository, logger, lifetime)
+        : base(registry, logger, lifetime)
     {
         _enqueueSignalUseCase = enqueueSignalUseCase;
         _resultStore = resultStore;
@@ -39,12 +38,6 @@ public class QueuedHaasEngine : BaseHaasEngine
     {
         var registrations = GetRelevantRegistrations().ToList();
         
-        // Always save configs for relevant sources
-        foreach (var reg in registrations)
-        {
-            await ConfigRepository.SaveAsync(reg.Config);
-        }
-
         var sourceTasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken));
         var workerTasks = Enumerable.Range(0, _workerCount).Select(_ => RunWorkerAsync(stoppingToken));
 
