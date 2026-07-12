@@ -5,10 +5,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Adapters.Observability;
 
-public sealed class ObservableHaasEngine : IHaasEngine, IHostedService
+public sealed class ObservableHaasEngine : IHaasEngine
 {
-    private static readonly ActivitySource ActivitySource = new("HaaS.Engine");
-
     private readonly IHaasEngine _inner;
     private readonly ILogger _logger;
 
@@ -18,35 +16,15 @@ public sealed class ObservableHaasEngine : IHaasEngine, IHostedService
         _logger = logger;
     }
 
-    public async Task RunAsync(CancellationToken ct = default)
+    public Task StartAsync(CancellationToken ct)
     {
-        using var activity = ActivitySource.StartActivity("EngineRun");
-        
         _logger.LogInformation("HaaS Engine starting...");
-        
-        try
-        {
-            await _inner.RunAsync(ct);
-            _logger.LogInformation("HaaS Engine stopped");
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            _logger.LogInformation("HaaS Engine stopped (canceled)");
-        }
-        catch (Exception ex)
-        {
-            activity?.SetTag("error", true);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            _logger.LogError(ex, "HaaS Engine failed");
-            throw;
-        }
+        return _inner.StartAsync(ct);
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public Task StopAsync(CancellationToken ct)
     {
-        _ = RunAsync(cancellationToken);
-        return Task.CompletedTask;
+        _logger.LogInformation("HaaS Engine stopping...");
+        return _inner.StopAsync(ct);
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

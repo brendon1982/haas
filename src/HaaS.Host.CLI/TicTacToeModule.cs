@@ -23,37 +23,33 @@ public class TicTacToeModule : ICliModule
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
 
-        var services = new ServiceCollection();
-        services.AddHaas()
-            .WithSqlitePersistence("data", includeConfig: false)
-            .WithInMemoryConfig(config =>
+        using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .ConfigureServices((context, services) =>
             {
-                config.UseOllama();
-                config.UseOpenRouter();
+                services.AddHaas()
+                    .WithSqlitePersistence("data", includeConfig: false)
+                    .WithInMemoryConfig(config =>
+                    {
+                        config.UseOllama();
+                        config.UseOpenRouter();
+                    })
+                    .WithWorkerPool(1)
+                    .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
+                    {
+                        config.UseProvider(providerName)
+                            .UseModel(modelId)
+                            .UseSystemPrompt(GetSystemPrompt())
+                            .AddTool("get_board")
+                            .AddTool("get_valid_moves")
+                            .AddTool("place_marker");
+                    })
+                    .WithQueuedProcessing();
+
+                services.AddSingleton(_game);
             })
-            .WithWorkerPool(1)
-            .AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
-            {
-                config.UseProvider(providerName)
-                    .UseModel(modelId)
-                    .UseSystemPrompt(GetSystemPrompt())
-                    .AddTool("get_board")
-                    .AddTool("get_valid_moves")
-                    .AddTool("place_marker");
-            })
-            .WithQueuedProcessing();
+            .Build();
 
-        services.AddSingleton(_game);
-        var provider = services.BuildServiceProvider();
-
-        // Start background workers
-        var hostedServices = provider.GetServices<IHostedService>();
-        foreach (var service in hostedServices)
-        {
-            await service.StartAsync(ct);
-        }
-
-        var toolRegistry = provider.GetRequiredService<IToolRegistry>();
+        var toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_board", () => _game.FormatBoard(), "Returns the current Tic-Tac-Toe board as a formatted string.");
         toolRegistry.Register("get_valid_moves", () => _game.FormatValidMoves(), "Returns a comma-separated list of available positions (1-9).");
         toolRegistry.Register("place_marker", (int position) =>
@@ -65,19 +61,7 @@ public class TicTacToeModule : ICliModule
             return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
         }, "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.");
 
-        var engine = provider.GetRequiredService<IHaasEngine>();
-
-        try
-        {
-            await engine.RunAsync(ct);
-        }
-        finally
-        {
-            foreach (var service in hostedServices)
-            {
-                await service.StopAsync(CancellationToken.None);
-            }
-        }
+        await host.RunAsync(ct);
 
         Console.WriteLine();
         Console.WriteLine("Game over. Press any key to return to menu...");

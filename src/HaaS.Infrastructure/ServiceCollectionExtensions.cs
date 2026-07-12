@@ -95,8 +95,13 @@ internal class CompositeHaasEngine : IHaasEngine
         _queued = queued;
     }
 
-    public async Task RunAsync(CancellationToken ct = default)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        await Task.WhenAll(_direct.RunAsync(ct), _queued.RunAsync(ct));
+        return Task.WhenAll(_direct.StartAsync(cancellationToken), _queued.StartAsync(cancellationToken));
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.WhenAll(_direct.StopAsync(cancellationToken), _queued.StopAsync(cancellationToken));
     }
 }

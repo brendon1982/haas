@@ -3,6 +3,8 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
+using Microsoft.Extensions.Hosting;
+
 namespace HaaS.Infrastructure;
 
 public class QueuedHaasEngine : BaseHaasEngine
@@ -15,8 +17,9 @@ public class QueuedHaasEngine : BaseHaasEngine
         ISignalSourceConfigRepository configRepository,
         IEnqueueSignalUseCase enqueueSignalUseCase,
         IDeferredSessionResultStore resultStore,
-        ILogger logger)
-        : base(registry, configRepository, logger)
+        ILogger logger,
+        IHostApplicationLifetime? lifetime = null)
+        : base(registry, configRepository, logger, lifetime)
     {
         _enqueueSignalUseCase = enqueueSignalUseCase;
         _resultStore = resultStore;

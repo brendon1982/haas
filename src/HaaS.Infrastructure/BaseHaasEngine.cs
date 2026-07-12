@@ -9,49 +9,43 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
 {
     protected readonly ISignalSourceRegistry Registry;
     protected readonly ISignalSourceConfigRepository ConfigRepository;
+    protected readonly IHostApplicationLifetime? Lifetime;
     protected readonly ILogger Logger;
 
     protected BaseHaasEngine(
         ISignalSourceRegistry registry, 
         ISignalSourceConfigRepository configRepository,
-        ILogger logger)
+        ILogger logger,
+        IHostApplicationLifetime? lifetime = null)
     {
         Registry = registry;
         ConfigRepository = configRepository;
         Logger = logger;
+        Lifetime = lifetime;
     }
 
-    private Task? _executingTask;
-
-    public Task RunAsync(CancellationToken ct = default)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        lock (this)
+        try
         {
-            if (_executingTask != null)
+            var registrations = GetRelevantRegistrations().ToList();
+            if (!registrations.Any())
             {
-                return _executingTask;
+                return;
             }
 
-            _executingTask = RunInternalAsync(ct);
-            return _executingTask;
-        }
-    }
+            foreach (var reg in registrations)
+            {
+                await ConfigRepository.SaveAsync(reg.Config);
+            }
 
-    private async Task RunInternalAsync(CancellationToken ct)
-    {
-        var registrations = GetRelevantRegistrations().ToList();
-        if (!registrations.Any())
+            var tasks = registrations.Select(reg => RunSourceAsync(reg, stoppingToken));
+            await Task.WhenAll(tasks);
+        }
+        finally
         {
-            return;
+            Lifetime?.StopApplication();
         }
-
-        foreach (var reg in registrations)
-        {
-            await ConfigRepository.SaveAsync(reg.Config);
-        }
-
-        var tasks = registrations.Select(reg => RunSourceAsync(reg, ct));
-        await Task.WhenAll(tasks);
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();
@@ -87,6 +81,4 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
             Logger.LogError(ex, "Error in signal source {0}", reg.Source.Type);
         }
     }
-
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => RunAsync(stoppingToken);
 }

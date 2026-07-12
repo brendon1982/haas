@@ -1,6 +1,7 @@
+using Microsoft.Extensions.Hosting;
+
 namespace HaaS.Domain.Ports;
 
-public interface IHaasEngine
+public interface IHaasEngine : IHostedService
 {
-    Task RunAsync(CancellationToken ct = default);
 }

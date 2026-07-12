@@ -3,6 +3,8 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
+using Microsoft.Extensions.Hosting;
+
 namespace HaaS.Infrastructure;
 
 public class DirectHaasEngine : BaseHaasEngine
@@ -13,8 +15,9 @@ public class DirectHaasEngine : BaseHaasEngine
         ISignalSourceRegistry registry, 
         ISignalSourceConfigRepository configRepository,
         IRunSessionUseCase runSessionUseCase,
-        ILogger logger)
-        : base(registry, configRepository, logger)
+        ILogger logger,
+        IHostApplicationLifetime? lifetime = null)
+        : base(registry, configRepository, logger, lifetime)
     {
         _runSessionUseCase = runSessionUseCase;
     }

@@ -67,7 +67,7 @@ public class ObservableRunSessionUseCaseTests
 public class ObservableHaasEngineTests
 {
     [Test]
-    public async Task Run_LogsStartAndStop()
+    public async Task Start_LogsStarting()
     {
         // Arrange
         var inner = Substitute.For<IHaasEngine>();
@@ -75,13 +75,29 @@ public class ObservableHaasEngineTests
         var sut = new ObservableHaasEngine(inner, logger);
 
         // Act
-        await sut.RunAsync();
+        await sut.StartAsync(default);
 
         // Assert
         var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
-        Expect(infoLogs).To.Contain.Exactly(2);
+        Expect(infoLogs).To.Contain.Exactly(1);
         Expect(infoLogs[0].Message).To.Contain("HaaS Engine starting");
-        Expect(infoLogs[1].Message).To.Contain("HaaS Engine stopped");
+    }
+
+    [Test]
+    public async Task Stop_LogsStopping()
+    {
+        // Arrange
+        var inner = Substitute.For<IHaasEngine>();
+        var logger = new FakeLogger();
+        var sut = new ObservableHaasEngine(inner, logger);
+
+        // Act
+        await sut.StopAsync(default);
+
+        // Assert
+        var infoLogs = logger.Logs.Where(l => l.Level == LogLevel.Information).ToList();
+        Expect(infoLogs).To.Contain.Exactly(1);
+        Expect(infoLogs[0].Message).To.Contain("HaaS Engine stopping");
     }
 }
 

@@ -16,53 +16,36 @@ public class ChatModule : ICliModule
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
 
-        var services = new ServiceCollection();
-        services.AddHaas()
-            .WithSqlitePersistence("data", includeConfig: false)
-            .WithInMemoryConfig(config =>
+        using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .ConfigureServices((context, services) =>
             {
-                config.UseOllama();
-                config.UseOpenRouter();
+                services.AddHaas()
+                    .WithSqlitePersistence("data", includeConfig: false)
+                    .WithInMemoryConfig(config =>
+                    {
+                        config.UseOllama();
+                        config.UseOpenRouter();
+                    })
+                    .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
+                    {
+                        config.UseProvider(providerName)
+                            .UseModel(modelId)
+                            .UseSystemPrompt("You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.")
+                            .AddTool("get_time");
+                    });
             })
-            .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
-            {
-                config.UseProvider(providerName)
-                    .UseModel(modelId)
-                    .UseSystemPrompt("You are an assistant taking part in a long running asynchronous conversation. Reply naturally and concisely. After each reply, the system delivers it to the user and waits for their next message.")
-                    .AddTool("get_time");
-            });
+            .Build();
 
-        var provider = services.BuildServiceProvider();
-
-        // Start background workers
-        var hostedServices = provider.GetServices<IHostedService>();
-        foreach (var service in hostedServices)
-        {
-            await service.StartAsync(ct);
-        }
-
-        var toolRegistry = provider.GetRequiredService<IToolRegistry>();
+        var toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
         toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
             $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
             "Gets the current UTC time for a given timezone");
-
-        var engine = provider.GetRequiredService<IHaasEngine>();
 
         Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
         Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
         Console.Out.Write("> ");
         Console.Out.Flush();
 
-        try
-        {
-            await engine.RunAsync(ct);
-        }
-        finally
-        {
-            foreach (var service in hostedServices)
-            {
-                await service.StopAsync(CancellationToken.None);
-            }
-        }
+        await host.RunAsync(ct);
     }
 }
