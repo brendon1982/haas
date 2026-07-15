@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Adapters.Store;
 
@@ -34,12 +35,14 @@ public class PerSessionSqliteMessageStore : IMessageStore
         command.CommandText = 
             @"CREATE TABLE IF NOT EXISTS messages (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Content TEXT NOT NULL
+                Role TEXT NOT NULL,
+                Content TEXT NOT NULL,
+                Timestamp TEXT NOT NULL
             );";
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task<IReadOnlyList<string>> GetMessagesAsync(string sessionId)
+    public async Task<IReadOnlyList<DomainMessage>> GetMessagesAsync(string sessionId)
     {
         var connectionString = GetConnectionString(sessionId);
         await EnsureTableAsync(connectionString);
@@ -48,19 +51,22 @@ public class PerSessionSqliteMessageStore : IMessageStore
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT Content FROM messages ORDER BY Id ASC";
+        command.CommandText = "SELECT Role, Content, Timestamp FROM messages ORDER BY Id ASC";
 
-        var messages = new List<string>();
+        var messages = new List<DomainMessage>();
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            messages.Add(reader.GetString(0));
+            messages.Add(new DomainMessage(
+                reader.GetString(0),
+                reader.GetString(1),
+                DateTimeOffset.Parse(reader.GetString(2))));
         }
 
         return messages;
     }
 
-    public async Task AppendMessagesAsync(string sessionId, IEnumerable<string> messages)
+    public async Task AppendMessagesAsync(string sessionId, IEnumerable<DomainMessage> messages)
     {
         var connectionString = GetConnectionString(sessionId);
         await EnsureTableAsync(connectionString);
@@ -73,8 +79,10 @@ public class PerSessionSqliteMessageStore : IMessageStore
         {
             var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO messages (Content) VALUES ($content)";
-            command.Parameters.AddWithValue("$content", message);
+            command.CommandText = "INSERT INTO messages (Role, Content, Timestamp) VALUES ($role, $content, $timestamp)";
+            command.Parameters.AddWithValue("$role", message.Role);
+            command.Parameters.AddWithValue("$content", message.Content);
+            command.Parameters.AddWithValue("$timestamp", message.Timestamp.ToString("O"));
             await command.ExecuteNonQueryAsync();
         }
         transaction.Commit();

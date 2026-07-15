@@ -66,7 +66,7 @@ Improve the domain's awareness of tools without coupling to a specific AI framew
 - Define a domain-friendly `ToolDefinition` that doesn't depend on `Microsoft.Extensions.AI`.
 - Update `MicrosoftAgentFrameworkStrategy` to use the new domain port.
 
-### * Step 3: Refine IMessageStore with Domain-specific message records
+### ✓ Step 3: Refine IMessageStore with Domain-specific message records
 Move away from raw strings in the persistence ports for better domain encapsulation.
 
 - Create a `DomainMessage` record in `HaaS.Domain.ValueObjects`.

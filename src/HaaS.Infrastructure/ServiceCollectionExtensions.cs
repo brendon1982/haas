@@ -35,7 +35,8 @@ public static class ServiceCollectionExtensions
             var sessionRepo = sp.GetRequiredService<ISessionRepository>();
             var messageStore = sp.GetRequiredService<IMessageStore>();
             var toolProvider = sp.GetRequiredService<IToolProvider>();
-            var inner = new MicrosoftAgentFrameworkStrategy(factory, sessionRepo, messageStore, toolProvider);
+            var timeProvider = sp.GetRequiredService<TimeProvider>();
+            var inner = new MicrosoftAgentFrameworkStrategy(factory, sessionRepo, messageStore, toolProvider, timeProvider);
             var logger = sp.GetRequiredService<ILogger>();
             return new ObservableAgentStrategy(inner, logger);
         });

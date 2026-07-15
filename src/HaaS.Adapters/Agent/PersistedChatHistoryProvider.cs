@@ -1,5 +1,6 @@
 using System.Text.Json;
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
@@ -25,7 +26,8 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         }
 
         var stored = await _messageStore.GetMessagesAsync(sessionId);
-        return stored.Select(DeserializeMessage).OrderBy(o => o.CreatedAt);
+        return stored.Select(m => new ChatMessage(new ChatRole(m.Role), m.Content) { CreatedAt = m.Timestamp })
+                     .OrderBy(o => o.CreatedAt);
     }
 
     protected override async ValueTask StoreChatHistoryAsync(
@@ -39,11 +41,8 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         var timestamp = DateTimeOffset.UtcNow;
         var messages = (context.RequestMessages)
             .Concat(context.ResponseMessages ?? [])
-            .Select(m =>
-            {
-                m.CreatedAt ??= timestamp;
-                return SerializeMessage(m);
-            });
+            .Select(m => new DomainMessage(m.Role.Value, m.Text ?? "", m.CreatedAt ?? timestamp));
+        
         await _messageStore.AppendMessagesAsync(sessionId, messages);
     }
 
@@ -56,10 +55,4 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
 
         return null;
     }
-
-    private static ChatMessage DeserializeMessage(string data)
-        => JsonSerializer.Deserialize<ChatMessage>(data)!;
-
-    private static string SerializeMessage(ChatMessage message)
-        => JsonSerializer.Serialize(message);
 }

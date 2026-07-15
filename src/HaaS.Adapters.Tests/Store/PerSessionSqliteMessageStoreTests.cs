@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Store;
+using HaaS.Domain.ValueObjects;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests.Store;
@@ -33,8 +34,15 @@ public class PerSessionSqliteMessageStoreTests
         var sut = new PerSessionSqliteMessageStore(_baseDir);
         var sessionId1 = "sess-1";
         var sessionId2 = "sess-2";
-        var messages1 = new[] { "hello from 1", "how are you from 1" };
-        var messages2 = new[] { "hello from 2" };
+        var messages1 = new[] 
+        { 
+            new DomainMessage("user", "hello from 1", DateTimeOffset.UtcNow), 
+            new DomainMessage("assistant", "how are you from 1", DateTimeOffset.UtcNow) 
+        };
+        var messages2 = new[] 
+        { 
+            new DomainMessage("user", "hello from 2", DateTimeOffset.UtcNow) 
+        };
 
         // Act
         await sut.AppendMessagesAsync(sessionId1, messages1);
@@ -54,7 +62,10 @@ public class PerSessionSqliteMessageStoreTests
         // Arrange
         var sut = new PerSessionSqliteMessageStore(_baseDir);
         var sessionId = "sess-1";
-        await sut.AppendMessagesAsync(sessionId, ["msg1", "msg2"]);
+        await sut.AppendMessagesAsync(sessionId, [
+            new DomainMessage("user", "msg1", DateTimeOffset.UtcNow), 
+            new DomainMessage("assistant", "msg2", DateTimeOffset.UtcNow)
+        ]);
 
         // Act
         var count = await sut.GetMessageCountAsync(sessionId);

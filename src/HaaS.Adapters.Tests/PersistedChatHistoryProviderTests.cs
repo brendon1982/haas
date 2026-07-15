@@ -6,6 +6,7 @@ using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
 using HaaS.Adapters.Persistence;
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NUnit.Framework;
@@ -23,8 +24,8 @@ public class PersistedChatHistoryProviderTests
         var sut = ProviderSutBuilder.Create()
             .WithMessages(sessionId,
             [
-                System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.User, "stored question")),
-                System.Text.Json.JsonSerializer.Serialize(new ChatMessage(ChatRole.Assistant, "stored answer"))
+                new DomainMessage("user", "stored question", DateTimeOffset.UtcNow.AddMinutes(-2)),
+                new DomainMessage("assistant", "stored answer", DateTimeOffset.UtcNow.AddMinutes(-1))
             ])
             .Build();
         var (agent, session) = await CreateSessionWithAgentAsync(sessionId);
@@ -83,10 +84,8 @@ public class PersistedChatHistoryProviderTests
         // Assert
         var messages = await builder.MessageStore.GetMessagesAsync(sessionId);
         Expect(messages.Count).To.Equal(2);
-        var deserialized0 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
-        var deserialized1 = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[1]);
-        Expect(deserialized0!.Text).To.Equal("new question");
-        Expect(deserialized1!.Text).To.Equal("new answer");
+        Expect(messages[0].Content).To.Equal("new question");
+        Expect(messages[1].Content).To.Equal("new answer");
     }
 
     [Test]
@@ -144,7 +143,7 @@ file sealed class ProviderSutBuilder
 
     public static ProviderSutBuilder Create() => new();
 
-    public ProviderSutBuilder WithMessages(string sessionId, IEnumerable<string> messages)
+    public ProviderSutBuilder WithMessages(string sessionId, IEnumerable<DomainMessage> messages)
     {
         _messageStore.AppendMessagesAsync(sessionId, messages).Wait();
         return this;

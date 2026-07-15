@@ -53,8 +53,8 @@ public class MicrosoftAgentFrameworkStrategyTests
 
         var messages = await messageStore.GetMessagesAsync(sessionId);
         Expect(messages.Count).Not.To.Equal(0);
-        Expect(messages.Any(m => m.Contains("\"hi\""))).To.Be.True();
-        Expect(messages.Any(m => m.Contains($"\"{expectedOutput}\""))).To.Be.True();
+        Expect(messages.Any(m => m.Content == "hi")).To.Be.True();
+        Expect(messages.Any(m => m.Content == expectedOutput)).To.Be.True();
     }
 
     [Test]
@@ -87,9 +87,9 @@ public class MicrosoftAgentFrameworkStrategyTests
 
         // Assert
         var messages = await messageStore.GetMessagesAsync(sessionId);
-        var systemMessage = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messages[0]);
-        Expect(systemMessage!.Role).To.Equal(ChatRole.System);
-        Expect(systemMessage.Text).To.Equal(record.SystemPrompt);
+        var systemMessage = messages[0];
+        Expect(systemMessage.Role).To.Equal("system");
+        Expect(systemMessage.Content).To.Equal(record.SystemPrompt);
     }
 
     [Test]
@@ -269,8 +269,9 @@ file sealed class StrategySutBuilder
 {
     private IChatClientFactory _factory = new FakeChatClientFactory(new FakeChatClient("default response"));
     private InMemorySessionRepository _repository = new();
-    private InMemorySessionMessageStore _messageStore = new();
+    private IMessageStore _messageStore = new InMemorySessionMessageStore();
     private IToolProvider _toolProvider = new FakeToolProvider();
+    private TimeProvider _timeProvider = TimeProvider.System;
 
     private StrategySutBuilder() { }
 
@@ -288,7 +289,7 @@ file sealed class StrategySutBuilder
         return this;
     }
 
-    public StrategySutBuilder WithMessageStore(InMemorySessionMessageStore messageStore)
+    public StrategySutBuilder WithMessageStore(IMessageStore messageStore)
     {
         _messageStore = messageStore;
         return this;
@@ -300,9 +301,15 @@ file sealed class StrategySutBuilder
         return this;
     }
 
-    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore, _toolProvider);
+    public StrategySutBuilder WithTimeProvider(TimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider;
+        return this;
+    }
 
-    public InMemorySessionMessageStore MessageStore => _messageStore;
+    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore, _toolProvider, _timeProvider);
+
+    public IMessageStore MessageStore => _messageStore;
 }
 
 file sealed class FakeChatClient(string response) : IChatClient
@@ -394,19 +401,19 @@ file sealed class InMemorySessionRepository : ISessionRepository
 
 file sealed class InMemorySessionMessageStore : IMessageStore
 {
-    private readonly ConcurrentDictionary<string, List<string>> _store = new();
+    private readonly ConcurrentDictionary<string, List<DomainMessage>> _store = new();
 
-    public Task<IReadOnlyList<string>> GetMessagesAsync(string sessionId)
+    public Task<IReadOnlyList<DomainMessage>> GetMessagesAsync(string sessionId)
     {
         if (_store.TryGetValue(sessionId, out var messages))
         {
-            return Task.FromResult<IReadOnlyList<string>>(messages.ToList());
+            return Task.FromResult<IReadOnlyList<DomainMessage>>(messages.ToList());
         }
 
-        return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        return Task.FromResult<IReadOnlyList<DomainMessage>>(Array.Empty<DomainMessage>());
     }
 
-    public Task AppendMessagesAsync(string sessionId, IEnumerable<string> messages)
+    public Task AppendMessagesAsync(string sessionId, IEnumerable<DomainMessage> messages)
     {
         var list = _store.GetOrAdd(sessionId, _ => []);
         list.AddRange(messages);

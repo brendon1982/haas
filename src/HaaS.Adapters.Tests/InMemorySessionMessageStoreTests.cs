@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Persistence;
+using HaaS.Domain.ValueObjects;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests;
@@ -14,15 +15,17 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        await sut.AppendMessagesAsync(sessionId, ["hello", "hi"]);
+        var m1 = new DomainMessage("user", "hello", DateTimeOffset.UtcNow);
+        var m2 = new DomainMessage("assistant", "hi", DateTimeOffset.UtcNow);
+        await sut.AppendMessagesAsync(sessionId, [m1, m2]);
 
         // Act
         var result = await sut.GetMessagesAsync(sessionId);
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0]).To.Equal("hello");
-        Expect(result[1]).To.Equal("hi");
+        Expect(result[0]).To.Equal(m1);
+        Expect(result[1]).To.Equal(m2);
     }
 
     [Test]
@@ -44,16 +47,18 @@ public class InMemorySessionMessageStoreTests
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
         var sessionId = "sess-1";
-        await sut.AppendMessagesAsync(sessionId, ["first"]);
+        var m1 = new DomainMessage("user", "first", DateTimeOffset.UtcNow);
+        await sut.AppendMessagesAsync(sessionId, [m1]);
 
         // Act
-        await sut.AppendMessagesAsync(sessionId, ["second"]);
+        var m2 = new DomainMessage("assistant", "second", DateTimeOffset.UtcNow);
+        await sut.AppendMessagesAsync(sessionId, [m2]);
         var result = await sut.GetMessagesAsync(sessionId);
 
         // Assert
         Expect(result.Count).To.Equal(2);
-        Expect(result[0]).To.Equal("first");
-        Expect(result[1]).To.Equal("second");
+        Expect(result[0]).To.Equal(m1);
+        Expect(result[1]).To.Equal(m2);
     }
 
     [Test]
@@ -61,14 +66,15 @@ public class InMemorySessionMessageStoreTests
     {
         // Arrange
         var sut = MessageStoreSutBuilder.Create().Build();
+        var m1 = new DomainMessage("user", "first", DateTimeOffset.UtcNow);
 
         // Act
-        await sut.AppendMessagesAsync("new-sess", ["first"]);
+        await sut.AppendMessagesAsync("new-sess", [m1]);
         var result = await sut.GetMessagesAsync("new-sess");
 
         // Assert
         Expect(result.Count).To.Equal(1);
-        Expect(result[0]).To.Equal("first");
+        Expect(result[0]).To.Equal(m1);
     }
 }
 

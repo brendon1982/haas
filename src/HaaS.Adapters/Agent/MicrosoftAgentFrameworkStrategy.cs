@@ -13,17 +13,20 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     private readonly ISessionRepository _sessionRepository;
     private readonly IMessageStore _messageStore;
     private readonly IToolProvider _toolProvider;
+    private readonly TimeProvider _timeProvider;
 
     public MicrosoftAgentFrameworkStrategy(
         IChatClientFactory chatClientFactory,
         ISessionRepository sessionRepository,
         IMessageStore messageStore,
-        IToolProvider toolProvider)
+        IToolProvider toolProvider,
+        TimeProvider timeProvider)
     {
         _chatClientFactory = chatClientFactory;
         _sessionRepository = sessionRepository;
         _messageStore = messageStore;
         _toolProvider = toolProvider;
+        _timeProvider = timeProvider;
     }
 
     public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
@@ -40,7 +43,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
             {
                 await _messageStore.AppendMessagesAsync(
                     sessionId,
-                    [JsonSerializer.Serialize(new ChatMessage(ChatRole.System, config.SystemPrompt))]);
+                    [new DomainMessage("system", config.SystemPrompt, _timeProvider.GetUtcNow())]);
             }
         }
 
