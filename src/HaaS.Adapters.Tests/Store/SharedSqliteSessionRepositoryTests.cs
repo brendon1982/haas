@@ -34,7 +34,7 @@ public class SharedSqliteSessionRepositoryTests
         var sut = new SharedSqliteSessionRepository(_dbPath);
         var record = new SessionRecord(
             "sess-1", "cli", "running", "openai", "gpt-4",
-            "System prompt", "[]", "off",
+            "System prompt", "[]", "off", "Some output",
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         // Act
@@ -51,6 +51,7 @@ public class SharedSqliteSessionRepositoryTests
         Expect(loaded.SystemPrompt).To.Equal(record.SystemPrompt);
         Expect(loaded.Tools).To.Equal(record.Tools);
         Expect(loaded.ThinkingLevel).To.Equal(record.ThinkingLevel);
+        Expect(loaded.Output).To.Equal(record.Output);
         Expect(loaded.CreatedAt.ToUnixTimeSeconds()).To.Equal(record.CreatedAt.ToUnixTimeSeconds());
         Expect(loaded.UpdatedAt.ToUnixTimeSeconds()).To.Equal(record.UpdatedAt.ToUnixTimeSeconds());
     }
@@ -62,7 +63,7 @@ public class SharedSqliteSessionRepositoryTests
         var sut = new SharedSqliteSessionRepository(_dbPath);
         var record = new SessionRecord(
             "sess-1", "cli", "running", "openai", "gpt-4",
-            "System prompt", "[]", "off",
+            "System prompt", "[]", "off", null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await sut.SaveAsync(record);
 

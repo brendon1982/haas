@@ -11,6 +11,7 @@ public record SessionRecord(
     string SystemPrompt,
     string Tools,
     string ThinkingLevel,
+    string? Output,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt
 )

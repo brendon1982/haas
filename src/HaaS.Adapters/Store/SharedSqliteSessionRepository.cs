@@ -34,6 +34,7 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 SystemPrompt TEXT NOT NULL,
                 Tools TEXT NOT NULL,
                 ThinkingLevel TEXT NOT NULL,
+                Output TEXT,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );";
@@ -49,10 +50,10 @@ public class SharedSqliteSessionRepository : ISessionRepository
         command.CommandText = 
             @"INSERT INTO sessions (
                 SessionId, SourceType, Status, Provider, ModelId, 
-                SystemPrompt, Tools, ThinkingLevel, CreatedAt, UpdatedAt
+                SystemPrompt, Tools, ThinkingLevel, Output, CreatedAt, UpdatedAt
             ) VALUES (
                 $id, $source, $status, $provider, $model, 
-                $prompt, $tools, $thinking, $created, $updated
+                $prompt, $tools, $thinking, $output, $created, $updated
             ) ON CONFLICT(SessionId) DO UPDATE SET
                 Status = excluded.Status,
                 Provider = excluded.Provider,
@@ -60,6 +61,7 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 SystemPrompt = excluded.SystemPrompt,
                 Tools = excluded.Tools,
                 ThinkingLevel = excluded.ThinkingLevel,
+                Output = excluded.Output,
                 UpdatedAt = excluded.UpdatedAt;";
 
         command.Parameters.AddWithValue("$id", record.SessionId);
@@ -70,6 +72,7 @@ public class SharedSqliteSessionRepository : ISessionRepository
         command.Parameters.AddWithValue("$prompt", record.SystemPrompt);
         command.Parameters.AddWithValue("$tools", record.Tools);
         command.Parameters.AddWithValue("$thinking", record.ThinkingLevel);
+        command.Parameters.AddWithValue("$output", (object?)record.Output ?? DBNull.Value);
         command.Parameters.AddWithValue("$created", record.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("$updated", record.UpdatedAt.ToString("O"));
 
@@ -97,8 +100,9 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 reader.GetString(5),
                 reader.GetString(6),
                 reader.GetString(7),
-                DateTimeOffset.Parse(reader.GetString(8)),
-                DateTimeOffset.Parse(reader.GetString(9))
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                DateTimeOffset.Parse(reader.GetString(9)),
+                DateTimeOffset.Parse(reader.GetString(10))
             );
         }
 

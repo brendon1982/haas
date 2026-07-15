@@ -41,6 +41,7 @@ public class RunSessionUseCase : IRunSessionUseCase
                 config.SystemPrompt,
                 System.Text.Json.JsonSerializer.Serialize(config.ToolBelt),
                 config.ThinkingLevel,
+                null,
                 now,
                 now);
             await _sessionRepository.SaveAsync(record);
@@ -73,6 +74,7 @@ public class RunSessionUseCase : IRunSessionUseCase
             updated = updated with
             {
                 Status = SessionRecord.Statuses.Completed,
+                Output = result.Output,
                 UpdatedAt = _timeProvider.GetUtcNow()
             };
             await _sessionRepository.SaveAsync(updated);

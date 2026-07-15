@@ -49,6 +49,7 @@ public class RunSessionUseCaseTests
         Expect(record.ModelId).To.Equal(sourceConfig.ModelId);
         Expect(record.SystemPrompt).To.Equal(sourceConfig.SystemPrompt);
         Expect(record.SourceType).To.Equal(signal.Source);
+        Expect(record.Output).To.Equal(expected.Output);
         Expect(record.CreatedAt).To.Equal(time.UtcNow);
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
     }
@@ -60,7 +61,7 @@ public class RunSessionUseCaseTests
         var storedRecord = new SessionRecord(
             "sess-existing", "cli", SessionRecord.Statuses.Running,
             "ollama", "gemma4", "Stored system prompt",
-            "[]", "off",
+            "[]", "off", null,
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var signal = SignalTestBuilder.Create()
