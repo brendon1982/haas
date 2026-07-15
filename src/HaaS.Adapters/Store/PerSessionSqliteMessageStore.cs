@@ -37,7 +37,8 @@ public class PerSessionSqliteMessageStore : IMessageStore
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Role TEXT NOT NULL,
                 Content TEXT NOT NULL,
-                Timestamp TEXT NOT NULL
+                Timestamp TEXT NOT NULL,
+                Payload TEXT
             );";
         await command.ExecuteNonQueryAsync();
     }
@@ -51,7 +52,7 @@ public class PerSessionSqliteMessageStore : IMessageStore
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT Role, Content, Timestamp FROM messages ORDER BY Id ASC";
+        command.CommandText = "SELECT Role, Content, Timestamp, Payload FROM messages ORDER BY Id ASC";
 
         var messages = new List<DomainMessage>();
         using var reader = await command.ExecuteReaderAsync();
@@ -60,7 +61,8 @@ public class PerSessionSqliteMessageStore : IMessageStore
             messages.Add(new DomainMessage(
                 reader.GetString(0),
                 reader.GetString(1),
-                DateTimeOffset.Parse(reader.GetString(2))));
+                DateTimeOffset.Parse(reader.GetString(2)),
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
         }
 
         return messages;
@@ -79,10 +81,11 @@ public class PerSessionSqliteMessageStore : IMessageStore
         {
             var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO messages (Role, Content, Timestamp) VALUES ($role, $content, $timestamp)";
+            command.CommandText = "INSERT INTO messages (Role, Content, Timestamp, Payload) VALUES ($role, $content, $timestamp, $payload)";
             command.Parameters.AddWithValue("$role", message.Role);
             command.Parameters.AddWithValue("$content", message.Content);
             command.Parameters.AddWithValue("$timestamp", message.Timestamp.ToString("O"));
+            command.Parameters.AddWithValue("$payload", (object?)message.Payload ?? DBNull.Value);
             await command.ExecuteNonQueryAsync();
         }
         transaction.Commit();

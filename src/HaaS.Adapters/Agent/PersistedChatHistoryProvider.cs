@@ -20,30 +20,55 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         InvokingContext context, CancellationToken cancellationToken = default)
     {
         var sessionId = GetSessionId(context.Session);
-        if (sessionId is null)
-        {
-            return [];
-        }
+        if (sessionId is null) return [];
 
         var stored = await _messageStore.GetMessagesAsync(sessionId);
-        return stored.Select(m => new ChatMessage(new ChatRole(m.Role), m.Content) { CreatedAt = m.Timestamp })
-                     .OrderBy(o => o.CreatedAt);
+        return stored.Select(MapToChatMessage)
+                     .OrderBy(m => m.CreatedAt);
+    }
+
+    private static ChatMessage MapToChatMessage(DomainMessage message)
+    {
+        if (!string.IsNullOrEmpty(message.Payload))
+        {
+            try
+            {
+                var chatMessage = JsonSerializer.Deserialize<ChatMessage>(message.Payload);
+                if (chatMessage is not null) return chatMessage;
+            }
+            catch
+            {
+                // Fallback to basic reconstruction
+            }
+        }
+
+        return new ChatMessage(new ChatRole(message.Role), message.Content) 
+        { 
+            CreatedAt = message.Timestamp 
+        };
     }
 
     protected override async ValueTask StoreChatHistoryAsync(
         InvokedContext context, CancellationToken cancellationToken = default)
     {
         var sessionId = GetSessionId(context.Session);
-        if (sessionId is null)
-        {
-            return;
-        }
+        if (sessionId is null) return;
+
         var timestamp = DateTimeOffset.UtcNow;
-        var messages = (context.RequestMessages)
+        var messages = context.RequestMessages
             .Concat(context.ResponseMessages ?? [])
-            .Select(m => new DomainMessage(m.Role.Value, m.Text ?? "", m.CreatedAt ?? timestamp));
+            .Select(m => MapToDomainMessage(m, timestamp));
         
         await _messageStore.AppendMessagesAsync(sessionId, messages);
+    }
+
+    private static DomainMessage MapToDomainMessage(ChatMessage message, DateTimeOffset defaultTimestamp)
+    {
+        return new DomainMessage(
+            message.Role.Value, 
+            message.Text ?? string.Empty, 
+            message.CreatedAt ?? defaultTimestamp,
+            JsonSerializer.Serialize(message));
     }
 
     private static string? GetSessionId(AgentSession? session)

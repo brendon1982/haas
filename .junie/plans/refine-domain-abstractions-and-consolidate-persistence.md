@@ -72,3 +72,7 @@ Move away from raw strings in the persistence ports for better domain encapsulat
 - Create a `DomainMessage` record in `HaaS.Domain.ValueObjects`.
 - Update `IMessageStore` to use `DomainMessage` instead of `string`.
 - Update `PersistedChatHistoryProvider` to map between `DomainMessage` and `Microsoft.Extensions.AI.ChatMessage`.
+
+### ✓ Step 4: Refine and tidy persistence implementation
+- Remove migration logic from `PerSessionSqliteMessageStore`.
+- Improve readability of `PersistedChatHistoryProvider`.
