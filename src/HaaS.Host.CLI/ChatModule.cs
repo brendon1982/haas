@@ -1,5 +1,5 @@
 using HaaS.Domain.Ports;
-using HaaS.Adapters.Agent;
+using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -36,10 +36,9 @@ public class ChatModule : ICliModule
             })
             .Build();
 
-        var toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
-        toolRegistry.Register("get_time", (Func<string, Task<string>>)(async timezone =>
-            $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"),
-            "Gets the current UTC time for a given timezone");
+        var toolProvider = host.Services.GetRequiredService<IToolProvider>();
+        toolProvider.Register(new ToolDefinition("get_time", "Gets the current UTC time for a given timezone", (Func<string, Task<string>>)(async timezone =>
+            $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC")));
 
         Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
         Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");

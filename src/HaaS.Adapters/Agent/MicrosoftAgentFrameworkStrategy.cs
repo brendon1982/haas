@@ -12,18 +12,18 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
     private readonly IChatClientFactory _chatClientFactory;
     private readonly ISessionRepository _sessionRepository;
     private readonly IMessageStore _messageStore;
-    private readonly IToolRegistry _toolRegistry;
+    private readonly IToolProvider _toolProvider;
 
     public MicrosoftAgentFrameworkStrategy(
         IChatClientFactory chatClientFactory,
         ISessionRepository sessionRepository,
         IMessageStore messageStore,
-        IToolRegistry toolRegistry)
+        IToolProvider toolProvider)
     {
         _chatClientFactory = chatClientFactory;
         _sessionRepository = sessionRepository;
         _messageStore = messageStore;
-        _toolRegistry = toolRegistry;
+        _toolProvider = toolProvider;
     }
 
     public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
@@ -56,7 +56,10 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         _chatClientFactory.ConfigureOptions(config.Provider, chatOptions, config);
         if (config.ToolBelt.Tools.Count > 0)
         {
-            chatOptions.Tools = _toolRegistry.GetTools(config.ToolBelt.Tools).ToList();
+            chatOptions.Tools = _toolProvider.GetTools(config.ToolBelt.Tools)
+                .Select(t => AIFunctionFactory.Create(t.Handler, new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description }))
+                .Cast<AITool>()
+                .ToList();
         }
 
         var agent = new ChatClientAgent(

@@ -1,5 +1,5 @@
 using HaaS.Domain.Ports;
-using HaaS.Adapters.Agent;
+using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -50,17 +50,17 @@ public class TicTacToeModule : ICliModule
             })
             .Build();
 
-        var toolRegistry = host.Services.GetRequiredService<IToolRegistry>();
-        toolRegistry.Register("get_board", () => _game.FormatBoard(), "Returns the current Tic-Tac-Toe board as a formatted string.");
-        toolRegistry.Register("get_valid_moves", () => _game.FormatValidMoves(), "Returns a comma-separated list of available positions (1-9).");
-        toolRegistry.Register("place_marker", (int position) =>
+        var toolProvider = host.Services.GetRequiredService<IToolProvider>();
+        toolProvider.Register(new ToolDefinition("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", () => _game.FormatBoard()));
+        toolProvider.Register(new ToolDefinition("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", () => _game.FormatValidMoves()));
+        toolProvider.Register(new ToolDefinition("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", (int position) =>
         {
             if (_game.HasMovedThisTurn)
                 return $"You have already placed your marker this turn. You are O and you already played position {position}. Wait for the next turn.";
             if (!_game.TryPlace(position))
                 return $"Position {position} is not available. Choose from: {_game.FormatValidMoves()}.";
             return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
-        }, "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.");
+        }));
 
         await host.RunAsync(ct);
 

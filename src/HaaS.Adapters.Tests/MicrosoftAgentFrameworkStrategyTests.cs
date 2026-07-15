@@ -30,10 +30,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         var chatClient = new FakeChatClient(expectedOutput);
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
             .Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -69,10 +71,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         var chatClient = new FakeChatClient("response");
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
             .Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -108,10 +112,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         var chatClient = new FakeChatClient("response");
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
             .Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -133,10 +139,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         var factory = new FakeChatClientFactory(chatClient);
         var repo = new InMemorySessionRepository();
         var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
             .Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -166,10 +174,12 @@ public class MicrosoftAgentFrameworkStrategyTests
         var chatClient = new FakeChatClient(expectedResponse);
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
             .Build();
 
         // Act - first turn
@@ -217,13 +227,13 @@ public class MicrosoftAgentFrameworkStrategyTests
         var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
         var factory = new FakeChatClientFactory(chatClient);
         var messageStore = new InMemorySessionMessageStore();
-        var toolRegistry = new FakeToolRegistry();
-        toolRegistry.Register(expectedTool, (Func<string, Task<string>>)(async input => $"processed: {input}"));
+        var toolProvider = new FakeToolProvider();
+        toolProvider.Register(new ToolDefinition(expectedTool, "", (Func<string, Task<string>>)(async input => $"processed: {input}")));
         var sut = StrategySutBuilder.Create()
             .WithChatClientFactory(factory)
             .WithRepository(repo)
             .WithMessageStore(messageStore)
-            .WithToolRegistry(toolRegistry)
+            .WithToolProvider(toolProvider)
             .Build();
         var signal = SignalTestBuilder.Create()
             .WithPayload("hi")
@@ -260,7 +270,7 @@ file sealed class StrategySutBuilder
     private IChatClientFactory _factory = new FakeChatClientFactory(new FakeChatClient("default response"));
     private InMemorySessionRepository _repository = new();
     private InMemorySessionMessageStore _messageStore = new();
-    private IToolRegistry _toolRegistry = new FakeToolRegistry();
+    private IToolProvider _toolProvider = new FakeToolProvider();
 
     private StrategySutBuilder() { }
 
@@ -284,13 +294,13 @@ file sealed class StrategySutBuilder
         return this;
     }
 
-    public StrategySutBuilder WithToolRegistry(IToolRegistry toolRegistry)
+    public StrategySutBuilder WithToolProvider(IToolProvider toolProvider)
     {
-        _toolRegistry = toolRegistry;
+        _toolProvider = toolProvider;
         return this;
     }
 
-    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore, _toolRegistry);
+    public MicrosoftAgentFrameworkStrategy Build() => new(_factory, _repository, _messageStore, _toolProvider);
 
     public InMemorySessionMessageStore MessageStore => _messageStore;
 }
@@ -414,30 +424,19 @@ file sealed class InMemorySessionMessageStore : IMessageStore
     }
 }
 
-file sealed class FakeToolRegistry : IToolRegistry
+file sealed class FakeToolProvider : IToolProvider
 {
-    private readonly Dictionary<string, Delegate> _handlers = new();
-    private readonly Dictionary<string, string?> _descriptions = new();
+    private readonly Dictionary<string, ToolDefinition> _tools = new();
 
-    public void Register(string name, Delegate handler, string? description = null)
+    public void Register(ToolDefinition definition)
     {
-        _handlers[name] = handler;
-        _descriptions[name] = description;
+        _tools[definition.Name] = definition;
     }
 
-    public IReadOnlyList<AITool> GetTools(IEnumerable<string> toolNames)
+    public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)
     {
         return toolNames
-            .Select(name => _handlers.TryGetValue(name, out var handler)
-                ? AIFunctionFactory.Create(handler,
-                    new AIFunctionFactoryOptions
-                    {
-                        Name = name,
-                        Description = _descriptions.GetValueOrDefault(name)
-                    })
-                : null)
-            .Where(t => t is not null)
-            .Cast<AITool>()
-            .ToList();
+            .Select(name => _tools.TryGetValue(name, out var tool) ? tool : null)
+            .Where(t => t is not null)!;
     }
 }

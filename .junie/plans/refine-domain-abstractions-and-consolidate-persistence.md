@@ -59,14 +59,14 @@ Bridge the gap between transient results and persistent session history.
 - Update `RunSessionUseCase` to save the `SessionResult.Output` into the `SessionRecord` when completing.
 - Evaluate if `IDeferredSessionResultStore` can be simplified or if it remains necessary for real-time `TaskCompletionSource` behavior.
 
-### * Step 2: Evolve Tool Registry into a Domain Port
+### ✓ Step 2: Evolve Tool Registry into a Domain Port
 Improve the domain's awareness of tools without coupling to a specific AI framework.
 
 - Move `IToolRegistry` (or a domain-level equivalent `IToolProvider`) into `HaaS.Domain.Ports`.
 - Define a domain-friendly `ToolDefinition` that doesn't depend on `Microsoft.Extensions.AI`.
 - Update `MicrosoftAgentFrameworkStrategy` to use the new domain port.
 
-###   Step 3: Refine IMessageStore with Domain-specific message records
+### * Step 3: Refine IMessageStore with Domain-specific message records
 Move away from raw strings in the persistence ports for better domain encapsulation.
 
 - Create a `DomainMessage` record in `HaaS.Domain.ValueObjects`.
