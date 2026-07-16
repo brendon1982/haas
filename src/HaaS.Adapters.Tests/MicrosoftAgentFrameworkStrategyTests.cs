@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using NExpect;
 using static NExpect.Expectations;
@@ -438,6 +439,10 @@ file sealed class FakeToolProvider : IToolProvider
     public void Register(ToolDefinition definition)
     {
         _tools[definition.Name] = definition;
+    }
+
+    public void Register<T>(string name, string description, Expression<Func<T, Delegate>> methodSelector) where T : class
+    {
     }
 
     public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)

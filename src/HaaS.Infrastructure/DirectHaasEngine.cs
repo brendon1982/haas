@@ -2,23 +2,26 @@ using HaaS.Application;
 using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
-
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Infrastructure;
 
 public class DirectHaasEngine : BaseHaasEngine
 {
-    private readonly IRunSessionUseCase _runSessionUseCase;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISignalScopeAccessor _scopeAccessor;
 
     public DirectHaasEngine(
         ISignalSourceRegistry registry, 
-        IRunSessionUseCase runSessionUseCase,
+        IServiceScopeFactory scopeFactory,
+        ISignalScopeAccessor scopeAccessor,
         ILogger logger,
         IHostApplicationLifetime? lifetime = null)
         : base(registry, logger, lifetime)
     {
-        _runSessionUseCase = runSessionUseCase;
+        _scopeFactory = scopeFactory;
+        _scopeAccessor = scopeAccessor;
     }
 
     protected override IEnumerable<SignalSourceRegistration> GetRelevantRegistrations()
@@ -26,8 +29,18 @@ public class DirectHaasEngine : BaseHaasEngine
 
     protected override async Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
     {
-        var result = await _runSessionUseCase.ExecuteAsync(signal, reg.Presenter);
-        return new DirectSignalHandle(result.SessionId);
+        using var scope = _scopeFactory.CreateScope();
+        try
+        {
+            _scopeAccessor.ServiceProvider = scope.ServiceProvider;
+            var runSessionUseCase = scope.ServiceProvider.GetRequiredService<IRunSessionUseCase>();
+            var result = await runSessionUseCase.ExecuteAsync(signal, reg.Presenter);
+            return new DirectSignalHandle(result.SessionId);
+        }
+        finally
+        {
+            _scopeAccessor.ServiceProvider = null;
+        }
     }
 }
 

@@ -12,21 +12,21 @@ public class QueuedHaasEngine : BaseHaasEngine
 {
     private readonly IEnqueueSignalUseCase _enqueueSignalUseCase;
     private readonly IDeferredSessionResultStore _resultStore;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
     private int _workerCount = 1;
 
     public QueuedHaasEngine(
         ISignalSourceRegistry registry, 
         IEnqueueSignalUseCase enqueueSignalUseCase,
         IDeferredSessionResultStore resultStore,
-        IServiceProvider serviceProvider,
+        IServiceScopeFactory scopeFactory,
         ILogger logger,
         IHostApplicationLifetime? lifetime = null)
         : base(registry, logger, lifetime)
     {
         _enqueueSignalUseCase = enqueueSignalUseCase;
         _resultStore = resultStore;
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
     }
 
     public void SetWorkerCount(int workerCount)
@@ -46,13 +46,14 @@ public class QueuedHaasEngine : BaseHaasEngine
 
     private async Task RunWorkerAsync(CancellationToken stoppingToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var worker = scope.ServiceProvider.GetRequiredService<SignalWorker>();
-
         while (!stoppingToken.IsCancellationRequested)
         {
+            using var scope = _scopeFactory.CreateScope();
+            var scopeAccessor = scope.ServiceProvider.GetRequiredService<ISignalScopeAccessor>();
             try
             {
+                scopeAccessor.ServiceProvider = scope.ServiceProvider;
+                var worker = scope.ServiceProvider.GetRequiredService<SignalWorker>();
                 await worker.ProcessNextAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -62,6 +63,10 @@ public class QueuedHaasEngine : BaseHaasEngine
             catch (Exception ex)
             {
                 Logger.LogError(ex, "Error in signal worker");
+            }
+            finally
+            {
+                scopeAccessor.ServiceProvider = null;
             }
 
             await Task.Delay(50, stoppingToken);

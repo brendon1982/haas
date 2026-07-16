@@ -23,13 +23,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISignalQueue, InMemorySignalQueue>();
         services.AddSingleton<IDeferredSessionResultStore, DeferredSessionResultStore>();
         services.AddSingleton<ILogger, ConsoleLogger>();
+        services.AddSingleton<ISignalScopeAccessor, SignalScopeAccessor>();
 
         services.AddSingleton<ChatClientFactory>();
         services.AddSingleton<IChatClientFactory>(sp => sp.GetRequiredService<ChatClientFactory>());
 
         services.AddSingleton<IToolProvider, ToolProvider>();
 
-        services.AddSingleton<IAgentStrategy>(sp =>
+        services.AddScoped<IAgentStrategy>(sp =>
         {
             var factory = sp.GetRequiredService<IChatClientFactory>();
             var sessionRepo = sp.GetRequiredService<ISessionRepository>();
@@ -42,8 +43,8 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<RunSessionUseCase>();
-        services.AddSingleton<IRunSessionUseCase>(sp =>
+        services.AddScoped<RunSessionUseCase>();
+        services.AddScoped<IRunSessionUseCase>(sp =>
         {
             var inner = sp.GetRequiredService<RunSessionUseCase>();
             var logger = sp.GetRequiredService<ILogger>();

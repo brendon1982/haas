@@ -522,3 +522,36 @@ When the host process isn't enough:
 - **`HaaS.Application`** — New use case: polls the queue, orchestrates the full ReceiveSignal → ExecuteAgentIteration flow per item.
 - **`HaaS.Infrastructure`** — Worker pool startup in the DI wiring. Config keys for `maxConcurrentSessions`, `maxQueueDepth`, `pickTimeoutMs`.
 - **Signal sources** — No longer create sessions directly. They enqueue to `SignalQueue` and return immediately (or hold the response channel for bidirectional flows).
+
+## 15. Signal Execution Lifecycle
+
+To ensure proper isolation and resource management, every signal processing run occurs within its own dependency injection (DI) scope. This is analogous to how web frameworks handle HTTP requests.
+
+### 15.1 Scope Management
+
+- **Scope Creation**: The engines (`DirectHaasEngine` and `QueuedHaasEngine`) are responsible for creating a new `IServiceScope` for each signal.
+- **Scope Access**: Singleton services, such as `ToolProvider`, can access the current scoped service provider via the `ISignalScopeAccessor`. This accessor uses `AsyncLocal<IServiceProvider>` to maintain the reference to the provider for the current execution context.
+- **Automatic Resolution**: Tools registered via the generic `Register<T>` method are resolved from the current scope's service provider at the moment of execution.
+
+### 15.2 Service Lifetimes
+
+Components are registered with specific lifetimes to support this lifecycle:
+
+| Component | Lifetime | Rationale |
+|-----------|----------|-----------|
+| `IHaasEngine` | Singleton | Manages global execution and background workers. |
+| `IToolProvider` | Singleton | Central registry for tools across all sessions. |
+| `ISignalScopeAccessor` | Singleton | Provides access to the current `AsyncLocal` scope. |
+| `IRunSessionUseCase` | Scoped | Ensures a fresh execution context (identity, config) per signal. |
+| `IAgentStrategy` | Scoped | Maintains agent loop state within a single signal run. |
+| `SignalWorker` | Transient | Created per dequeue operation within a new scope. |
+
+### 15.3 Execution Flow
+
+1. **Engine** receives or dequeues a signal.
+2. **Engine** creates a new `IServiceScope`.
+3. **Engine** sets `ISignalScopeAccessor.ServiceProvider` to the scope's provider.
+4. **Engine** resolves `IRunSessionUseCase` (or `SignalWorker`) from the scope.
+5. **Use Case** executes the agent loop.
+6. **ToolProvider** (when a tool is called) resolves the tool instance from `ISignalScopeAccessor.ServiceProvider`.
+7. **Engine** disposes the scope and clears `ISignalScopeAccessor.ServiceProvider`.
