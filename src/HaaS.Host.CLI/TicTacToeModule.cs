@@ -8,13 +8,6 @@ namespace HaaS.Host.CLI;
 
 public class TicTacToeModule : ICliModule
 {
-    private readonly TicTacToeGame _game;
-
-    public TicTacToeModule()
-    {
-        _game = new TicTacToeGame();
-    }
-
     public string Name => "Tic-Tac-Toe";
     public string Description => "Classic 3-in-a-row game against an AI opponent";
 
@@ -46,21 +39,14 @@ public class TicTacToeModule : ICliModule
                         });
                     });
 
-                services.AddSingleton(_game);
+                services.AddSingleton<TicTacToeGame>();
             })
             .Build();
 
         var toolProvider = host.Services.GetRequiredService<IToolProvider>();
-        toolProvider.Register(new ToolDefinition("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", () => _game.FormatBoard()));
-        toolProvider.Register(new ToolDefinition("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", () => _game.FormatValidMoves()));
-        toolProvider.Register(new ToolDefinition("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", (int position) =>
-        {
-            if (_game.HasMovedThisTurn)
-                return $"You have already placed your marker this turn. You are O and you already played position {position}. Wait for the next turn.";
-            if (!_game.TryPlace(position))
-                return $"Position {position} is not available. Choose from: {_game.FormatValidMoves()}.";
-            return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
-        }));
+        toolProvider.Register<TicTacToeGame>("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", g => (Func<string>)g.FormatBoard);
+        toolProvider.Register<TicTacToeGame>("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", g => (Func<string>)g.FormatValidMoves);
+        toolProvider.Register<TicTacToeGame>("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", g => (Func<int, string>)g.PlaceMarker);
 
         await host.RunAsync(ct);
 

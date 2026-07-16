@@ -28,6 +28,15 @@ public class TicTacToeGame
 
     public void PlacePlayer(int position) => _board[position - 1] = 'X';
 
+    public string PlaceMarker(int position)
+    {
+        if (HasMovedThisTurn)
+            return "You have already placed your marker this turn. Wait for the next turn.";
+        if (!TryPlace(position))
+            return $"Position {position} is not available. Choose from: {FormatValidMoves()}.";
+        return $"Placed O at position {position}. Your turn is over. Wait for the player to move before your next turn.";
+    }
+
     public string FormatBoard()
     {
         return $"  {Cell(0, 0)} | {Cell(1, 0)} | {Cell(2, 0)}\n" +
