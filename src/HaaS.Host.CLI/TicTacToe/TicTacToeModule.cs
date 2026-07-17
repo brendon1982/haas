@@ -4,7 +4,7 @@ using HaaS.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace HaaS.Host.CLI;
+namespace HaaS.Host.CLI.TicTacToe;
 
 public class TicTacToeModule : ICliModule
 {
@@ -40,19 +40,32 @@ public class TicTacToeModule : ICliModule
                     });
 
                 services.AddSingleton<TicTacToeGame>();
+                services.AddSingleton<TicTacToeToolHandlers>();
             })
             .Build();
 
-        var toolProvider = host.Services.GetRequiredService<IToolProvider>();
-        toolProvider.Register<TicTacToeGame>("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", g => g.FormatBoard);
-        toolProvider.Register<TicTacToeGame>("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", g => g.FormatValidMoves);
-        toolProvider.Register<TicTacToeGame>("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", g => g.PlaceMarker);
+        RegisterTools(host.Services.GetRequiredService<IToolProvider>());
 
         await host.RunAsync(ct);
 
         Console.WriteLine();
         Console.WriteLine("Game over. Press any key to return to menu...");
         Console.ReadKey(true);
+    }
+
+    private void RegisterTools(IToolProvider toolProvider)
+    {
+        toolProvider.Register<TicTacToeToolHandlers>("get_board", 
+            "Returns the current Tic-Tac-Toe board as a formatted text grid.", 
+            h => h.GetBoard);
+
+        toolProvider.Register<TicTacToeToolHandlers>("get_valid_moves", 
+            "Returns a list of available positions (1-9) where you can place your marker.", 
+            h => h.GetValidMoves);
+
+        toolProvider.Register<TicTacToeToolHandlers>("place_marker", 
+            "Places your 'O' marker at the specified position (1-9).", 
+            h => h.PlaceMarker);
     }
 
     private string GetSystemPrompt() => """
