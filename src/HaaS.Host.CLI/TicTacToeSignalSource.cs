@@ -1,6 +1,6 @@
 using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
-using Signal = HaaS.Domain.ValueObjects.Signal;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Host.CLI;
 
@@ -15,7 +15,7 @@ public class TicTacToeSignalSource : ISignalSource
 
     public string Type => "tictactoe";
 
-    public async Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler)
+    public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
         while (true)
         {
@@ -54,9 +54,8 @@ public class TicTacToeSignalSource : ISignalSource
 
             _game.ResetTurn();
 
-            var signal = new Signal(
-                $"The player (X) just moved at position {pos}. It's your turn (O). Make your move.",
-                "tictactoe");
+            var signal = new IncomingSignal(
+                $"The player (X) just moved at position {pos}. It's your turn (O). Make your move.");
 
             var boardBefore = _game.Board.ToArray();
 

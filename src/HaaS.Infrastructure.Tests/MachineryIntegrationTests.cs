@@ -40,10 +40,7 @@ public class MachineryIntegrationTests
         var engineTask = engine.StartAsync(cts.Token);
 
         // Act
-        var signal = SignalTestBuilder.Create()
-            .WithSource("manual")
-            .WithPayload("Hello Machinery")
-            .Build();
+        var signal = new IncomingSignal("Hello Machinery");
         
         // Give the engine a moment to start and call ListenAsync
         await Task.Delay(100); 
@@ -67,12 +64,12 @@ public class MachineryIntegrationTests
 
 file sealed class ManualSignalSource : ISignalSource
 {
-    private Func<Signal, Task<ISignalHandle>>? _callback;
+    private Func<IncomingSignal, Task<ISignalHandle>>? _callback;
     private readonly TaskCompletionSource _tcs = new();
 
     public string Type => "manual";
 
-    public Task ListenAsync(Func<Signal, Task<ISignalHandle>> onSignalReceived)
+    public Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> onSignalReceived)
     {
         _callback = onSignalReceived;
         return _tcs.Task;
@@ -86,7 +83,7 @@ file sealed class ManualSignalSource : ISignalSource
 
     public void Stop() => _tcs.TrySetResult();
 
-    public async Task<ISignalHandle> PushAsync(Signal signal)
+    public async Task<ISignalHandle> PushAsync(IncomingSignal signal)
     {
         if (_callback == null) throw new InvalidOperationException("Source is not listening.");
         return await _callback(signal);

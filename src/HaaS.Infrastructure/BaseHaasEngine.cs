@@ -47,12 +47,14 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
     {
         try 
         {
-            await reg.Source.ListenAsync(async signal =>
+            await reg.Source.ListenAsync(async incoming =>
             {
-                if (signal.SessionId == null && reg.LastSessionId.HasValue)
-                {
-                    signal = signal with { SessionId = reg.LastSessionId.Value.ToString() };
-                }
+                var signal = new Signal(
+                    incoming.Payload,
+                    reg.Source.Type,
+                    incoming.SessionId ?? reg.LastSessionId?.ToString(),
+                    incoming.ArrivedAt
+                );
 
                 var handle = await ProcessSignalAsync(signal, reg);
                 

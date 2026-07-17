@@ -122,7 +122,7 @@ public class ServiceCollectionExtensionsTests
     private class TestSignalSource : ISignalSource
     {
         public string Type => "test";
-        public Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler) => Task.CompletedTask;
+        public Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler) => Task.CompletedTask;
         public Task ShutdownAsync() => Task.CompletedTask;
     }
 

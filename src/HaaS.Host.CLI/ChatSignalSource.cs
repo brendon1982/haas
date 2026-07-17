@@ -1,6 +1,6 @@
 using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
-using Signal = HaaS.Domain.ValueObjects.Signal;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Host.CLI;
 
@@ -21,7 +21,7 @@ public class ChatSignalSource : ISignalSource
 
     public string Type => "chat";
 
-    public async Task ListenAsync(Func<Signal, Task<ISignalHandle>> handler)
+    public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
         while (true)
         {
@@ -30,7 +30,7 @@ public class ChatSignalSource : ISignalSource
             if (string.IsNullOrWhiteSpace(line))
                 break;
 
-            var handle = await handler(new Signal(line.Trim(), "chat"));
+            var handle = await handler(new IncomingSignal(line.Trim()));
 
             // Wait for the worker to finish and present the result
             await handle.WaitForResultAsync();

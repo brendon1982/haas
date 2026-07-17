@@ -1,6 +1,6 @@
 using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
-using SignalValue = HaaS.Domain.ValueObjects.Signal;
+using HaaS.Domain.ValueObjects;
 
 namespace HaaS.Host.CLI;
 
@@ -22,7 +22,7 @@ public class CliSignalSource : ISignalSource
 
     public string Type => "cli";
 
-    public async Task ListenAsync(Func<SignalValue, Task<ISignalHandle>> handler)
+    public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
@@ -34,7 +34,7 @@ public class CliSignalSource : ISignalSource
                 if (string.IsNullOrWhiteSpace(line))
                     break;
 
-                var handle = await handler(new SignalValue(line.Trim(), "cli"));
+                var handle = await handler(new IncomingSignal(line.Trim()));
 
                 // Wait for the worker to finish and present the result
                 await handle.WaitForResultAsync(token);

@@ -44,9 +44,9 @@ public class TicTacToeModule : ICliModule
             .Build();
 
         var toolProvider = host.Services.GetRequiredService<IToolProvider>();
-        toolProvider.Register<TicTacToeGame>("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", g => (Func<string>)g.FormatBoard);
-        toolProvider.Register<TicTacToeGame>("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", g => (Func<string>)g.FormatValidMoves);
-        toolProvider.Register<TicTacToeGame>("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", g => (Func<int, string>)g.PlaceMarker);
+        toolProvider.Register<TicTacToeGame>("get_board", "Returns the current Tic-Tac-Toe board as a formatted string.", g => g.FormatBoard);
+        toolProvider.Register<TicTacToeGame>("get_valid_moves", "Returns a comma-separated list of available positions (1-9).", g => g.FormatValidMoves);
+        toolProvider.Register<TicTacToeGame>("place_marker", "Places your O marker at the specified position (1-9). Call this ONCE per turn to make your move.", g => g.PlaceMarker);
 
         await host.RunAsync(ct);
 
