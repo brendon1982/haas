@@ -24,6 +24,9 @@ public class RunSessionUseCase : IRunSessionUseCase
 
     public async Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
     {
+        ArgumentNullException.ThrowIfNull(signal);
+        ArgumentNullException.ThrowIfNull(presenter);
+
         var sourceConfig = await _signalSourceConfigRepository.GetBySourceTypeAsync(signal.Source)
             ?? throw new InvalidOperationException($"No signal source config found for source type '{signal.Source}'.");
         var config = sourceConfig.ToSessionConfig();

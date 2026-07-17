@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HaaS.Infrastructure\HaaS.Infrastructure.csproj" />
+    <ProjectReference Include="..\HaaS.Domain.Tests\HaaS.Domain.Tests.csproj" />
   </ItemGroup>
 
 </Project>

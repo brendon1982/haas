@@ -18,9 +18,14 @@ public class RunSessionUseCaseTests
         var signal = SignalTestBuilder.Create()
             .WithSource("cli")
             .Build();
-        var sourceConfig = new SignalSourceConfig(
-            "cli", "openai", "gpt-4",
-            "You are a helpful assistant.", ToolBelt.Empty, "off");
+        var sourceConfig = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType("cli")
+            .WithProvider("openai")
+            .WithModelId("gpt-4")
+            .WithSystemPrompt("You are a helpful assistant.")
+            .WithToolBelt(ToolBelt.Empty)
+            .WithObservabilityMode("off")
+            .Build();
         var expected = SessionResultTestBuilder.Create()
             .WithOutput("hello")
             .WithSessionId("sess-new")
@@ -58,19 +63,30 @@ public class RunSessionUseCaseTests
     public async Task Execute_WithExistingSessionId_ContinuesExistingSession()
     {
         // Arrange
-        var storedRecord = new SessionRecord(
-            "sess-existing", "cli", SessionRecord.Statuses.Running,
-            "ollama", "gemma4", "Stored system prompt",
-            "[]", "off", null,
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-existing")
+            .WithSourceType("cli")
+            .WithStatus(SessionRecord.Statuses.Running)
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("Stored system prompt")
+            .WithToolBelt(ToolBelt.Empty)
+            .WithThinkingLevel("off")
+            .WithCreatedAt(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+            .WithUpdatedAt(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))
+            .Build();
         var signal = SignalTestBuilder.Create()
             .WithSource("cli")
             .WithSessionId("sess-existing")
             .Build();
-        var sourceConfig = new SignalSourceConfig(
-            "cli", "openai", "gpt-4",
-            "Incoming system prompt", ToolBelt.Empty, "high");
+        var sourceConfig = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType("cli")
+            .WithProvider("openai")
+            .WithModelId("gpt-4")
+            .WithSystemPrompt("Incoming system prompt")
+            .WithToolBelt(ToolBelt.Empty)
+            .WithObservabilityMode("high")
+            .Build();
         var expected = SessionResultTestBuilder.Create()
             .WithOutput("continued")
             .WithSessionId("sess-existing")
@@ -111,9 +127,14 @@ public class RunSessionUseCaseTests
         var signal = SignalTestBuilder.Create()
             .WithSource("cli")
             .Build();
-        var sourceConfig = new SignalSourceConfig(
-            "cli", "ollama", "gemma4",
-            "You are a helpful assistant.", ToolBelt.Empty, "off");
+        var sourceConfig = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType("cli")
+            .WithProvider("ollama")
+            .WithModelId("gemma4")
+            .WithSystemPrompt("You are a helpful assistant.")
+            .WithToolBelt(ToolBelt.Empty)
+            .WithObservabilityMode("off")
+            .Build();
         var strategy = new FailingStrategy(new InvalidOperationException("fail"));
         var repo = new FakeSessionRepository();
         var configRepo = new FakeSignalSourceConfigRepository();
@@ -150,6 +171,31 @@ public class RunSessionUseCaseTests
         Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("unknown");
+    }
+
+    [Test]
+    public void Execute_WithNullSignal_Throws()
+    {
+        // Arrange
+        var sut = UseCaseSutBuilder.Create().Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(null!, new FakePresenter()))
+            .To.Throw<ArgumentNullException>()
+            .With.Message.Containing("signal");
+    }
+
+    [Test]
+    public void Execute_WithNullPresenter_Throws()
+    {
+        // Arrange
+        var sut = UseCaseSutBuilder.Create().Build();
+        var signal = SignalTestBuilder.Create().Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(signal, null!))
+            .To.Throw<ArgumentNullException>()
+            .With.Message.Containing("presenter");
     }
 }
 

@@ -38,28 +38,38 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 
 ## Dev approach
 
-- **TDD** — Red-green-refactor. Tests drive every module. No production code without a failing test first.
+- **TDD** — Red-green-refactor.
 - **Thin vertical slices** — Every feature cuts through all four layers (domain → application → adapter → infra) in one small, end-to-end increment. No deep layer-by-layer builds.
 - **DDD** — Model the domain explicitly. Keep persistence and frameworks in the infra layer.
-- **Test structure** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
-- **Arrange only what matters** — Arrange sections should contain only setup relevant to the test scenario. If a value isn't varied or asserted, rely on the builder's default. Builders provide sensible defaults so tests don't have to repeat boilerplate.
-- **No magic strings in assertions** — Assertions should reference values from arrange instances (e.g., `signal.Payload`, `expected.SessionId`) rather than repeating string literals. Where a value isn't accessible from an instance, create an explicit `expected*` variable in arrange and use it both when configuring the SUT/builder and in the assertion. This keeps the link between cause and effect visible in a single named variable.
-- **Value objects are records, not SUT** — Simple value objects (C# records with only auto-generated members) need no dedicated tests. Property accessors, equality, and nullability are compiler-generated. Test builders are test infrastructure, not SUT. Only test value objects if they contain actual business logic (validation, invariants, derived properties).
 
 ## Testing
 
-- **Test framework:** NUnit (`[TestFixture]`, `[Test]`, `Assert.ThrowsAsync<T>` for exception assertions)
-- **Assertions:** NExpect fluent syntax — see [`USING_NEXPECT.md`](USING_NEXPECT.md) for setup, working syntax patterns, and common pitfalls.
+### Philosophy
+- **TDD** — Red-green-refactor. Tests drive every module. No production code without a failing test first.
+- **Thin vertical slices** — Every feature cuts through all four layers.
+- **Pass/Fail for the right reason** — Avoid tests that pass regardless of whether the logic under test is actually executed. Verify side effects, not just return values.
+  *Example: When testing a decorator that logs, assert that the logger was actually called with the expected parameters, not just that the decorated method returned a value.*
+- **Comprehensive coverage via analysis** — Design test suites by analyzing boundaries and equivalence partitions of the problem space to ensure all behaviors are covered. Write one test per identified case.
+
+### Structure
+- **Triple-A (Arrange, Act, Assert)** — Every test body starts with `// Arrange`, `// Act`, `// Assert` comments.
+- **SutBuilder per test class** — Use a private `file sealed class SutBuilder` at the bottom of the file. It encapsulates default dependencies and provides `With*` methods for customization. `Build()` returns only the SUT.
+- **No manual model instantiation** — Tests must never manually `new` up data models, value types, or complex objects. Always use `*TestBuilder` classes or the `SutBuilder`.
+- **Builders for Domain Objects** — Use `*TestBuilder` classes for domain entities/records. Shared builders live in the corresponding test project; one-off builders stay at the bottom of the test file.
+- **Manual Fakes over Mocks** — Prefer `file sealed` fake implementations of ports over mocking libraries (NSubstitute/Moq). This keeps dependencies explicit and avoids library "magic".
+- **No shared state** — Tests must not share state via `static` fields. Each test gets a fresh SUT.
+- **Arrange only what matters** — Arrange sections should contain only setup relevant to the scenario. Rely on builder defaults for everything else.
+
+### Assertions (NExpect)
+- Use fluent `Expect(actual).To.Equal(expected)` syntax. See [`USING_NEXPECT.md`](USING_NEXPECT.md) for setup, working syntax patterns, and common pitfalls.
+- **No magic strings** — Assert against Arrange variables, not hardcoded literals. Create `expected*` variables if needed to keep the link between cause and effect visible.
+- **Value objects are records, not SUT** — Don't test simple records unless they contain custom logic.
 
 ## Coding conventions
 
 - **General:** Functions over classes (unless aggregate/entity requires state). Prefer `interface` over `type` for object shapes. Async via `Task` always, no callbacks.
 - **Naming:** PascalCase file names, PascalCase types, PascalCase methods. Test files `*Tests.cs` in a matching test project.
 - **Imports:** No barrel files — explicit `using` statements per file (prevents circular deps).
-- **Tests:** Every test body starts with `// Arrange`, `// Act`, `// Assert` comments separating the three phases. Before writing tests, analyze all boundaries and equivalence partitions, then write one test per case.
-- **Tests must not share state:** No `static` or `static readonly` fields shared across tests. Each test gets a fresh SUT.
-- **SUT builder per test class:** Every `[TestFixture]` must have a `SutBuilder` (private `file sealed` class at the bottom of the file) that creates the SUT with all necessary default dependencies. The builder provides `With*` methods for tests to supply specific dependencies when relevant. The builder's `Build()` method returns only the SUT — default dependencies are encapsulated and not exposed to tests. Tests that need a non-default dependency create it themselves and pass it via a `With*` method.
-- **Builders:** Use builder classes suffixed with `TestBuilder` for domain object creation. Private constructor, static `Create()` method, stacked `With*` methods for configuration, sensible defaults. Assign builder results to variables before use (no inline chaining). Shared builders live in the test project corresponding to the layer, one file per builder. Builder used only in one test file stays at the bottom of that file.
 
 ## Extension points (ports in `domain/`)
 

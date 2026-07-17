@@ -4,8 +4,8 @@ using HaaS.Adapters.Observability;
 using HaaS.Domain.Ports;
 using HaaS.Application.UseCases;
 using HaaS.Domain.ValueObjects;
+using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
-using NSubstitute;
 using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Tests;
@@ -17,16 +17,19 @@ public class ObservableRunSessionUseCaseTests
     public async Task Execute_LogsStartAndCompletion()
     {
         // Arrange
-        var inner = Substitute.For<IRunSessionUseCase>();
-        var expected = new SessionResult("hello", "sess-42");
-        inner.ExecuteAsync(Arg.Any<SignalValue>(), Arg.Any<ISignalPresenter>())
-             .Returns(Task.FromResult(expected));
-        
+        var expected = SessionResultTestBuilder.Create()
+            .WithOutput("hello")
+            .WithSessionId("sess-42")
+            .Build();
+        var inner = new FakeRunSessionUseCase { ResultToReturn = expected };
         var logger = new FakeLogger();
-        var sut = new ObservableRunSessionUseCase(inner, logger);
+        var sut = SutBuilder.Create()
+            .WithUseCase(inner)
+            .WithLogger(logger)
+            .BuildUseCase();
         
-        var signal = new SignalValue("cli", "prompt", null);
-        var presenter = Substitute.For<ISignalPresenter>();
+        var signal = SignalTestBuilder.Create().Build();
+        var presenter = new FakePresenter();
 
         // Act
         var result = await sut.ExecuteAsync(signal, presenter);
@@ -44,17 +47,17 @@ public class ObservableRunSessionUseCaseTests
     public void Execute_WhenInnerThrows_LogsErrorAndRethrows()
     {
         // Arrange
-        var inner = Substitute.For<IRunSessionUseCase>();
-        inner.ExecuteAsync(Arg.Any<SignalValue>(), Arg.Any<ISignalPresenter>())
-             .Returns(Task.FromException<SessionResult>(new InvalidOperationException("fail")));
-        
+        var inner = new FakeRunSessionUseCase { ErrorToThrow = new InvalidOperationException("fail") };
         var logger = new FakeLogger();
-        var sut = new ObservableRunSessionUseCase(inner, logger);
+        var sut = SutBuilder.Create()
+            .WithUseCase(inner)
+            .WithLogger(logger)
+            .BuildUseCase();
         
-        var signal = new SignalValue("cli", "prompt", null);
+        var signal = SignalTestBuilder.Create().Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, Substitute.For<ISignalPresenter>()))
+        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
             .To.Throw<InvalidOperationException>();
         
         var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
@@ -70,9 +73,12 @@ public class ObservableHaasEngineTests
     public async Task Start_LogsStarting()
     {
         // Arrange
-        var inner = Substitute.For<IHaasEngine>();
+        var inner = new FakeHaasEngine();
         var logger = new FakeLogger();
-        var sut = new ObservableHaasEngine(inner, logger);
+        var sut = SutBuilder.Create()
+            .WithEngine(inner)
+            .WithLogger(logger)
+            .BuildEngine();
 
         // Act
         await sut.StartAsync(default);
@@ -87,9 +93,12 @@ public class ObservableHaasEngineTests
     public async Task Stop_LogsStopping()
     {
         // Arrange
-        var inner = Substitute.For<IHaasEngine>();
+        var inner = new FakeHaasEngine();
         var logger = new FakeLogger();
-        var sut = new ObservableHaasEngine(inner, logger);
+        var sut = SutBuilder.Create()
+            .WithEngine(inner)
+            .WithLogger(logger)
+            .BuildEngine();
 
         // Act
         await sut.StopAsync(default);
@@ -101,10 +110,60 @@ public class ObservableHaasEngineTests
     }
 }
 
-// Reuse FakeLogger from ObservableAgentStrategyTests or define it here if needed
-// For simplicity, I'll copy the minimal parts of FakeLogger and other helpers
-// Alternatively, I could move them to a shared file, but project structure 
-// seems to prefer local helpers in test files for simplicity in some cases.
+// --- harness ---
+
+file sealed class SutBuilder
+{
+    private IRunSessionUseCase _useCase = new FakeRunSessionUseCase();
+    private IHaasEngine _engine = new FakeHaasEngine();
+    private ILogger _logger = new FakeLogger();
+
+    public static SutBuilder Create() => new();
+
+    public SutBuilder WithUseCase(IRunSessionUseCase useCase)
+    {
+        _useCase = useCase;
+        return this;
+    }
+
+    public SutBuilder WithEngine(IHaasEngine engine)
+    {
+        _engine = engine;
+        return this;
+    }
+
+    public SutBuilder WithLogger(ILogger logger)
+    {
+        _logger = logger;
+        return this;
+    }
+
+    public ObservableRunSessionUseCase BuildUseCase() => new(_useCase, _logger);
+    public ObservableHaasEngine BuildEngine() => new(_engine, _logger);
+}
+
+file sealed class FakeRunSessionUseCase : IRunSessionUseCase
+{
+    public SessionResult? ResultToReturn { get; set; }
+    public Exception? ErrorToThrow { get; set; }
+
+    public Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    {
+        if (ErrorToThrow != null) throw ErrorToThrow;
+        return Task.FromResult(ResultToReturn ?? SessionResultTestBuilder.Create().Build());
+    }
+}
+
+file sealed class FakeHaasEngine : IHaasEngine
+{
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+file sealed class FakePresenter : ISignalPresenter
+{
+    public Task PresentAsync(SessionResult result) => Task.CompletedTask;
+}
 
 file sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);
 
