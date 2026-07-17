@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Agent;
@@ -250,6 +252,53 @@ public class MicrosoftAgentFrameworkStrategyTests
         Expect(lastOptions.Tools!.Count).To.Equal(1);
         Expect(lastOptions.Tools[0].Name).To.Equal(expectedTool);
         Expect(lastOptions.ToolMode).To.Be.Null();
+    }
+
+    [Test]
+    public void AIFunctionFactory_Create_ShouldNotThrow_WhenUsingToolFromProvider()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddSingleton<MyTool>();
+        var sp = services.BuildServiceProvider();
+        var scopeAccessor = new InternalFakeScopeAccessor { ServiceProvider = sp };
+        var toolProvider = new ToolProvider(scopeAccessor);
+
+        // This uses the generic Register<T> which builds an Expression-based wrapper
+        toolProvider.Register<MyTool>("my_tool", "description", t => (Func<string, Task<string>>)t.ExecuteAsync);
+
+        var tool = toolProvider.GetTools(new[] { "my_tool" }).First();
+
+        // Act & Assert
+        Assert.DoesNotThrow(() =>
+        {
+            if (tool.Method is not null)
+            {
+                AIFunctionFactory.Create(tool.Method, (Type serviceType) => toolProvider.GetService(serviceType), new AIFunctionFactoryOptions
+                {
+                    Name = tool.Name,
+                    Description = tool.Description
+                });
+            }
+            else
+            {
+                AIFunctionFactory.Create(tool.Handler, new AIFunctionFactoryOptions
+                {
+                    Name = tool.Name,
+                    Description = tool.Description
+                });
+            }
+        });
+    }
+
+    public class MyTool
+    {
+        public Task<string> ExecuteAsync(string input) => Task.FromResult(input);
+    }
+
+    private class InternalFakeScopeAccessor : ISignalScopeAccessor
+    {
+        public IServiceProvider ServiceProvider { get; set; }
     }
 }
 
