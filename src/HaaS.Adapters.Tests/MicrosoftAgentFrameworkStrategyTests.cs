@@ -292,7 +292,8 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+            .Not.To.Throw();
     }
 
     [Test]
@@ -333,8 +334,8 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        // This is where it's expected to throw System.ArgumentException: Parameter is missing a name.
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+            .Not.To.Throw();
     }
 
     [Test]
@@ -376,8 +377,8 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        // If it throws TargetException, this will fail.
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+            .Not.To.Throw();
     }
 
     public class MyTool

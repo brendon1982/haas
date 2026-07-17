@@ -64,6 +64,7 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 - Use fluent `Expect(actual).To.Equal(expected)` syntax. See [`USING_NEXPECT.md`](USING_NEXPECT.md) for setup, working syntax patterns, and common pitfalls.
 - **No magic strings** — Assert against Arrange variables, not hardcoded literals. Create `expected*` variables if needed to keep the link between cause and effect visible.
 - **Value objects are records, not SUT** — Don't test simple records unless they contain custom logic.
+- **Explicit "No Throw" Assertions** — When a test's purpose is to verify that no exception is thrown, use `Expect(fn).Not.To.Throw()` explicitly instead of relying on a successful execution or comments.
 
 ## Coding conventions
 
