@@ -255,9 +255,59 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
-    public void AIFunctionFactory_Create_ShouldNotThrow_WhenUsingToolFromProvider()
+    public async Task Execute_WithInstanceMethod_ShouldNotThrowTargetException()
     {
         // Arrange
+        var sessionId = "sess-instance-method";
+        var toolName = "format";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt([toolName]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+
+        var myTool = new MyTool();
+        var services = new ServiceCollection();
+        services.AddSingleton(myTool);
+        var sp = services.BuildServiceProvider();
+        var scopeAccessor = new InternalFakeScopeAccessor { ServiceProvider = sp };
+        var toolProvider = new ToolProvider(scopeAccessor);
+
+        // Register using the generic method which uses Expression and ExtractMethodInfo
+        toolProvider.Register<MyTool>(toolName, "description", t => (Func<string, Task<string>>)t.ExecuteAsync);
+
+        var factory = new FakeChatClientFactory(new ToolCallingFakeChatClient(toolName, "input-value"));
+        var messageStore = new InMemorySessionMessageStore();
+        
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
+            .Build();
+
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("run tool")
+            .Build();
+
+        // Act & Assert
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+    }
+
+    [Test]
+    public async Task Execute_WithToolRegisteredViaGeneric_ShouldNotThrow_WhenCreatingAIFunction()
+    {
+        // Arrange
+        var sessionId = "sess-generic-tool";
+        var toolName = "greet";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt([toolName]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+
         var services = new ServiceCollection();
         services.AddSingleton<MyTool>();
         var sp = services.BuildServiceProvider();
@@ -265,35 +315,74 @@ public class MicrosoftAgentFrameworkStrategyTests
         var toolProvider = new ToolProvider(scopeAccessor);
 
         // This uses the generic Register<T> which builds an Expression-based wrapper
-        toolProvider.Register<MyTool>("my_tool", "description", t => (Func<string, Task<string>>)t.ExecuteAsync);
+        // The issue is likely here: the wrapper's parameters might lose their names.
+        toolProvider.Register<MyTool>(toolName, "description", t => (Func<string, Task<string>>)t.ExecuteAsync);
 
-        var tool = toolProvider.GetTools(new[] { "my_tool" }).First();
+        var factory = new FakeChatClientFactory(new ToolCallingFakeChatClient(toolName, "world"));
+        var messageStore = new InMemorySessionMessageStore();
+        
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
+            .Build();
+
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
 
         // Act & Assert
-        Assert.DoesNotThrow(() =>
-        {
-            if (tool.Method is not null)
-            {
-                AIFunctionFactory.Create(tool.Method, (Type serviceType) => toolProvider.GetService(serviceType), new AIFunctionFactoryOptions
-                {
-                    Name = tool.Name,
-                    Description = tool.Description
-                });
-            }
-            else
-            {
-                AIFunctionFactory.Create(tool.Handler, new AIFunctionFactoryOptions
-                {
-                    Name = tool.Name,
-                    Description = tool.Description
-                });
-            }
-        });
+        // This is where it's expected to throw System.ArgumentException: Parameter is missing a name.
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+    }
+
+    [Test]
+    public async Task Execute_WithToolFromProvider_ShouldNotThrowTargetException_WhenInvoked()
+    {
+        // Arrange
+        var sessionId = "sess-tool-invocation";
+        var toolName = "my_tool";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt([toolName]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+
+        var services = new ServiceCollection();
+        services.AddSingleton<MyTool>();
+        var sp = services.BuildServiceProvider();
+        var scopeAccessor = new InternalFakeScopeAccessor { ServiceProvider = sp };
+        var toolProvider = new ToolProvider(scopeAccessor);
+
+        // Register manually to ensure it works without MethodInfo
+        toolProvider.Register(new ToolDefinition(toolName, "description", (Func<string, Task<string>>)(input => Task.FromResult($"result: {input}"))));
+
+        // We need a ChatClient that will actually call the tool
+        var chatClient = new ToolCallingFakeChatClient(toolName, "arg1");
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
+            .Build();
+
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act & Assert
+        // If it throws TargetException, this will fail.
+        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
     }
 
     public class MyTool
     {
-        public Task<string> ExecuteAsync(string input) => Task.FromResult(input);
+        public Task<string> ExecuteAsync(string input) => Task.FromResult($"result: {input}");
     }
 
     private class InternalFakeScopeAccessor : ISignalScopeAccessor
@@ -303,6 +392,43 @@ public class MicrosoftAgentFrameworkStrategyTests
 }
 
 // --- harness (local) ---
+
+file sealed class ToolCallingFakeChatClient(string toolName, string toolArg) : IChatClient
+{
+    private bool _called = false;
+
+    public Task<ChatResponse> GetResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_called)
+        {
+            _called = true;
+            var chatResponse = new ChatResponse(new ChatMessage(ChatRole.Assistant, [
+                new FunctionCallContent("call1", toolName, new Dictionary<string, object?> { ["input"] = toolArg })
+            ]));
+            return Task.FromResult(chatResponse);
+        }
+        else
+        {
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "Final response")));
+        }
+    }
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages,
+        ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+    public void Dispose() { }
+}
 
 file sealed class RecordingPresenter : ISignalPresenter
 {
@@ -492,11 +618,6 @@ file sealed class FakeToolProvider : IToolProvider
 
     public void Register<T>(string name, string description, Expression<Func<T, Delegate>> methodSelector) where T : class
     {
-    }
-
-    public object GetService(Type serviceType)
-    {
-        return null!;
     }
 
     public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)

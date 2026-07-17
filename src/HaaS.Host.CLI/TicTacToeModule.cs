@@ -13,8 +13,8 @@ public class TicTacToeModule : ICliModule
 
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
-        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
+        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
+        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
 
         using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .ConfigureServices((context, services) =>

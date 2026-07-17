@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +10,8 @@ namespace HaaS.Adapters.Agent;
 
 public class ToolProvider : IToolProvider
 {
+    internal record ToolMetadata(MethodInfo Method, Type ServiceType);
+    internal static readonly ConditionalWeakTable<Delegate, ToolMetadata> ToolMethods = new();
     private readonly ConcurrentDictionary<string, ToolDefinition> _tools = new();
     private readonly ISignalScopeAccessor _scopeAccessor;
 
@@ -26,9 +30,14 @@ public class ToolProvider : IToolProvider
         var delegateType = ResolveDelegateType(methodSelector);
         var parameters = CreateParameterExpressions(delegateType);
         var wrapper = BuildIoCWrapper(methodSelector, delegateType, parameters);
-        var methodInfo = ExtractMethodInfo(methodSelector);
 
-        Register(new ToolDefinition(name, description, wrapper, methodInfo));
+        var methodInfo = ExtractMethodInfo(methodSelector);
+        if (methodInfo != null)
+        {
+            ToolMethods.Add(wrapper, new ToolMetadata(methodInfo, typeof(T)));
+        }
+
+        Register(new ToolDefinition(name, description, wrapper));
     }
 
     public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)
@@ -38,7 +47,7 @@ public class ToolProvider : IToolProvider
             .Where(t => t is not null)!;
     }
 
-    public object GetService(Type serviceType)
+    internal object GetService(Type serviceType)
     {
         var provider = _scopeAccessor.ServiceProvider
             ?? throw new InvalidOperationException("Cannot execute tool because no signal scope is active.");
@@ -93,19 +102,22 @@ public class ToolProvider : IToolProvider
             .ToArray();
     }
 
-    private static System.Reflection.MethodInfo? ExtractMethodInfo<T>(Expression<Func<T, Delegate>> methodSelector)
+    private static MethodInfo? ExtractMethodInfo<T>(Expression<Func<T, Delegate>> methodSelector)
     {
         var body = methodSelector.Body;
-        while (body is UnaryExpression u && (u.NodeType == ExpressionType.Convert || u.NodeType == ExpressionType.ConvertChecked))
-        {
+        while (body is UnaryExpression u)
             body = u.Operand;
-        }
 
-        if (body is MethodCallExpression m && m.Method.Name == "CreateDelegate" && m.Object is ConstantExpression c && c.Value is System.Reflection.MethodInfo mi)
+        if (body is MethodCallExpression m)
         {
-            return mi;
-        }
+            if (m.Object is ConstantExpression c && c.Value is MethodInfo mi)
+                return mi;
 
+            return m.Arguments.OfType<ConstantExpression>()
+                .Select(a => a.Value as MethodInfo)
+                .FirstOrDefault(mi => mi != null);
+        }
         return null;
     }
+
 }

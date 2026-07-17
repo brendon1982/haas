@@ -60,9 +60,18 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         if (config.ToolBelt.Tools.Count > 0)
         {
             chatOptions.Tools = _toolProvider.GetTools(config.ToolBelt.Tools)
-                .Select(t => t.Method is not null
-                    ? AIFunctionFactory.Create(t.Method, (Type serviceType) => _toolProvider.GetService(serviceType), new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description })
-                    : AIFunctionFactory.Create(t.Handler, new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description }))
+                .Select(t =>
+                {
+                    var options = new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description };
+                    if (ToolProvider.ToolMethods.TryGetValue(t.Handler, out var metadata))
+                    {
+                        var target = ((ToolProvider)_toolProvider).GetService(metadata.ServiceType);
+                        return AIFunctionFactory.Create(metadata.Method, target, options);
+                    }
+
+                    // Fallback to reflecting on the delegate's Invoke method to ensure we have parameter names
+                    return AIFunctionFactory.Create(t.Handler.GetType().GetMethod("Invoke")!, t.Handler, options);
+                })
                 .Cast<AITool>()
                 .ToList();
         }

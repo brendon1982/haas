@@ -13,8 +13,8 @@ public class ChatModule : ICliModule
 
     public async Task RunAsync(CancellationToken ct = default)
     {
-        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "gemma4";
-        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "ollama";
+        var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
+        var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
 
         using var host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .ConfigureServices((context, services) =>

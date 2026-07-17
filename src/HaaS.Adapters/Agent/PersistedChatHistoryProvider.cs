@@ -23,8 +23,7 @@ public class PersistedChatHistoryProvider : ChatHistoryProvider
         if (sessionId is null) return [];
 
         var stored = await _messageStore.GetMessagesAsync(sessionId);
-        return stored.Select(MapToChatMessage)
-                     .OrderBy(m => m.CreatedAt);
+        return stored.Select(MapToChatMessage);
     }
 
     private static ChatMessage MapToChatMessage(DomainMessage message)
