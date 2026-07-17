@@ -445,6 +445,11 @@ file sealed class FakeToolProvider : IToolProvider
     {
     }
 
+    public object GetService(Type serviceType)
+    {
+        return null!;
+    }
+
     public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)
     {
         return toolNames

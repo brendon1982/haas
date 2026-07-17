@@ -60,7 +60,9 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         if (config.ToolBelt.Tools.Count > 0)
         {
             chatOptions.Tools = _toolProvider.GetTools(config.ToolBelt.Tools)
-                .Select(t => AIFunctionFactory.Create(t.Handler, new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description }))
+                .Select(t => t.Method is not null
+                    ? AIFunctionFactory.Create(t.Method, (Type serviceType) => _toolProvider.GetService(serviceType), new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description })
+                    : AIFunctionFactory.Create(t.Handler, new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description }))
                 .Cast<AITool>()
                 .ToList();
         }

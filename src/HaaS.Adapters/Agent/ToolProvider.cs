@@ -26,8 +26,9 @@ public class ToolProvider : IToolProvider
         var delegateType = ResolveDelegateType(methodSelector);
         var parameters = CreateParameterExpressions(delegateType);
         var wrapper = BuildIoCWrapper(methodSelector, delegateType, parameters);
+        var methodInfo = ExtractMethodInfo(methodSelector);
 
-        Register(new ToolDefinition(name, description, wrapper));
+        Register(new ToolDefinition(name, description, wrapper, methodInfo));
     }
 
     public IEnumerable<ToolDefinition> GetTools(IEnumerable<string> toolNames)
@@ -35,6 +36,14 @@ public class ToolProvider : IToolProvider
         return toolNames
             .Select(name => _tools.GetValueOrDefault(name))
             .Where(t => t is not null)!;
+    }
+
+    public object GetService(Type serviceType)
+    {
+        var provider = _scopeAccessor.ServiceProvider
+            ?? throw new InvalidOperationException("Cannot execute tool because no signal scope is active.");
+
+        return provider.GetRequiredService(serviceType);
     }
 
     private Delegate BuildIoCWrapper<T>(Expression<Func<T, Delegate>> methodSelector, Type delegateType, ParameterExpression[] parameters) where T : class
@@ -82,5 +91,21 @@ public class ToolProvider : IToolProvider
         return invokeMethod.GetParameters()
             .Select(p => Expression.Parameter(p.ParameterType, p.Name))
             .ToArray();
+    }
+
+    private static System.Reflection.MethodInfo? ExtractMethodInfo<T>(Expression<Func<T, Delegate>> methodSelector)
+    {
+        var body = methodSelector.Body;
+        while (body is UnaryExpression u && (u.NodeType == ExpressionType.Convert || u.NodeType == ExpressionType.ConvertChecked))
+        {
+            body = u.Operand;
+        }
+
+        if (body is MethodCallExpression m && m.Method.Name == "CreateDelegate" && m.Object is ConstantExpression c && c.Value is System.Reflection.MethodInfo mi)
+        {
+            return mi;
+        }
+
+        return null;
     }
 }
