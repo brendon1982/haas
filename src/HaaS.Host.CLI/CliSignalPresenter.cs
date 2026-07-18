@@ -33,6 +33,6 @@ public class CliSignalPresenter : ISignalPresenter
 
     private void UpdateLayout()
     {
-        _layoutManager.SetMainContent(_history);
+        _layoutManager.SetHistory(_history);
     }
 }

@@ -27,28 +27,35 @@ public class TicTacToeSignalSource : ISignalSource
 
     public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
-        while (true)
-        {
-            UpdateLayout();
-
-            if (CheckGameOver())
-                break;
-
-            var position = GetHumanMove();
-            if (position == 0) // Quit
-                break;
-
-            _game.PlacePlayerMarker(position);
-
-            if (CheckGameOver())
+        await AnsiConsole.Live(_layoutManager.Layout)
+            .AutoClear(false)
+            .StartAsync(async ctx =>
             {
-                UpdateLayout();
-                continue;
-            }
+                while (true)
+                {
+                    UpdateLayout();
+                    ctx.Refresh();
 
-            // Trigger the AI to move by sending a signal through the HaaS engine
-            await TriggerAiMoveAsync(handler, position);
-        }
+                    if (CheckGameOver(ctx))
+                        break;
+
+                    var position = await GetHumanMoveAsync(ctx);
+                    if (position == 0) // Quit
+                        break;
+
+                    _game.PlacePlayerMarker(position);
+
+                    if (CheckGameOver(ctx))
+                    {
+                        UpdateLayout();
+                        ctx.Refresh();
+                        break;
+                    }
+
+                    // Trigger the AI to move by sending a signal through the HaaS engine
+                    await TriggerAiMoveAsync(handler, position, ctx);
+                }
+            });
     }
 
     public Task ShutdownAsync() => Task.CompletedTask;
@@ -57,6 +64,7 @@ public class TicTacToeSignalSource : ISignalSource
     {
         var table = new Table()
             .Border(TableBorder.Rounded)
+            .ShowRowSeparators()
             .HideHeaders();
 
         table.AddColumn("C1");
@@ -87,45 +95,105 @@ public class TicTacToeSignalSource : ISignalSource
         _ => $"[grey]{c}[/]"
     };
 
-    private bool CheckGameOver()
+    private bool CheckGameOver(LiveDisplayContext ctx)
     {
         var winner = _game.GetWinner();
         if (winner != null)
         {
-            AnsiConsole.MarkupLine(winner == 'X' ? "[green]You win![/]" : "[red]AI wins![/]");
+            _layoutManager.AddLog(winner == 'X' ? "[green]You win![/]" : "[red]AI wins![/]");
             return true;
         }
 
         if (_game.IsDraw())
         {
-            AnsiConsole.MarkupLine("[yellow]It's a draw![/]");
+            _layoutManager.AddLog("[yellow]It's a draw![/]");
             return true;
         }
 
         return false;
     }
 
-    private int GetHumanMove()
+    private async Task<int> GetHumanMoveAsync(LiveDisplayContext ctx)
     {
+        var input = string.Empty;
         var validMoves = Enumerable.Range(1, 9)
             .Where(i => _game.IsValidMove(i))
-            .Select(i => i.ToString())
             .ToList();
-        
-        validMoves.Add("Quit");
 
-        var choice = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Your move:")
-                .AddChoices(validMoves));
+        while (true)
+        {
+            var prompt = $"Your move (1-9, 'q' to quit): {input}_";
+            _layoutManager.SetInput(prompt);
+            ctx.Refresh();
 
-        if (choice == "Quit")
-            return 0;
+            if (!Console.KeyAvailable)
+            {
+                await Task.Delay(50);
+                continue;
+            }
 
-        return int.Parse(choice);
+            var key = Console.ReadKey(true);
+
+            // Handle scrolling
+            if (key.Key == ConsoleKey.PageUp)
+            {
+                _layoutManager.Scroll(5);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.PageDown)
+            {
+                _layoutManager.Scroll(-5);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
+            {
+                _layoutManager.Scroll(1);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
+            {
+                _layoutManager.Scroll(-1);
+                ctx.Refresh();
+                continue;
+            }
+
+            if (key.Key == ConsoleKey.Enter)
+            {
+                if (int.TryParse(input, out var pos) && validMoves.Contains(pos))
+                {
+                    _layoutManager.SetInput(string.Empty);
+                    ctx.Refresh();
+                    return pos;
+                }
+                if (input.Equals("q", StringComparison.OrdinalIgnoreCase))
+                {
+                    _layoutManager.SetInput(string.Empty);
+                    ctx.Refresh();
+                    return 0;
+                }
+                
+                input = string.Empty; // Invalid, reset
+                continue;
+            }
+
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (input.Length > 0)
+                {
+                    input = input[..^1];
+                }
+            }
+            else if (!char.IsControl(key.KeyChar))
+            {
+                input += key.KeyChar;
+            }
+        }
     }
 
-    private async Task TriggerAiMoveAsync(Func<IncomingSignal, Task<ISignalHandle>> handler, int lastPlayerMove)
+    private async Task TriggerAiMoveAsync(Func<IncomingSignal, Task<ISignalHandle>> handler, int lastPlayerMove, LiveDisplayContext ctx)
     {
         _game.ResetTurn();
 
@@ -134,17 +202,22 @@ public class TicTacToeSignalSource : ISignalSource
 
         var boardBefore = _game.Board.ToArray();
 
-        await _layoutManager.RunLiveAsync(async () =>
-        {
-            // We use RunLiveAsync to keep the log pane updating while AI is thinking
-            var handle = await handler(signal);
-            await handle.WaitForResultAsync();
-        });
+        _layoutManager.SetBusy(true);
+        UpdateLayout();
+        ctx.Refresh();
+
+        // We use the already active Live display, so we don't need RunLiveAsync here
+        // as it would start a nested Live display which is not supported.
+        var handle = await handler(signal);
+        await handle.WaitForResultAsync();
+
+        _layoutManager.SetBusy(false);
+        UpdateLayout();
+        ctx.Refresh();
 
         if (_game.Board.SequenceEqual(boardBefore))
         {
-            AnsiConsole.MarkupLine("[yellow]The AI did not make a valid move. Press any key to continue...[/]");
-            Console.ReadKey(true);
+            _layoutManager.AddLog("[yellow]The AI did not make a valid move.[/]");
         }
     }
 }

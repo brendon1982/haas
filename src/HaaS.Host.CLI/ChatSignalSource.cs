@@ -21,6 +21,7 @@ public class ChatSignalSource : ISignalSource
 
     public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
+        _layoutManager.SetMainContent(null);
         await AnsiConsole.Live(_layoutManager.Layout)
             .AutoClear(false)
             .StartAsync(async ctx =>
