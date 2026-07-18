@@ -69,6 +69,33 @@ public class ChatSignalSource : ISignalSource
             }
 
             var key = Console.ReadKey(true);
+            
+            // Handle scrolling
+            if (key.Key == ConsoleKey.PageUp)
+            {
+                _layoutManager.Scroll(5);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.PageDown)
+            {
+                _layoutManager.Scroll(-5);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
+            {
+                _layoutManager.Scroll(1);
+                ctx.Refresh();
+                continue;
+            }
+            if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
+            {
+                _layoutManager.Scroll(-1);
+                ctx.Refresh();
+                continue;
+            }
+
             if (key.Key == ConsoleKey.Enter)
             {
                 _layoutManager.SetInput(string.Empty);

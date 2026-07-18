@@ -11,6 +11,7 @@ public sealed class CliLayoutManager
     private IRenderable? _mainContent;
     private string _input = string.Empty;
     private bool _isBusy;
+    private int _scrollOffset;
 
     public Layout Layout { get; }
 
@@ -29,6 +30,7 @@ public sealed class CliLayoutManager
     {
         _history = history;
         _mainContent = null;
+        _scrollOffset = 0; // Follow the tail on new content
         UpdateLayout();
     }
 
@@ -36,6 +38,13 @@ public sealed class CliLayoutManager
     {
         _mainContent = content;
         _history = Enumerable.Empty<string>();
+        _scrollOffset = 0;
+        UpdateLayout();
+    }
+
+    public void Scroll(int delta)
+    {
+        _scrollOffset = Math.Max(0, _scrollOffset + delta);
         UpdateLayout();
     }
 
@@ -96,10 +105,24 @@ public sealed class CliLayoutManager
         }
         else
         {
-            // Main content (Chat history) - simple "scrolling" by taking last N entries
+            // Main content (Chat history)
+            var historyList = _history.ToList();
             var mainHeight = Math.Max(5, AnsiConsole.Console.Profile.Height - 13 - 2);
-            var chatRows = _history.TakeLast(mainHeight).Select(h => new Markup(h));
+            
+            // Cap scroll offset
+            _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, historyList.Count - 1));
+
+            var chatRows = historyList
+                .SkipLast(_scrollOffset)
+                .TakeLast(mainHeight)
+                .Select(h => new Markup(h));
+            
             content = new Rows(chatRows);
+            
+            if (_scrollOffset > 0)
+            {
+                header += $" [yellow](Scrolled up: {_scrollOffset})[/]";
+            }
         }
 
         Layout["Main"].Update(
