@@ -35,8 +35,6 @@ public class ChatSignalSource : ISignalSource
                 {
                     while (true)
                     {
-                        UpdateLayout(ctx);
-
                         var line = await ReadLineAsync(ctx);
 
                         if (string.IsNullOrWhiteSpace(line))
@@ -50,7 +48,6 @@ public class ChatSignalSource : ISignalSource
 
                         _presenter.AddUserMessage(line);
                         _layoutManager.SetBusy(true);
-                        UpdateLayout(ctx);
 
                         var handle = await handler(new IncomingSignal(line.Trim()));
 
@@ -58,7 +55,6 @@ public class ChatSignalSource : ISignalSource
                         await handle.WaitForResultAsync();
 
                         _layoutManager.SetBusy(false);
-                        UpdateLayout(ctx);
                     }
                 }
                 finally
@@ -76,64 +72,68 @@ public class ChatSignalSource : ISignalSource
     private async Task<string> ReadLineAsync(LiveDisplayContext ctx)
     {
         var input = string.Empty;
+        _layoutManager.SetInput($"> {input}_");
+
         while (true)
         {
-            _layoutManager.SetInput($"> {input}_");
-            ctx.Refresh();
-
-            if (!Console.KeyAvailable)
-            {
-                await Task.Delay(50);
-                continue;
-            }
-
-            var key = Console.ReadKey(true);
+            // Block until a key is available (no polling)
+            var key = await Task.Run(() => Console.ReadKey(true));
             
-            // Handle scrolling
-            if (key.Key == ConsoleKey.PageUp)
+            bool finished = ProcessKey(key, ref input);
+            
+            // Drain any other keys that were pressed simultaneously
+            while (!finished && Console.KeyAvailable)
             {
-                _layoutManager.Scroll(5);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.PageDown)
-            {
-                _layoutManager.Scroll(-5);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
-            {
-                _layoutManager.Scroll(1);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
-            {
-                _layoutManager.Scroll(-1);
-                ctx.Refresh();
-                continue;
+                key = Console.ReadKey(true);
+                finished = ProcessKey(key, ref input);
             }
 
-            if (key.Key == ConsoleKey.Enter)
+            if (finished)
             {
                 _layoutManager.SetInput(string.Empty);
-                ctx.Refresh();
                 return input;
             }
-            
-            if (key.Key == ConsoleKey.Backspace)
+
+            _layoutManager.SetInput($"> {input}_");
+        }
+    }
+
+    private bool ProcessKey(ConsoleKeyInfo key, ref string input)
+    {
+        // Handle scrolling
+        if (key.Key == ConsoleKey.PageUp)
+        {
+            _layoutManager.Scroll(5);
+        }
+        else if (key.Key == ConsoleKey.PageDown)
+        {
+            _layoutManager.Scroll(-5);
+        }
+        else if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
+        {
+            _layoutManager.Scroll(1);
+        }
+        else if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
+        {
+            _layoutManager.Scroll(-1);
+        }
+        else if (key.Key == ConsoleKey.Enter)
+        {
+            return true;
+        }
+        else if (key.Key == ConsoleKey.Backspace)
+        {
+            if (input.Length > 0)
             {
-                if (input.Length > 0)
-                {
-                    input = input[..^1];
-                }
-            }
-            else if (!char.IsControl(key.KeyChar))
-            {
-                input += key.KeyChar;
+                input = input[..^1];
             }
         }
+        else if (!char.IsControl(key.KeyChar))
+        {
+            input += key.KeyChar;
+        }
+        
+        return false;
     }
 
     public Task ShutdownAsync() => Task.CompletedTask;

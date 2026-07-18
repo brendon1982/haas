@@ -41,7 +41,6 @@ public class TicTacToeSignalSource : ISignalSource
                     while (true)
                     {
                         UpdateLayout();
-                        ctx.Refresh();
 
                         if (CheckGameOver(ctx))
                         {
@@ -62,7 +61,6 @@ public class TicTacToeSignalSource : ISignalSource
                         if (CheckGameOver(ctx))
                         {
                             UpdateLayout();
-                            ctx.Refresh();
                             await Task.Delay(2000);
                             _lifetime?.StopApplication();
                             break;
@@ -141,77 +139,77 @@ public class TicTacToeSignalSource : ISignalSource
             .Where(i => _game.IsValidMove(i))
             .ToList();
 
+        _layoutManager.SetInput($"Your move (1-9, 'q' to quit): {input}_");
+
         while (true)
         {
-            var prompt = $"Your move (1-9, 'q' to quit): {input}_";
-            _layoutManager.SetInput(prompt);
-            ctx.Refresh();
-
-            if (!Console.KeyAvailable)
+            // Block until a key is available (no polling)
+            var key = await Task.Run(() => Console.ReadKey(true));
+            
+            var result = ProcessKey(key, ref input, validMoves);
+            
+            // Drain any other keys that were pressed simultaneously
+            while (result == null && Console.KeyAvailable)
             {
-                await Task.Delay(50);
-                continue;
+                key = Console.ReadKey(true);
+                result = ProcessKey(key, ref input, validMoves);
             }
 
-            var key = Console.ReadKey(true);
-
-            // Handle scrolling
-            if (key.Key == ConsoleKey.PageUp)
+            if (result != null)
             {
-                _layoutManager.Scroll(5);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.PageDown)
-            {
-                _layoutManager.Scroll(-5);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
-            {
-                _layoutManager.Scroll(1);
-                ctx.Refresh();
-                continue;
-            }
-            if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
-            {
-                _layoutManager.Scroll(-1);
-                ctx.Refresh();
-                continue;
+                _layoutManager.SetInput(string.Empty);
+                return result.Value;
             }
 
-            if (key.Key == ConsoleKey.Enter)
+            _layoutManager.SetInput($"Your move (1-9, 'q' to quit): {input}_");
+        }
+    }
+
+    private int? ProcessKey(ConsoleKeyInfo key, ref string input, List<int> validMoves)
+    {
+        // Handle scrolling
+        if (key.Key == ConsoleKey.PageUp)
+        {
+            _layoutManager.Scroll(5);
+        }
+        else if (key.Key == ConsoleKey.PageDown)
+        {
+            _layoutManager.Scroll(-5);
+        }
+        else if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
+        {
+            _layoutManager.Scroll(1);
+        }
+        else if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
+        {
+            _layoutManager.Scroll(-1);
+        }
+        else if (key.Key == ConsoleKey.Enter)
+        {
+            if (int.TryParse(input, out var pos) && validMoves.Contains(pos))
             {
-                if (int.TryParse(input, out var pos) && validMoves.Contains(pos))
-                {
-                    _layoutManager.SetInput(string.Empty);
-                    ctx.Refresh();
-                    return pos;
-                }
-                if (input.Equals("q", StringComparison.OrdinalIgnoreCase))
-                {
-                    _layoutManager.SetInput(string.Empty);
-                    ctx.Refresh();
-                    return 0;
-                }
-                
-                input = string.Empty; // Invalid, reset
-                continue;
+                return pos;
+            }
+            if (input.Equals("q", StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
             }
 
-            if (key.Key == ConsoleKey.Backspace)
+            input = string.Empty; // Invalid, reset
+        }
+        else if (key.Key == ConsoleKey.Backspace)
+        {
+            if (input.Length > 0)
             {
-                if (input.Length > 0)
-                {
-                    input = input[..^1];
-                }
-            }
-            else if (!char.IsControl(key.KeyChar))
-            {
-                input += key.KeyChar;
+                input = input[..^1];
             }
         }
+        else if (!char.IsControl(key.KeyChar))
+        {
+            input += key.KeyChar;
+        }
+
+        return null;
     }
 
     private async Task TriggerAiMoveAsync(Func<IncomingSignal, Task<ISignalHandle>> handler, int lastPlayerMove, LiveDisplayContext ctx)
@@ -225,7 +223,6 @@ public class TicTacToeSignalSource : ISignalSource
 
         _layoutManager.SetBusy(true);
         UpdateLayout();
-        ctx.Refresh();
 
         // We use the already active Live display, so we don't need RunLiveAsync here
         // as it would start a nested Live display which is not supported.
@@ -234,7 +231,6 @@ public class TicTacToeSignalSource : ISignalSource
 
         _layoutManager.SetBusy(false);
         UpdateLayout();
-        ctx.Refresh();
 
         if (_game.Board.SequenceEqual(boardBefore))
         {

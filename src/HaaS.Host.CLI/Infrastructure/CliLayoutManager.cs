@@ -10,7 +10,11 @@ namespace HaaS.Host.CLI.Infrastructure;
 public sealed class CliLayoutManager
 {
     private readonly CliLogSink _logSink;
-    private IEnumerable<string> _history = Enumerable.Empty<string>();
+    private readonly List<string> _history = new();
+    private readonly List<IRenderable> _cachedLines = new();
+    private int _lastProcessedHistoryCount = 0;
+    private int _lastWidth = 0;
+
     private IRenderable? _mainContent;
     private string _input = string.Empty;
     private bool _isBusy;
@@ -35,7 +39,9 @@ public sealed class CliLayoutManager
 
     public void SetHistory(IEnumerable<string> history)
     {
-        _history = history;
+        var newHistory = history.ToList();
+        _history.Clear();
+        _history.AddRange(newHistory);
         _scrollOffset = 0; // Follow the tail on new content
         UpdateLayout();
     }
@@ -79,19 +85,22 @@ public sealed class CliLayoutManager
                 .AutoClear(false)
                 .StartAsync(async ctx =>
                 {
+                    // Refresh initially
                     UpdateLayout();
                     ctx.Refresh();
 
-                    var task = action();
+                    // Wire up layout updates to trigger refresh during the live display
+                    Action refresh = () => ctx.Refresh();
+                    OnLayoutUpdated += refresh;
 
-                    while (!task.IsCompleted)
+                    try
                     {
-                        UpdateLayout();
-                        ctx.Refresh();
-                        await Task.Delay(100);
+                        await action();
                     }
-
-                    await task;
+                    finally
+                    {
+                        OnLayoutUpdated -= refresh;
+                    }
 
                     UpdateLayout();
                     ctx.Refresh();
@@ -113,23 +122,43 @@ public sealed class CliLayoutManager
         IRenderable mainArea;
         
         // Prepare History renderable
-        var historyList = _history.ToList();
         var consoleHeight = AnsiConsole.Console.Profile.Height;
         var consoleWidth = AnsiConsole.Console.Profile.Width;
         var mainHeight = Math.Max(5, consoleHeight - 13 - 2);
         var mainWidth = Math.Max(10, consoleWidth - 4);
-        if (_mainContent != null && historyList.Any()) mainWidth /= 2;
-        
-        // Split all messages into lines while preserving markup-ish state
-        var allLines = new List<IRenderable>();
-        foreach (var msg in historyList)
+        if (_mainContent != null && _history.Any()) mainWidth /= 2;
+
+        // Invalidate cache if width changed
+        if (mainWidth != _lastWidth)
         {
-            allLines.AddRange(SplitIntoLines(msg, mainWidth));
+            _cachedLines.Clear();
+            _lastProcessedHistoryCount = 0;
+            _lastWidth = mainWidth;
         }
 
-        _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, allLines.Count - 1));
+        // Incrementally process new history items
+        if (_history.Count > _lastProcessedHistoryCount)
+        {
+            for (int i = _lastProcessedHistoryCount; i < _history.Count; i++)
+            {
+                _cachedLines.AddRange(SplitIntoLines(_history[i], mainWidth));
+            }
+            _lastProcessedHistoryCount = _history.Count;
+        }
+        else if (_history.Count < _lastProcessedHistoryCount)
+        {
+            // History was cleared or reduced
+            _cachedLines.Clear();
+            foreach (var msg in _history)
+            {
+                _cachedLines.AddRange(SplitIntoLines(msg, mainWidth));
+            }
+            _lastProcessedHistoryCount = _history.Count;
+        }
 
-        var visibleLines = allLines
+        _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, _cachedLines.Count - 1));
+
+        var visibleLines = _cachedLines
             .SkipLast(_scrollOffset)
             .TakeLast(mainHeight);
         
@@ -141,7 +170,7 @@ public sealed class CliLayoutManager
             historyHeader += $" [yellow](Scrolled up: {_scrollOffset} lines)[/]";
         }
 
-        if (_mainContent != null && historyList.Any())
+        if (_mainContent != null && _history.Any())
         {
             // Split Main area into two panels
             mainArea = new Columns(
