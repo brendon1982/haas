@@ -1,6 +1,7 @@
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
+using HaaS.Host.CLI.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -11,7 +12,7 @@ public class ChatModule : ICliModule
     public string Name => "AI Chat";
     public string Description => "Interactive AI chat session";
 
-    public async Task RunAsync(CancellationToken ct = default)
+    public async Task RunAsync(GuiLayoutManager layout, CancellationToken ct = default)
     {
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
@@ -20,7 +21,7 @@ public class ChatModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithTerminalGui()
+                    .WithTerminalGui(layout)
                     .WithSqlitePersistence("chat-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
@@ -37,15 +38,14 @@ public class ChatModule : ICliModule
             })
             .Build();
 
-        var toolProvider = host.Services.GetRequiredService<IToolProvider>();
-        toolProvider.Register(new ToolDefinition("get_time", "Gets the current UTC time for a given timezone", (Func<string, Task<string>>)(async timezone =>
-            $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC")));
-
-        Console.Out.WriteLine($"HaaS CLI Chat — model: {modelId}");
-        Console.Out.WriteLine("Press Ctrl+C to exit. Empty line to quit.");
-        Console.Out.Write("> ");
-        Console.Out.Flush();
+        RegisterTool(host.Services.GetRequiredService<IToolProvider>());
 
         await host.RunAsync(ct);
+    }
+
+    private void RegisterTool(IToolProvider toolProvider)
+    {
+        toolProvider.Register(new ToolDefinition("get_time", "Gets the current UTC time for a given timezone", (Func<string, Task<string>>)(async timezone =>
+            $"{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC")));
     }
 }

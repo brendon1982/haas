@@ -56,9 +56,17 @@ public class GuiMenu : Window
         var module = _modules.FirstOrDefault(m => m.Name == choice);
         if (module != null)
         {
-            // In a real TUI, we might want to switch the view
-            // For now, let's start the module task
-            Task.Run(async () => await module.RunAsync());
+            _listView.Enabled = false;
+            Task.Run(async () =>
+            {
+                await module.RunAsync(_layoutManager);
+                _layoutManager.SetMainContent(this);
+                _layoutManager.App.Invoke(() =>
+                {
+                    _listView.Enabled = true;
+                    _listView.SetFocus();
+                });
+            });
         }
     }
 }

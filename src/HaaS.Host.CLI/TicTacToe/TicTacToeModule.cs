@@ -1,6 +1,7 @@
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Infrastructure;
+using HaaS.Host.CLI.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -11,7 +12,7 @@ public class TicTacToeModule : ICliModule
     public string Name => "Tic-Tac-Toe";
     public string Description => "Classic 3-in-a-row game against an AI opponent";
 
-    public async Task RunAsync(CancellationToken ct = default)
+    public async Task RunAsync(GuiLayoutManager layout, CancellationToken ct = default)
     {
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
@@ -20,7 +21,7 @@ public class TicTacToeModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithTerminalGui()
+                    .WithTerminalGui(layout)
                     .WithSqlitePersistence("tictactoe-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
@@ -48,10 +49,6 @@ public class TicTacToeModule : ICliModule
         RegisterTools(host.Services.GetRequiredService<IToolProvider>());
 
         await host.RunAsync(ct);
-
-        Console.WriteLine();
-        Console.WriteLine("Game over. Press any key to return to menu...");
-        Console.ReadKey(true);
     }
 
     private void RegisterTools(IToolProvider toolProvider)

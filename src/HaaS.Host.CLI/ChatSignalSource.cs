@@ -2,6 +2,7 @@ using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Host.CLI.Infrastructure;
+using Microsoft.Extensions.Hosting;
 using Terminal.Gui;
 using Terminal.Gui.Views;
 
@@ -11,12 +12,14 @@ public class ChatSignalSource : ISignalSource
 {
     private readonly GuiLayoutManager _layoutManager;
     private readonly GuiSignalPresenter _presenter;
+    private readonly IHostApplicationLifetime? _lifetime;
     private TaskCompletionSource? _tcs;
 
-    public ChatSignalSource(GuiLayoutManager layoutManager, GuiSignalPresenter presenter)
+    public ChatSignalSource(GuiLayoutManager layoutManager, GuiSignalPresenter presenter, IHostApplicationLifetime? lifetime = null)
     {
         _layoutManager = layoutManager;
         _presenter = presenter;
+        _lifetime = lifetime;
     }
 
     public string Type => "chat";
@@ -46,6 +49,7 @@ public class ChatSignalSource : ISignalSource
         await _tcs.Task;
         
         _layoutManager.SetMainContent(new Label() { Text = "Returning to menu..." });
+        _lifetime?.StopApplication();
     }
 
     public Task ShutdownAsync()

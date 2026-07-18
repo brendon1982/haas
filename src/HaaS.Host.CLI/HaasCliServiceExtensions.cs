@@ -11,9 +11,17 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static HaasBuilder WithTerminalGui(this HaasBuilder builder)
+    public static HaasBuilder WithTerminalGui(this HaasBuilder builder, GuiLayoutManager? layoutManager = null)
     {
-        builder.Services.AddSingleton<GuiLayoutManager>();
+        if (layoutManager != null)
+        {
+            // Register existing instance without transferring ownership (to prevent disposal)
+            builder.Services.AddSingleton<GuiLayoutManager>(sp => layoutManager);
+        }
+        else
+        {
+            builder.Services.AddSingleton<GuiLayoutManager>();
+        }
         builder.Services.AddSingleton<GuiSignalPresenter>();
         
         builder.Services.RemoveAll<HaaS.Domain.Ports.ILogger>();

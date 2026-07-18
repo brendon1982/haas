@@ -2,6 +2,7 @@ using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Host.CLI.Infrastructure;
+using Microsoft.Extensions.Hosting;
 using Terminal.Gui;
 using Terminal.Gui.Views;
 
@@ -12,13 +13,15 @@ public class TicTacToeSignalSource : ISignalSource
     private readonly TicTacToeGame _game;
     private readonly GuiLayoutManager _layoutManager;
     private readonly GuiSignalPresenter _presenter;
+    private readonly IHostApplicationLifetime? _lifetime;
     private TaskCompletionSource? _tcs;
 
-    public TicTacToeSignalSource(TicTacToeGame game, GuiLayoutManager layoutManager, GuiSignalPresenter presenter)
+    public TicTacToeSignalSource(TicTacToeGame game, GuiLayoutManager layoutManager, GuiSignalPresenter presenter, IHostApplicationLifetime? lifetime = null)
     {
         _game = game;
         _layoutManager = layoutManager;
         _presenter = presenter;
+        _lifetime = lifetime;
     }
 
     public string Type => "tictactoe";
@@ -60,6 +63,7 @@ public class TicTacToeSignalSource : ISignalSource
         
         await Task.Delay(2000);
         _layoutManager.SetMainContent(new Label() { Text = "Game Over. Returning to menu..." });
+        _lifetime?.StopApplication();
     }
 
     private bool CheckGameOver(TicTacToeView view)
