@@ -1,22 +1,20 @@
 using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
+using HaaS.Host.CLI.Infrastructure;
+using Spectre.Console;
 
 namespace HaaS.Host.CLI;
 
 public class ChatSignalSource : ISignalSource
 {
-    private readonly TextReader _input;
-    private readonly TextWriter _output;
-    public ChatSignalSource()
-        : this(Console.In, Console.Out)
-    {
-    }
+    private readonly CliLayoutManager _layoutManager;
+    private readonly CliSignalPresenter _presenter;
 
-    public ChatSignalSource(TextReader input, TextWriter output)
+    public ChatSignalSource(CliLayoutManager layoutManager, CliSignalPresenter presenter)
     {
-        _input = input;
-        _output = output;
+        _layoutManager = layoutManager;
+        _presenter = presenter;
     }
 
     public string Type => "chat";
@@ -25,18 +23,23 @@ public class ChatSignalSource : ISignalSource
     {
         while (true)
         {
-            var line = await _input.ReadLineAsync();
+            var line = AnsiConsole.Prompt(
+                new TextPrompt<string>("[green]>[/]")
+                    .AllowEmpty());
 
             if (string.IsNullOrWhiteSpace(line))
                 break;
 
+            _presenter.AddUserMessage(line);
+
             var handle = await handler(new IncomingSignal(line.Trim()));
 
             // Wait for the worker to finish and present the result
-            await handle.WaitForResultAsync();
-
-            await _output.WriteAsync("> ");
-            await _output.FlushAsync();
+            // Use RunLiveAsync to keep the log pane updating while AI is thinking
+            await _layoutManager.RunLiveAsync(async () =>
+            {
+                await handle.WaitForResultAsync();
+            });
         }
     }
 

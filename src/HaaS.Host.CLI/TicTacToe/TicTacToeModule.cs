@@ -20,6 +20,7 @@ public class TicTacToeModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
+                    .WithSpectreConsole()
                     .WithSqlitePersistence("tictactoe-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {

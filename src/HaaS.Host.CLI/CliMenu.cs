@@ -1,5 +1,7 @@
 namespace HaaS.Host.CLI;
 
+using Spectre.Console;
+
 public class CliMenu
 {
     private readonly IReadOnlyList<ICliModule> _modules;
@@ -13,42 +15,50 @@ public class CliMenu
     {
         while (!ct.IsCancellationRequested)
         {
-            Console.Clear();
-            Console.WriteLine("HaaS Test Bed");
-            Console.WriteLine(new string('=', 40));
-            Console.WriteLine();
+            AnsiConsole.Clear();
+            AnsiConsole.Write(
+                new FigletText("HaaS")
+                    .LeftJustified()
+                    .Color(Color.Blue));
+            
+            AnsiConsole.Write(new Rule("[yellow]Enterprise AI Harness[/]").LeftJustified());
+            AnsiConsole.WriteLine();
 
-            for (var i = 0; i < _modules.Count; i++)
-            {
-                var module = _modules[i];
-                Console.WriteLine($"  {i + 1}. {module.Name} — {module.Description}");
-            }
+            var modules = _modules.Select(m => new MenuChoice(m.Name, m.Description)).ToList();
+            var settings = new MenuChoice("Settings", "Configuration and keys (coming soon)");
+            var exit = new MenuChoice("Exit");
 
-            Console.WriteLine($"  {_modules.Count + 1}. Settings (coming soon)");
-            Console.WriteLine();
-            Console.WriteLine("  0. Exit");
-            Console.WriteLine();
-            Console.Write("> ");
+            var choice = AnsiConsole.Prompt(
+                new SelectionPrompt<MenuChoice>()
+                    .Title("Select a module to run:")
+                    .AddChoices(modules)
+                    .AddChoices(settings, exit));
 
-            var input = Console.ReadLine();
-
-            if (input == "0" || input is null)
+            if (choice == exit)
                 break;
 
-            if (int.TryParse(input, out var index) && index >= 1 && index <= _modules.Count)
+            if (choice == settings)
             {
-                await _modules[index - 1].RunAsync(ct);
-                Console.WriteLine();
-                Console.WriteLine("Press any key to return to menu...");
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[yellow]Settings not yet implemented.[/]");
+                AnsiConsole.MarkupLine("Press any key to continue...");
                 Console.ReadKey(true);
+                continue;
             }
-            else if (index == _modules.Count + 1)
+
+            var module = _modules.FirstOrDefault(m => m.Name == choice.Name);
+            if (module != null)
             {
-                Console.WriteLine();
-                Console.WriteLine("Settings not yet implemented.");
-                Console.WriteLine("Press any key to continue...");
+                await module.RunAsync(ct);
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[grey]Press any key to return to menu...[/]");
                 Console.ReadKey(true);
             }
         }
+    }
+
+    private sealed record MenuChoice(string Name, string? Description = null)
+    {
+        public override string ToString() => Description != null ? $"{Name} [grey]- {Description}[/]" : Name;
     }
 }

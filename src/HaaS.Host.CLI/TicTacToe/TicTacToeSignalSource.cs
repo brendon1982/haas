@@ -2,6 +2,8 @@ using System.Linq;
 using HaaS.Adapters.Deferred;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
+using HaaS.Host.CLI.Infrastructure;
+using Spectre.Console;
 
 namespace HaaS.Host.CLI.TicTacToe;
 
@@ -13,10 +15,12 @@ namespace HaaS.Host.CLI.TicTacToe;
 public class TicTacToeSignalSource : ISignalSource
 {
     private readonly TicTacToeGame _game;
+    private readonly CliLayoutManager _layoutManager;
 
-    public TicTacToeSignalSource(TicTacToeGame game)
+    public TicTacToeSignalSource(TicTacToeGame game, CliLayoutManager layoutManager)
     {
         _game = game;
+        _layoutManager = layoutManager;
     }
 
     public string Type => "tictactoe";
@@ -25,7 +29,7 @@ public class TicTacToeSignalSource : ISignalSource
     {
         while (true)
         {
-            RefreshUi();
+            UpdateLayout();
 
             if (CheckGameOver())
                 break;
@@ -37,7 +41,10 @@ public class TicTacToeSignalSource : ISignalSource
             _game.PlacePlayerMarker(position);
 
             if (CheckGameOver())
+            {
+                UpdateLayout();
                 continue;
+            }
 
             // Trigger the AI to move by sending a signal through the HaaS engine
             await TriggerAiMoveAsync(handler, position);
@@ -46,35 +53,52 @@ public class TicTacToeSignalSource : ISignalSource
 
     public Task ShutdownAsync() => Task.CompletedTask;
 
-    private void RefreshUi()
+    private void UpdateLayout()
     {
-        Console.Clear();
-        Console.WriteLine("Tic-Tac-Toe");
-        Console.WriteLine(new string('=', 20));
-        Console.WriteLine();
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .HideHeaders();
+
+        table.AddColumn("C1");
+        table.AddColumn("C2");
+        table.AddColumn("C3");
 
         var b = _game.Board;
         for (var row = 0; row < 3; row++)
         {
-            Console.WriteLine($"  {b[row * 3]} | {b[row * 3 + 1]} | {b[row * 3 + 2]}");
-            if (row < 2)
-                Console.WriteLine("  ---+---+---");
+            table.AddRow(
+                RenderCell(b[row * 3]),
+                RenderCell(b[row * 3 + 1]),
+                RenderCell(b[row * 3 + 2])
+            );
         }
-        Console.WriteLine();
+
+        _layoutManager.SetMainContent(
+            new Panel(Align.Center(table, VerticalAlignment.Middle))
+                .Header("Tic-Tac-Toe")
+                .Expand()
+        );
     }
+
+    private string RenderCell(char c) => c switch
+    {
+        'X' => "[green]X[/]",
+        'O' => "[red]O[/]",
+        _ => $"[grey]{c}[/]"
+    };
 
     private bool CheckGameOver()
     {
         var winner = _game.GetWinner();
         if (winner != null)
         {
-            Console.WriteLine(winner == 'X' ? "You win!" : "AI wins!");
+            AnsiConsole.MarkupLine(winner == 'X' ? "[green]You win![/]" : "[red]AI wins![/]");
             return true;
         }
 
         if (_game.IsDraw())
         {
-            Console.WriteLine("It's a draw!");
+            AnsiConsole.MarkupLine("[yellow]It's a draw![/]");
             return true;
         }
 
@@ -83,19 +107,22 @@ public class TicTacToeSignalSource : ISignalSource
 
     private int GetHumanMove()
     {
-        while (true)
-        {
-            Console.Write("Your move (1-9, or 0 to quit): ");
-            var input = Console.ReadLine();
+        var validMoves = Enumerable.Range(1, 9)
+            .Where(i => _game.IsValidMove(i))
+            .Select(i => i.ToString())
+            .ToList();
+        
+        validMoves.Add("Quit");
 
-            if (input == "0" || string.IsNullOrWhiteSpace(input))
-                return 0;
+        var choice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Your move:")
+                .AddChoices(validMoves));
 
-            if (int.TryParse(input, out var pos) && _game.IsValidMove(pos))
-                return pos;
+        if (choice == "Quit")
+            return 0;
 
-            Console.WriteLine("Invalid move. Try again.");
-        }
+        return int.Parse(choice);
     }
 
     private async Task TriggerAiMoveAsync(Func<IncomingSignal, Task<ISignalHandle>> handler, int lastPlayerMove)
@@ -107,40 +134,17 @@ public class TicTacToeSignalSource : ISignalSource
 
         var boardBefore = _game.Board.ToArray();
 
-        Console.Write("AI is thinking");
-        using var cts = new CancellationTokenSource();
-        var thinkingTask = ShowThinkingProgress(cts.Token);
-
-        try
+        await _layoutManager.RunLiveAsync(async () =>
         {
-            // Send the signal to the engine and wait for the result
+            // We use RunLiveAsync to keep the log pane updating while AI is thinking
             var handle = await handler(signal);
-            await handle.WaitForResultAsync(cts.Token);
-        }
-        finally
-        {
-            cts.Cancel();
-            await thinkingTask;
-            Console.WriteLine();
-        }
+            await handle.WaitForResultAsync();
+        });
 
         if (_game.Board.SequenceEqual(boardBefore))
         {
-            Console.WriteLine("The AI did not make a valid move. Press any key to continue...");
+            AnsiConsole.MarkupLine("[yellow]The AI did not make a valid move. Press any key to continue...[/]");
             Console.ReadKey(true);
         }
-    }
-
-    private async Task ShowThinkingProgress(CancellationToken ct)
-    {
-        try
-        {
-            while (!ct.IsCancellationRequested)
-            {
-                Console.Write(".");
-                await Task.Delay(500, ct);
-            }
-        }
-        catch (OperationCanceledException) { }
     }
 }

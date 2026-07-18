@@ -20,6 +20,7 @@ public class ChatModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
+                    .WithSpectreConsole()
                     .WithSqlitePersistence("chat-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {

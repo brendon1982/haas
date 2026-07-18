@@ -2,12 +2,26 @@ using HaaS.Adapters.Agent;
 using HaaS.Adapters.Store;
 using HaaS.Domain.Ports;
 using HaaS.Infrastructure;
+using HaaS.Host.CLI.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
+    public static HaasBuilder WithSpectreConsole(this HaasBuilder builder)
+    {
+        builder.Services.AddSingleton<CliLogSink>();
+        builder.Services.AddSingleton<CliLayoutManager>();
+        
+        // Replace existing ILogger with SpectreLogger
+        builder.Services.RemoveAll<ILogger>();
+        builder.Services.AddSingleton<ILogger, SpectreLogger>();
+        
+        return builder;
+    }
+
     public static HaasBuilder WithInMemoryConfig(
         this HaasBuilder builder,
         Action<HaasInMemoryConfig>? configure = null)

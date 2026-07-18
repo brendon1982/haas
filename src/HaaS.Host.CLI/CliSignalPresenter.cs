@@ -1,14 +1,39 @@
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
+using HaaS.Host.CLI.Infrastructure;
+using Spectre.Console;
+
+namespace HaaS.Host.CLI;
 
 public class CliSignalPresenter : ISignalPresenter
 {
+    private readonly CliLayoutManager _layoutManager;
+    private readonly List<string> _history = new();
+
+    public CliSignalPresenter(CliLayoutManager layoutManager)
+    {
+        _layoutManager = layoutManager;
+    }
+
     public string? LastSessionId { get; private set; }
 
     public Task PresentAsync(SessionResult result)
     {
         LastSessionId = result.SessionId;
-        Console.Out.WriteLine(result.Output);
+        _history.Add($"[blue]Assistant:[/] {Markup.Escape(result.Output)}");
+        UpdateLayout();
         return Task.CompletedTask;
+    }
+
+    public void AddUserMessage(string message)
+    {
+        _history.Add($"[green]User:[/] {Markup.Escape(message)}");
+        UpdateLayout();
+    }
+
+    private void UpdateLayout()
+    {
+        var rows = new Rows(_history.Select(h => new Markup(h)));
+        _layoutManager.SetMainContent(rows);
     }
 }
