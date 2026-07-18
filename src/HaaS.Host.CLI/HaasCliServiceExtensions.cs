@@ -11,24 +11,26 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static HaasBuilder WithTerminalGui(this HaasBuilder builder, GuiLayoutManager? layoutManager = null)
+    public static HaasBuilder WithSpectreConsole(this HaasBuilder builder, CliLayoutManager? layoutManager = null)
     {
+        builder.Services.AddSingleton<CliLogSink>();
         if (layoutManager != null)
         {
-            // Register existing instance without transferring ownership (to prevent disposal)
-            builder.Services.AddSingleton<GuiLayoutManager>(sp => layoutManager);
+            builder.Services.AddSingleton<CliLayoutManager>(sp => layoutManager);
         }
         else
         {
-            builder.Services.AddSingleton<GuiLayoutManager>();
+            builder.Services.AddSingleton<CliLayoutManager>();
         }
-        builder.Services.AddSingleton<GuiSignalPresenter>();
+        builder.Services.AddSingleton<CliSignalPresenter>();
         
+        // Replace existing ILogger with SpectreLogger
         builder.Services.RemoveAll<HaaS.Domain.Ports.ILogger>();
-        builder.Services.AddSingleton<HaaS.Domain.Ports.ILogger, GuiLogger>();
+        builder.Services.AddSingleton<HaaS.Domain.Ports.ILogger, SpectreLogger>();
 
+        // Redirect Microsoft.Extensions.Logging to CliLogSink
         builder.Services.AddLogging(logging => logging.ClearProviders());
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, GuiLoggingProvider>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, SpectreLoggingProvider>());
         
         return builder;
     }

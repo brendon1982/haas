@@ -12,7 +12,7 @@ public class ChatModule : ICliModule
     public string Name => "AI Chat";
     public string Description => "Interactive AI chat session";
 
-    public async Task RunAsync(GuiLayoutManager layout, CancellationToken ct = default)
+    public async Task RunAsync(CliLayoutManager layout, CancellationToken ct = default)
     {
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
@@ -21,14 +21,14 @@ public class ChatModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithTerminalGui(layout)
+                    .WithSpectreConsole(layout)
                     .WithSqlitePersistence("chat-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
                         config.UseOllama();
                         config.UseOpenRouter();
                     })
-                    .AddSignalSource<ChatSignalSource, GuiSignalPresenter>(config =>
+                    .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
                     {
                         config.UseProvider(providerName)
                             .UseModel(modelId)

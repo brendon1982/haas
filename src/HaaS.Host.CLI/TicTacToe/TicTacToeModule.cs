@@ -12,7 +12,7 @@ public class TicTacToeModule : ICliModule
     public string Name => "Tic-Tac-Toe";
     public string Description => "Classic 3-in-a-row game against an AI opponent";
 
-    public async Task RunAsync(GuiLayoutManager layout, CancellationToken ct = default)
+    public async Task RunAsync(CliLayoutManager layout, CancellationToken ct = default)
     {
         var providerName = Environment.GetEnvironmentVariable("HAAS_PROVIDER") ?? "openrouter";
         var modelId = Environment.GetEnvironmentVariable("HAAS_MODEL") ?? "cohere/north-mini-code:free";
@@ -21,7 +21,7 @@ public class TicTacToeModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithTerminalGui(layout)
+                    .WithSpectreConsole(layout)
                     .WithSqlitePersistence("tictactoe-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
@@ -30,7 +30,7 @@ public class TicTacToeModule : ICliModule
                     })
                     .AddQueuedWorkerPool(1, pool =>
                     {
-                        pool.AddSignalSource<TicTacToeSignalSource, GuiSignalPresenter>(config =>
+                        pool.AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
                         {
                             config.UseProvider(providerName)
                                 .UseModel(modelId)

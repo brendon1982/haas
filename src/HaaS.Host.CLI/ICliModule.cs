@@ -6,5 +6,5 @@ public interface ICliModule
 {
     string Name { get; }
     string Description { get; }
-    Task RunAsync(GuiLayoutManager layout, CancellationToken ct = default);
+    Task RunAsync(CliLayoutManager layout, CancellationToken ct = default);
 }
