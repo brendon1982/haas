@@ -5,6 +5,7 @@ using HaaS.Infrastructure;
 using HaaS.Host.CLI.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace HaaS.Host.CLI;
 
@@ -16,8 +17,12 @@ public static class HaasCliServiceExtensions
         builder.Services.AddSingleton<CliLayoutManager>();
         
         // Replace existing ILogger with SpectreLogger
-        builder.Services.RemoveAll<ILogger>();
-        builder.Services.AddSingleton<ILogger, SpectreLogger>();
+        builder.Services.RemoveAll<HaaS.Domain.Ports.ILogger>();
+        builder.Services.AddSingleton<HaaS.Domain.Ports.ILogger, SpectreLogger>();
+
+        // Redirect Microsoft.Extensions.Logging to CliLogSink
+        builder.Services.AddLogging(logging => logging.ClearProviders());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, SpectreLoggingProvider>());
         
         return builder;
     }

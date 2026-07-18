@@ -33,7 +33,6 @@ public class CliSignalPresenter : ISignalPresenter
 
     private void UpdateLayout()
     {
-        var rows = new Rows(_history.Select(h => new Markup(h)));
-        _layoutManager.SetMainContent(rows);
+        _layoutManager.SetMainContent(_history);
     }
 }
