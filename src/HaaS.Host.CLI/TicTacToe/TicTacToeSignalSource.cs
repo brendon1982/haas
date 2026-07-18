@@ -17,12 +17,18 @@ public class TicTacToeSignalSource : ISignalSource
 {
     private readonly TicTacToeGame _game;
     private readonly CliLayoutManager _layoutManager;
+    private readonly ISignalPresenter _presenter;
     private readonly IHostApplicationLifetime? _lifetime;
 
-    public TicTacToeSignalSource(TicTacToeGame game, CliLayoutManager layoutManager, IHostApplicationLifetime? lifetime = null)
+    public TicTacToeSignalSource(
+        TicTacToeGame game, 
+        CliLayoutManager layoutManager, 
+        ISignalPresenter presenter,
+        IHostApplicationLifetime? lifetime = null)
     {
         _game = game;
         _layoutManager = layoutManager;
+        _presenter = presenter;
         _lifetime = lifetime;
     }
 
@@ -152,11 +158,20 @@ public class TicTacToeSignalSource : ISignalSource
 
         // We use the already active Live display, so we don't need RunLiveAsync here
         // as it would start a nested Live display which is not supported.
-        var handle = await handler(signal);
-        await handle.WaitForResultAsync();
-
-        _layoutManager.SetBusy(false);
-        UpdateLayout();
+        try
+        {
+            var handle = await handler(signal);
+            await handle.WaitForResultAsync();
+        }
+        catch (Exception)
+        {
+            // Error already presented by framework, catch to keep loop alive
+        }
+        finally
+        {
+            _layoutManager.SetBusy(false);
+            UpdateLayout();
+        }
 
         if (_game.Board.SequenceEqual(boardBefore))
         {

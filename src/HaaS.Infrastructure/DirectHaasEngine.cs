@@ -27,7 +27,7 @@ public class DirectHaasEngine : BaseHaasEngine
     protected override IEnumerable<SignalSourceRegistration> GetRelevantRegistrations()
         => Registry.GetAll().Where(r => !r.IsQueued);
 
-    protected override async Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
+    protected override async Task<ISignalHandle> ExecuteProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
     {
         using var scope = _scopeFactory.CreateScope();
         try

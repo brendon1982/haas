@@ -41,7 +41,26 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();
-    protected abstract Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg);
+    protected abstract Task<ISignalHandle> ExecuteProcessSignalAsync(Signal signal, SignalSourceRegistration reg);
+
+    public async Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
+    {
+        try
+        {
+            var handle = await ExecuteProcessSignalAsync(signal, reg);
+            if (handle == null)
+            {
+                throw new InvalidOperationException($"Engine {GetType().Name} returned a null handle.");
+            }
+
+            return new ErrorPresentingSignalHandle(handle, reg.Presenter);
+        }
+        catch (Exception ex)
+        {
+            await reg.Presenter.PresentErrorAsync(signal.SessionId, ex);
+            throw;
+        }
+    }
 
     protected async Task RunSourceAsync(SignalSourceRegistration reg, CancellationToken ct)
     {

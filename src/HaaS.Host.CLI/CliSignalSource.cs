@@ -8,16 +8,19 @@ public class CliSignalSource : ISignalSource
 {
     private readonly TextReader _input;
     private readonly TextWriter _output;
+    private readonly ISignalPresenter _presenter;
     private CancellationTokenSource? _cts;
-    public CliSignalSource()
-        : this(Console.In, Console.Out)
+
+    public CliSignalSource(ISignalPresenter presenter)
+        : this(Console.In, Console.Out, presenter)
     {
     }
 
-    public CliSignalSource(TextReader input, TextWriter output)
+    public CliSignalSource(TextReader input, TextWriter output, ISignalPresenter presenter)
     {
         _input = input;
         _output = output;
+        _presenter = presenter;
     }
 
     public string Type => "cli";
@@ -34,10 +37,16 @@ public class CliSignalSource : ISignalSource
                 if (string.IsNullOrWhiteSpace(line))
                     break;
 
-                var handle = await handler(new IncomingSignal(line.Trim()));
-
-                // Wait for the worker to finish and present the result
-                await handle.WaitForResultAsync(token);
+                try
+                {
+                    var handle = await handler(new IncomingSignal(line.Trim()));
+                    // Wait for the worker to finish and present the result
+                    await handle.WaitForResultAsync(token);
+                }
+                catch (Exception)
+                {
+                    // Error already presented by framework, catch to keep loop alive
+                }
 
                 if (token.IsCancellationRequested)
                     break;

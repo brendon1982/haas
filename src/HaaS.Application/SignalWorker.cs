@@ -56,6 +56,10 @@ public class SignalWorker
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process signal {0}. Nacking.", queued.Id);
+            if (queued.Signal.SessionId != null)
+            {
+                _resultStore.SetError(queued.Signal.SessionId, ex);
+            }
             await _queue.NackAsync(queued.Id);
             throw;
         }

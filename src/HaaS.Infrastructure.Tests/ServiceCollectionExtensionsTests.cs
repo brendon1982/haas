@@ -129,6 +129,7 @@ public class ServiceCollectionExtensionsTests
     private class TestSignalPresenter : ISignalPresenter
     {
         public Task PresentAsync(SessionResult result) => Task.CompletedTask;
+        public Task PresentErrorAsync(string? sessionId, Exception exception) => Task.CompletedTask;
     }
 }
 

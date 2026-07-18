@@ -25,6 +25,14 @@ public class CliSignalPresenter : ISignalPresenter
         return Task.CompletedTask;
     }
 
+    public Task PresentErrorAsync(string? sessionId, Exception exception)
+    {
+        LastSessionId = sessionId;
+        _history.Add($"[red]Error:[/] {Markup.Escape(exception.Message)}");
+        UpdateLayout();
+        return Task.CompletedTask;
+    }
+
     public void AddUserMessage(string message)
     {
         _history.Add($"[green]User:[/] {Markup.Escape(message)}");

@@ -288,10 +288,18 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
 file sealed class FakePresenter : ISignalPresenter
 {
     public string? LastSessionId { get; private set; }
+    public Exception? LastException { get; private set; }
 
     public Task PresentAsync(SessionResult result)
     {
         LastSessionId = result.SessionId;
+        return Task.CompletedTask;
+    }
+
+    public Task PresentErrorAsync(string? sessionId, Exception exception)
+    {
+        LastSessionId = sessionId;
+        LastException = exception;
         return Task.CompletedTask;
     }
 }

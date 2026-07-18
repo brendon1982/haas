@@ -163,6 +163,7 @@ file sealed class FakeHaasEngine : IHaasEngine
 file sealed class FakePresenter : ISignalPresenter
 {
     public Task PresentAsync(SessionResult result) => Task.CompletedTask;
+    public Task PresentErrorAsync(string? sessionId, Exception exception) => Task.CompletedTask;
 }
 
 file sealed record LogEntry(LogLevel Level, string Message, Exception? Exception);

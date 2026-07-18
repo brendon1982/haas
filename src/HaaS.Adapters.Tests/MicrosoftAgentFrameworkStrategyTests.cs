@@ -440,6 +440,8 @@ file sealed class RecordingPresenter : ISignalPresenter
         Results.Add(result);
         return Task.CompletedTask;
     }
+
+    public Task PresentErrorAsync(string? sessionId, Exception exception) => Task.CompletedTask;
 }
 
 file sealed class StrategySutBuilder

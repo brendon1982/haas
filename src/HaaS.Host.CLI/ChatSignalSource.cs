@@ -55,12 +55,20 @@ public class ChatSignalSource : ISignalSource
                         _presenter.AddUserMessage(line);
                         _layoutManager.SetBusy(true);
 
-                        var handle = await handler(new IncomingSignal(line.Trim()));
-
-                        // Wait for the worker to finish and present the result
-                        await handle.WaitForResultAsync();
-
-                        _layoutManager.SetBusy(false);
+                        try
+                        {
+                            var handle = await handler(new IncomingSignal(line.Trim()));
+                            // Wait for the worker to finish and present the result
+                            await handle.WaitForResultAsync();
+                        }
+                        catch (Exception)
+                        {
+                            // Error already presented by framework, catch to keep loop alive
+                        }
+                        finally
+                        {
+                            _layoutManager.SetBusy(false);
+                        }
                     }
                 }
                 finally

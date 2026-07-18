@@ -58,9 +58,57 @@ public class MachineryIntegrationTests
         manualSource.Stop();
         await engineTask;
     }
+
+    [Test]
+    public async Task Signal_FailsInStrategy_ErrorReachesPresenter()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddHaas();
+        
+        var failingStrategy = new FailingStrategy();
+        services.AddScoped<IAgentStrategy>(_ => failingStrategy);
+
+        var manualSource = new ManualSignalSource();
+        var capturingPresenter = new CapturingPresenter();
+        var config = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType("manual")
+            .Build();
+        var registration = new SignalSourceRegistration(manualSource, capturingPresenter, config, isQueued: false);
+        services.AddSingleton(registration);
+
+        var sp = services.BuildServiceProvider();
+
+        var engine = sp.GetRequiredService<IHaasEngine>();
+        using var cts = new CancellationTokenSource();
+        var engineTask = engine.StartAsync(cts.Token);
+
+        // Act
+        var signal = new IncomingSignal("Fail Me");
+        
+        await Task.Delay(100); 
+        
+        // Assert
+        Expect(async () => await manualSource.PushAsync(signal)).To.Throw<ApplicationException>();
+        Expect(capturingPresenter.LastException).To.Be.An.Instance.Of<ApplicationException>();
+        Expect(capturingPresenter.LastException?.Message).To.Equal("Strategy failed");
+
+        // Cleanup
+        cts.Cancel();
+        manualSource.Stop();
+        await engineTask;
+    }
 }
 
 // --- Integration Fakes ---
+
+file sealed class FailingStrategy : IAgentStrategy
+{
+    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    {
+        throw new ApplicationException("Strategy failed");
+    }
+}
 
 file sealed class ManualSignalSource : ISignalSource
 {
@@ -107,9 +155,16 @@ file sealed class CapturingStrategy : IAgentStrategy
 file sealed class CapturingPresenter : ISignalPresenter
 {
     public List<SessionResult> Results { get; } = [];
+    public Exception? LastException { get; private set; }
+
     public Task PresentAsync(SessionResult result)
     {
         Results.Add(result);
+        return Task.CompletedTask;
+    }
+    public Task PresentErrorAsync(string? sessionId, Exception exception)
+    {
+        LastException = exception;
         return Task.CompletedTask;
     }
 }
