@@ -72,36 +72,32 @@ The heart of the system. Contains no infrastructure concerns.
 
 | Aggregate | Responsibility |
 |-----------|---------------|
-| `Session` | Carries identity, signal source metadata, policy context, execution state |
-| `Task` | A single unit of work tracked through the agent loop |
-| `PolicyRule` | Governance rule (allow/deny, scope, conditions) |
+| `SessionRecord` | Carries session metadata, configuration (provider, model, prompt), and terminal output |
+| `QueuedSignal` | A signal waiting in or being processed from the queue, including its identity and retry state |
 
 **Value Objects:**
 
 | Value Object | Description |
 |-------------|-------------|
-| `SessionId` | Wraps a session identifier |
 | `Identity` | Authenticated user/system identity with claims |
-| `SignalSource` | Type + metadata about where the signal came from, including optional inline or referenced config overrides |
-| `SessionConfig` | Resolved effective config for a session — merged from global defaults and per-signal overrides (model, policy refs, prompt, skills) |
-| `ToolCall` | A tool invocation within an agent iteration |
-| `PolicyDecision` | Result of a policy check (allow/deny with reason) |
+| `Signal` | Payload + source information about an incoming request |
+| `AgentSessionConfig` | Configuration for an agent session (provider, model, prompt, tools) |
+| `SignalSourceConfig` | Configuration template for a specific signal source type |
+| `DomainMessage` | A single message in a session's chat history |
 
 **Repository Ports (interfaces):**
 
-- `SessionRepository`
-- `TaskRepository`
-- `MemoryStore`
-- `RegistryStore`
-- `PolicyRuleRepository`
-- `ConfigRepository` — stores global config, resolves per-signal overrides against defaults via `resolve(signalOverrides)`
-- `SignalQueue` — enqueue, dequeue, ack, nack
+- `ISessionRepository` — CRUD for session metadata
+- `IMessageStore` — Storage for session chat history (messages)
+- `ISignalQueue` — Enqueue, dequeue, ack, nack for signals
+- `ISignalSourceConfigRepository` — Stores and retrieves configuration for signal sources
+- `IProviderConfigRepository` — Stores configuration for AI providers
+- `IDeferredSessionResultStore` — Holds results for asynchronous signal processing
 
 **Domain Services:**
 
-- `PolicyEngine` — evaluates whether a session+action is permitted
-- `AuthService` — resolves identity from raw signal metadata
-- `AgentStrategy` — orchestration pattern for the agent loop (single-agent, supervisor+worker, swarm, router)
+- `IAgentStrategy` — Orchestration pattern for the agent loop
+- `IToolProvider` — Resolves tool definitions and instances
 
 ### 3.2 Application Layer (`src/HaaS.Application/`)
 
@@ -111,20 +107,17 @@ Orchestrates domain objects to fulfill use cases.
 
 | Component | Responsibility |
 |-----------|---------------|
-| `IHaasEngine` | Entry point for the application. Starts all registered signal sources and coordinates the execution of signals. |
-| `HaasEngine` | Implementation of `IHaasEngine`. Wires up `SignalSourceRegistration`s, ensures configurations are persisted, and manages the execution lifecycle of multiple concurrent signal sources. |
-| `SignalSourceRegistration` | Links a `ISignalSource` with its corresponding `ISignalPresenter` and `SignalSourceConfig`. Maintains session continuity state (last known session ID). |
+| `ISignalSourceRegistry` | Registry for all active signal sources and their presenters. |
+| `SignalSourceRegistry` | Implementation of `ISignalSourceRegistry`. |
+| `SignalWorker` | Background worker that dequeues signals and executes the agent loop. |
+| `SignalSourceRegistration` | Links a `ISignalSource` with its corresponding `ISignalPresenter` and metadata. |
 
 **Use Cases:**
 
 | Use Case | Description |
 |----------|-------------|
-| `RunSessionUseCase` | Accepts an incoming signal and a presenter. Resolves session configuration (loads existing session or creates new one). Executes the agent strategy and presents the result. |
-| `ResolveConfig` | Takes global config + signal overrides, returns resolved `SessionConfig` with merge logic |
-| `ExecuteAgentIteration` | Single agent loop tick: think → call tool → observe |
-| `ListSessions` | Queries active/completed sessions |
-| `GetSessionLog` | Returns full observability trace for a session |
-| `ConfigurePolicy` | CRUD for policy rules |
+| `RunSessionUseCase` | Executes the agent loop for a given signal. Resolves config, manages history, and presents results. |
+| `EnqueueSignalUseCase` | Accepts an incoming signal, resolves its identity (currently defaults to Anonymous), and enqueues it. |
 
 **Pattern:** Each use case is a class accepting domain ports via constructor injection, with async methods that throw on error.
 
@@ -134,44 +127,37 @@ Implements the ports defined in `domain/`. Swappable by configuration.
 
 **Signal Sources (`SignalSource`):**
 
-Signal adapters receive raw input and may include optional per-signal config overrides (inline or by reference) alongside the payload. Each source can optionally declare `allowSessionContinuation` in its config — when true, the adapter inspects the incoming signal for a `session_id` field and, if valid, loads the existing session rather than creating a new one.
+Signal adapters receive raw input and interact with the system via the `IHaasEngine`. Each source is registered in the `ISignalSourceRegistry`.
 
-- `HttpWebhookSignalSource` — Potential HTTP webhook adapter
-- `SlackSignalSource` — Potential Slack Events API adapter
-- `KafkaSignalSource` — Potential Kafka consumer
-- `CliStdinSignalSource` — Potential CLI stdin adapter
-- `ScheduledPollerSignalSource` — Potential cron-based poller adapter
+- `CliSignalSource` — CLI stdin/stdout adapter
+- `TicTacToeSignalSource` — Example game signal source
 
-**Observability Providers (`ObservabilityProvider`):**
+**Observability Providers:**
 
-- `ConsoleObservabilityProvider` — structured JSON logs to stdout
-- `OpenTelemetryObservabilityProvider` — OTLP export
-- `DataDogObservabilityProvider` — DogStatsD / API
-- `CloudWatchObservabilityProvider` — CloudWatch Logs
+Observability is handled via decorators and specialized implementations of ports.
 
-**Auth Providers (`AuthProvider`):**
+- `ConsoleLogger` — Implements `ILogger`, writes to stdout
+- `ObservableRunSessionUseCase` — Decorator that adds logging to session execution
+- `ObservableAgentStrategy` — Decorator that adds logging to agent strategy
+- `ObservableHaasEngine` — Decorator that adds logging to engine lifecycle
 
-- `JwtAuthProvider` — validates JWT tokens
-- `OAuth2AuthProvider` — OAuth2 token exchange
-- `ApiKeyAuthProvider` — API key lookup
-- `MtlsAuthProvider` — mTLS certificate validation
-- `PassthroughAuthProvider` — dev/no-auth mode
+**Agent Strategy Implementations:**
+
+- `MicrosoftAgentFrameworkStrategy` — Implementation using Microsoft Agent Framework.
 
 **Repository Implementations:**
 
-Each port is backed by an adapter that chooses its own storage topology. The port abstraction in the domain layer makes the topology invisible to use cases — both per-session and shared adapters implement the same port interface.
+Each port is backed by an adapter that chooses its own storage topology. 
 
 | Port | Adapter | Topology |
 |------|---------|----------|
-| `SessionRepository` | `SharedSqliteSessionRepository` | Shared `sessions.db` — sessions are metadata, few enough for a single table |
-| `TaskRepository` | `PerSessionSqliteTaskRepository` | `sessions/<session_id>.db` — one file per session, contains `tasks`, `memory`, and `agent_iterations` tables |
-| `MemoryStore` | `PerSessionSqliteMemoryStore` | `sessions/<session_id>.db` — shares the same per-session file as tasks and observability |
-| `RegistryStore` | `SharedSqliteRegistryStore` | Shared `registry.db` — global KV store (skill definitions, tool manifests), read-mostly |
-| `SignalQueueStore` | `SharedSqliteSignalQueueStore` | Shared `signal_queue.db` — atomic dequeue ordering across all sessions |
-| `PolicyRuleRepository` | `SharedSqlitePolicyRuleRepository` | Shared `policies.db` — global policy rules, read-mostly |
-| `ConfigRepository` | `SharedSqliteConfigRepository` | Shared `config.db` — key-value config, seeded from YAML at bootstrap, settled in SQLite for runtime reads |
+| `ISessionRepository` | `SharedSqliteSessionRepository` | Shared `sessions.db` — contains session metadata |
+| `IMessageStore` | `PerSessionSqliteMessageStore` | `sessions/<session_id>.db` — one file per session, contains `messages` table |
+| `ISignalQueue` | `SharedSqliteSignalQueueStore` | Shared `signal_queue.db` — atomic signal queuing |
+| `ISignalSourceConfigRepository` | `SharedSqliteSignalSourceConfigRepository` | Shared `config.db` — signal source configurations |
+| `IProviderConfigRepository` | `SharedSqliteProviderConfigRepository` | Shared `config.db` — AI provider configurations |
 
-No cross-DB joins are needed because each port serves a distinct purpose — write paths are naturally separated. The only coordination is at the worker level: dequeue a signal (signal queue) → load session (sessions) → execute iteration (tasks + memory per session) → record trace (observability). Each step touches different files.
+InMemory adapters (e.g., `InMemorySignalQueue`, `InMemorySessionRepository`) are also available for testing and development.
 
 ### 3.4 Infrastructure Layer (`src/HaaS.Infrastructure/`)
 
@@ -179,10 +165,14 @@ Wires everything together. Configuration, dependency injection, SQLite setup, an
 
 **Key Components:**
 
-- `Program.cs` — Application entry point and DI container wiring
-- `appsettings.json` — Configuration file, resolved via `Microsoft.Extensions.Configuration`
-- `DatabaseContext.cs` — Manages multiple SQLite DB connections per the adapter topology (shared DBs + per-session DBs)
-- `LoggingConfiguration.cs` — structured logging and telemetry setup
+- `HaasBuilder` — Fluent API for configuring HaaS services and signal sources.
+- `ServiceCollectionExtensions` — DI container wiring for all HaaS components.
+- `BaseHaasEngine` — Base class for engine implementations.
+- `DirectHaasEngine` — Executes signals immediately upon receipt.
+- `QueuedHaasEngine` — Enqueues signals and processes them via a worker pool.
+- `CompositeHaasEngine` — Orchestrates multiple engine instances.
+- `HaasSqliteExtensions` — SQLite-specific DI wiring and repository setup.
+- `SignalScopeAccessor` — Manages `AsyncLocal` storage of the current service provider scope.
 
 ## 4. Extension Points
 
@@ -204,23 +194,20 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 
 ```
 — At ingress (signal source adapter) —
-1. Signal arrives, optionally with per-signal config overrides and/or a session_id
-2. AuthProvider resolves identity from signal metadata
-3. Source enqueues signal (payload + identity + metadata) to SignalQueue
+1. Signal arrives via a source (e.g., CLI).
+2. Signal is enqueued to the SignalQueue (or processed directly by DirectHaasEngine).
 
 — Queue worker (after dequeue) —
-4. ResolveConfig merges global defaults with signal-level overrides → resolved SessionConfig
-5. If signal carries a session_id and the source permits continuation, SessionManager loads the existing session with new input appended. Otherwise, creates a new session with resolved config.
-6. PolicyEngine checks: is this source+identity allowed to start or continue this session?
-7. PolicyEngine resolves the set of tools permitted for this session.
-8. Agent loop begins (Microsoft Agent Framework) with tools pre-filtered by policy and resolved model/prompts/skills:
-   a. Agent thinks → calls a tool
-   b. Execute tool (reads/writes Knowledge stores)
-   c. ObservabilityProvider records the iteration
-   d. Repeat until agent produces final output
-   > See `IMPLEMENTATION-CONSIDERATIONS.md` for how session auth is injected into custom tool calls via the `tool_call` extension event.
-9. Agent produces output via tools (e.g., a `reply_to_user` tool writes the response)
-11. Session is closed; full trace is persisted
+3. SignalWorker dequeues the signal.
+4. RunSessionUseCase is invoked for the signal.
+5. Session configuration is resolved from repositories.
+6. Agent loop begins (Microsoft Agent Framework) using MicrosoftAgentFrameworkStrategy.
+   a. Agent thinks → calls a tool.
+   b. Execute tool via ToolProvider.
+   c. Agent state and messages are persisted to per-session SQLite.
+   d. Repeat until agent produces final output.
+7. Output is presented back to the signal source via ISignalPresenter.
+8. Signal is acknowledged in the queue.
 ```
 
 ## 6. Multi-Agent Strategies
@@ -239,32 +226,19 @@ Each strategy wraps the Microsoft Agent Framework loop with additional coordinat
 ## 7. Session Lifecycle
 
 ```
-Created ──→ Authenticated ──→ Authorized ──→ Running ──→ Completed
-                  ↑                               │
-                  └────── Continued ───────────────┘
-                                                  │
-                                                  ├──→ Failed
-                                                  └──→ Cancelled
+Created ──→ Running ──→ Completed
+               │
+               ├──→ Failed
+               └──→ Cancelled
 ```
 
-- **Created:** Raw signal received but not yet authenticated
-- **Authenticated:** Identity resolved
-- **Authorized:** Policy engine approved session start
-- **Running:** Agent loop is active
-- **Continued:** New signal arrived with a valid `session_id` for this session. Session re-enters Running with appended input.
-- **Completed/Failed/Cancelled:** Terminal states
+- **Created:** Initial state for a new session record.
+- **Running:** Agent loop is active.
+- **Completed/Failed/Cancelled:** Terminal states.
 
 ## 8. Governance Model
 
-Policy rules are evaluated at three gates:
-
-| Gate | When | What is checked |
-|------|------|----------------|
-| Session Start | After auth, before loop | Is this identity+source allowed to start a session? |
-| Tool Resolution | After session start, before loop | What tools is this session permitted to use? Only those tools are handed to the agent. |
-
-
-> Custom tools that call external services receive session auth via the `tool_call` extension hook. See `IMPLEMENTATION-CONSIDERATIONS.md`.
+Governance is primarily handled via `SignalSourceConfig`, which defines the tools available to a session.
 
 Policy rules are stored in SQLite and support:
 
@@ -331,16 +305,17 @@ Tables are organized into separate SQLite files matching the adapter topology fr
 
 ```
 sessions:
-  id TEXT PRIMARY KEY,
-  source_type TEXT NOT NULL,
-  source_metadata_json TEXT,
-  identity_json TEXT NOT NULL,
-  status TEXT NOT NULL,
-  session_config_json TEXT,         -- resolved per-signal overrides (model, policies, prompt, skills)
-  input_payload_json TEXT,          -- original signal payload
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  completed_at TEXT
+  SessionId TEXT PRIMARY KEY,
+  SourceType TEXT NOT NULL,
+  Status TEXT NOT NULL,
+  Provider TEXT NOT NULL,
+  ModelId TEXT NOT NULL,
+  SystemPrompt TEXT NOT NULL,
+  Tools TEXT NOT NULL,
+  ThinkingLevel TEXT NOT NULL,
+  Output TEXT,
+  CreatedAt TEXT NOT NULL,
+  UpdatedAt TEXT NOT NULL
 ```
 
 ### Shared: `signal_queue.db`
@@ -348,9 +323,8 @@ sessions:
 ```
 signal_queue:
   id TEXT PRIMARY KEY,
-  session_id TEXT,                               -- set when dequeued: links to sessions(id), not enforced as FK
+  session_id TEXT,                               -- links to sessions(SessionId), not enforced as FK
   source_type TEXT NOT NULL,
-  source_metadata_json TEXT,
   identity_json TEXT,
   payload_json TEXT,
   status TEXT NOT NULL DEFAULT 'pending',         -- pending, processing, completed, failed
@@ -361,61 +335,37 @@ signal_queue:
   max_retries INTEGER NOT NULL DEFAULT 3
 ```
 
-### Shared: `registry.db`
-
-```
-registries:
-  key TEXT PRIMARY KEY,
-  value_json TEXT NOT NULL,
-  ttl_seconds INTEGER
-```
-
 ### Shared: `config.db`
 
-```
-config:
-  key TEXT PRIMARY KEY,
-  value_json TEXT NOT NULL
-```
-
-### Shared: `policies.db`
+Shared SQLite database for configurations.
 
 ```
-policy_rules:
-  id TEXT PRIMARY KEY,
-  priority INTEGER NOT NULL,
-  effect TEXT NOT NULL,
-  conditions_json TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+signal_source_configs:
+  SourceType TEXT PRIMARY KEY,
+  Provider TEXT NOT NULL,
+  ModelId TEXT NOT NULL,
+  SystemPrompt TEXT NOT NULL,
+  ToolBelt TEXT NOT NULL,
+  ThinkingLevel TEXT NOT NULL
+
+provider_configs:
+  Provider TEXT PRIMARY KEY,
+  Endpoint TEXT NOT NULL,
+  ApiKey TEXT
 ```
 
 ### Per-session: `sessions/<session_id>.db`
 
 ```
-tasks:
-  id TEXT PRIMARY KEY,
-  status TEXT NOT NULL,
-  input_json TEXT,
-  output_json TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-
-memory:
-  key TEXT NOT NULL,
-  value_json TEXT NOT NULL,
-  PRIMARY KEY (key)
-
-agent_iterations:
-  id TEXT PRIMARY KEY,
-  iteration_number INTEGER NOT NULL,
-  phase TEXT NOT NULL,
-  input_json TEXT,
-  output_json TEXT,
-  timestamp TEXT NOT NULL
+messages:
+  Id INTEGER PRIMARY KEY AUTOINCREMENT,
+  Role TEXT NOT NULL,
+  Content TEXT NOT NULL,
+  Timestamp TEXT NOT NULL,
+  Payload TEXT
 ```
 
-`session_id` is implicit — derived from the file name. No FK column needed. The three tables live in the same file to keep per-session state self-contained — SQLite with WAL mode handles concurrent table writes without contention. The `ObservabilityProvider` adapter decides the storage format for traces (SQLite for queryability, JSONL for append-only streaming); the domain port is the same.
+`session_id` is implicit — derived from the file name. The `messages` table stores the conversation history for the agent.
 
 ## 12. Key Architectural Decisions
 
@@ -435,37 +385,7 @@ agent_iterations:
 | **Builders and fakes over mocks** | State-based tests are more resilient to refactoring than interaction-based mocks |
 | **Federated storage via ports** | Each store port in domain resolves to a different adapter topology: shared DBs for global state (queue, registry, config), and a single per-session DB per session for hot-path writes (tasks, memory, agent iterations). The domain layer knows nothing about this — the adapter layer decides. This prevents any single SQLite file from becoming a bottleneck. Cross-DB joins are never needed because each port addresses a separate concern. |
 
-## 13. Supplemental: Bidirectional (Request-Response) Flow
-
-Some signal sources expect a response — HTTP returns 200 with a body, Slack replies in a thread, CLI prints to stdout. Others are fire-and-forget (Kafka, scheduled poller).
-
-Each signal source can define its own mechanism for delivering these responses, typically by implementing a corresponding tool that the agent calls to produce output.
-
-### How it works
-
-The `ReplyTool` property on `SignalSourceConfig` names the tool the agent must call to respond. The `SignalSourceConfigRepository` stores this per source type. When the agent strategy loads a session, it checks `config.ReplyTool`:
-
-- If set → `chatOptions.ToolMode = ChatToolMode.RequireSpecific(config.ReplyTool)` — the LLM is required to call that tool
-- If null → `chatOptions.ToolMode = ChatToolMode.Auto` — the LLM can use tools freely or respond with plain text
-
-```
-Signal arrives ──→ Auth/Session/Policy ──→ Agent Loop ──→ reply tool writes output
-
-     │                                                    │
-     │  (bidirectional sources:                           │
-     │   HTTP, Slack, CLI)                                │
-     │                                                    ▼
-     └─────────────────── session_id ────────────→ CLI/HTTP/Slack waits
-```
-
-### What changes
-
-- **`adapter/` only** — Reply tools are registered in `IToolRegistry` alongside domain tools. Their handlers write to the output destination (console, HTTP response, Slack API). The agent strategy creates the `ChatOptions` with the appropriate `ToolMode`.
-- **`domain/`** — `SignalSourceConfig`, `AgentSessionConfig`, and `SessionRecord` gain an optional `ReplyTool` string field.
-- **`application/`** — `RunSessionUseCase` passes `ReplyTool` from config through to the session record. No separate output dispatch is needed.
-- **`infra/`** — Optional: response timeout wiring for HTTP to avoid dangling connections if the agent loop stalls.
-
-## 14. Supplemental: Signal Queuing and Concurrent Processing
+## 13. Supplemental: Signal Queuing and Concurrent Processing
 
 Enterprise signal volumes can exceed the throughput of a single sequential agent loop. The agent loop is I/O-bound (LLM API calls, DB reads/writes), so the .NET runtime can handle many concurrent sessions via async tasks. However, without a queue, bursts of signals either overload the system or get dropped.
 
