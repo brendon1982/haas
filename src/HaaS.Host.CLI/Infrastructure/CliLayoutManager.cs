@@ -99,22 +99,39 @@ public sealed class CliLayoutManager
 
     private void UpdateLayout()
     {
-        var header = _isBusy ? "[blue]Content (AI is thinking...)[/]" : "[blue]Content[/]";
+        var headerText = _isBusy ? "Content (AI is thinking...)" : "Content";
+        var header = $"[blue]{headerText}[/]";
         
         IRenderable mainArea;
         
         // Prepare History renderable
         var historyList = _history.ToList();
-        var mainHeight = Math.Max(5, AnsiConsole.Console.Profile.Height - 13 - 2);
+        var consoleHeight = AnsiConsole.Console.Profile.Height;
+        var consoleWidth = AnsiConsole.Console.Profile.Width;
+        var mainHeight = Math.Max(5, consoleHeight - 13 - 2);
+        var mainWidth = consoleWidth - 4;
+        if (_mainContent != null && historyList.Any()) mainWidth /= 2;
         
         _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, historyList.Count - 1));
-        var chatRows = historyList
-            .SkipLast(_scrollOffset)
-            .TakeLast(mainHeight)
-            .Select(h => new Markup(h));
+
+        // Better "TakeLast" that accounts for wrapping to avoid cutting off latest messages
+        var chatRows = new List<IRenderable>();
+        int usedLines = 0;
+        foreach (var msg in historyList.SkipLast(_scrollOffset).Reverse())
+        {
+            // Estimate lines used by this message (including some buffer for markup)
+            var cleanMsg = msg.Replace("[", "[[").Replace("]", "]]"); // rough way to ignore markup length
+            int lines = (msg.Length / Math.Max(1, mainWidth)) + 1;
+            if (usedLines + lines > mainHeight && chatRows.Any()) break;
+            
+            chatRows.Add(new Markup(msg));
+            usedLines += lines;
+        }
+        chatRows.Reverse();
         
         var historyContent = new Rows(chatRows);
-        var historyHeader = "[blue]History[/]";
+        var historyHeaderText = _isBusy ? "History (AI is thinking...)" : "History";
+        var historyHeader = $"[blue]{historyHeaderText}[/]";
         if (_scrollOffset > 0)
         {
             historyHeader += $" [yellow](Scrolled up: {_scrollOffset})[/]";

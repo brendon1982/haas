@@ -33,6 +33,9 @@ public class ChatSignalSource : ISignalSource
                     var line = await ReadLineAsync(ctx);
 
                     if (string.IsNullOrWhiteSpace(line))
+                        continue;
+
+                    if (line.Equals("/exit", StringComparison.OrdinalIgnoreCase) || line.Equals("/quit", StringComparison.OrdinalIgnoreCase))
                         break;
 
                     _presenter.AddUserMessage(line);
