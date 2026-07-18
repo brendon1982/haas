@@ -17,18 +17,15 @@ public class TicTacToeSignalSource : ISignalSource
 {
     private readonly TicTacToeGame _game;
     private readonly CliLayoutManager _layoutManager;
-    private readonly ISignalPresenter _presenter;
     private readonly IHostApplicationLifetime? _lifetime;
 
     public TicTacToeSignalSource(
         TicTacToeGame game, 
         CliLayoutManager layoutManager, 
-        ISignalPresenter presenter,
         IHostApplicationLifetime? lifetime = null)
     {
         _game = game;
         _layoutManager = layoutManager;
-        _presenter = presenter;
         _lifetime = lifetime;
     }
 

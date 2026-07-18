@@ -8,19 +8,17 @@ public class CliSignalSource : ISignalSource
 {
     private readonly TextReader _input;
     private readonly TextWriter _output;
-    private readonly ISignalPresenter _presenter;
     private CancellationTokenSource? _cts;
 
-    public CliSignalSource(ISignalPresenter presenter)
-        : this(Console.In, Console.Out, presenter)
+    public CliSignalSource()
+        : this(Console.In, Console.Out)
     {
     }
 
-    public CliSignalSource(TextReader input, TextWriter output, ISignalPresenter presenter)
+    public CliSignalSource(TextReader input, TextWriter output)
     {
         _input = input;
         _output = output;
-        _presenter = presenter;
     }
 
     public string Type => "cli";

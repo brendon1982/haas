@@ -119,9 +119,33 @@ public class ServiceCollectionExtensionsTests
         Expect(registration.Config.Provider).To.Equal(expectedProvider);
     }
 
+    [Test]
+    public void AddSignalSource_WithPresenterInConstructor_ShouldResolveCorrectly()
+    {
+        // Arrange
+        var services = new SutBuilder().Build();
+        var builder = services.AddHaas();
+
+        // Act
+        builder.AddSignalSource<SourceWithPresenter, TestSignalPresenter>(c => { });
+        var provider = services.BuildServiceProvider();
+
+        // Assert
+        Expect(() => provider.GetRequiredService<SignalSourceRegistration>())
+            .Not.To.Throw();
+    }
+
     private class TestSignalSource : ISignalSource
     {
         public string Type => "test";
+        public Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler) => Task.CompletedTask;
+        public Task ShutdownAsync() => Task.CompletedTask;
+    }
+
+    private class SourceWithPresenter : ISignalSource
+    {
+        public SourceWithPresenter(ISignalPresenter presenter) { }
+        public string Type => "with-presenter";
         public Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler) => Task.CompletedTask;
         public Task ShutdownAsync() => Task.CompletedTask;
     }

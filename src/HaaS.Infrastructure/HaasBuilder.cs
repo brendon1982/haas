@@ -59,8 +59,15 @@ public readonly struct HaasBuilder
 
         Services.AddTransient(sp =>
         {
-            var source = sp.GetRequiredService<TSource>();
             var presenter = sp.GetRequiredService<TPresenter>();
+            
+            var hasPresenterConstructor = typeof(TSource).GetConstructors()
+                .Any(c => c.GetParameters().Any(p => p.ParameterType.IsAssignableFrom(typeof(TPresenter)) || p.ParameterType == typeof(ISignalPresenter)));
+            
+            var source = hasPresenterConstructor 
+                ? ActivatorUtilities.CreateInstance<TSource>(sp, presenter)
+                : ActivatorUtilities.CreateInstance<TSource>(sp);
+
             var sourceOptions = sp.GetServices<SignalSourceOptions>()
                 .First(o => o.SourceType == typeof(TSource));
             
