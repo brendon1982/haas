@@ -44,7 +44,6 @@ public class ChatSignalSource : ISignalSource
         };
 
         _layoutManager.SetMainContent(chatView);
-        chatView.FocusInput();
 
         await _tcs.Task;
         

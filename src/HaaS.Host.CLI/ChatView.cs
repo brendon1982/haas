@@ -6,7 +6,7 @@ using HaaS.Host.CLI.Infrastructure;
 
 namespace HaaS.Host.CLI;
 
-public class ChatView : View
+public class ChatView : Window
 {
     private readonly TextView _history;
     private readonly TextField _input;
@@ -18,10 +18,12 @@ public class ChatView : View
 
     public ChatView(GuiSignalPresenter presenter, GuiLayoutManager layoutManager)
     {
+        Title = "AI Chat";
         _presenter = presenter;
         _layoutManager = layoutManager;
         Width = Dim.Fill();
         Height = Dim.Fill();
+        CanFocus = true;
 
         _history = new TextView()
         {
@@ -64,7 +66,7 @@ public class ChatView : View
             }
         };
 
-        Add(_history, _prompt, _input);
+        Add(_input, _history, _prompt);
 
         _presenter.OnHistoryUpdated(history =>
         {

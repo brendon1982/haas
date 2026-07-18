@@ -20,7 +20,11 @@ public sealed class GuiLayoutManager : IDisposable
     {
         _app = Terminal.Gui.App.Application.Create();
         _app.Init();
-        _topWindow = new Window();
+        _topWindow = new Window()
+        {
+            Width = Dim.Fill(),
+            Height = Dim.Fill()
+        };
         
         _mainWindow = new Window()
         {
@@ -63,6 +67,8 @@ public sealed class GuiLayoutManager : IDisposable
             }
             _currentMainContent = view;
             _mainWindow.Add(_currentMainContent);
+            _mainWindow.SetFocus();
+            _currentMainContent.SetFocus();
         });
     }
 

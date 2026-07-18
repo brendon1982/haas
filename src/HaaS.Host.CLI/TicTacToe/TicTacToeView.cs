@@ -5,7 +5,7 @@ using HaaS.Host.CLI.Infrastructure;
 
 namespace HaaS.Host.CLI.TicTacToe;
 
-public class TicTacToeView : View
+public class TicTacToeView : Window
 {
     private readonly Button[] _buttons = new Button[9];
     private readonly Label _status;
@@ -16,9 +16,11 @@ public class TicTacToeView : View
 
     public TicTacToeView(GuiSignalPresenter presenter, GuiLayoutManager layoutManager)
     {
+        Title = "Tic-Tac-Toe";
         _layoutManager = layoutManager;
         Width = Dim.Fill();
         Height = Dim.Fill();
+        CanFocus = true;
 
         var boardFrame = new Window()
         {
