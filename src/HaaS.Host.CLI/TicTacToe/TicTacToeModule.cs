@@ -20,7 +20,7 @@ public class TicTacToeModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithSpectreConsole()
+                    .WithTerminalGui()
                     .WithSqlitePersistence("tictactoe-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
@@ -29,7 +29,7 @@ public class TicTacToeModule : ICliModule
                     })
                     .AddQueuedWorkerPool(1, pool =>
                     {
-                        pool.AddSignalSource<TicTacToeSignalSource, CliSignalPresenter>(config =>
+                        pool.AddSignalSource<TicTacToeSignalSource, GuiSignalPresenter>(config =>
                         {
                             config.UseProvider(providerName)
                                 .UseModel(modelId)

@@ -20,14 +20,14 @@ public class ChatModule : ICliModule
             .ConfigureServices((context, services) =>
             {
                 services.AddHaas()
-                    .WithSpectreConsole()
+                    .WithTerminalGui()
                     .WithSqlitePersistence("chat-data", includeConfig: false)
                     .WithInMemoryConfig(config =>
                     {
                         config.UseOllama();
                         config.UseOpenRouter();
                     })
-                    .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
+                    .AddSignalSource<ChatSignalSource, GuiSignalPresenter>(config =>
                     {
                         config.UseProvider(providerName)
                             .UseModel(modelId)

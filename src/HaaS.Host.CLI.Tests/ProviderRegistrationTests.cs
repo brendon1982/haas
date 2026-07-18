@@ -18,7 +18,8 @@ public class ProviderRegistrationTests
         // Arrange
         var services = new ServiceCollection();
         services.AddHaas()
-            .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
+            .WithTerminalGui()
+            .AddSignalSource<ChatSignalSource, GuiSignalPresenter>(config =>
             {
                 config.UseProvider("ollama")
                     .UseModel("gemma4");
@@ -40,7 +41,8 @@ public class ProviderRegistrationTests
         var services = new ServiceCollection();
         services.AddHaas()
             .WithInMemoryConfig(c => c.UseOllama())
-            .AddSignalSource<ChatSignalSource, CliSignalPresenter>(config =>
+            .WithTerminalGui()
+            .AddSignalSource<ChatSignalSource, GuiSignalPresenter>(config =>
             {
                 config.UseProvider("ollama")
                     .UseModel("gemma4");

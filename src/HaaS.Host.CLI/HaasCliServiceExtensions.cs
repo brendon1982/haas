@@ -11,19 +11,16 @@ namespace HaaS.Host.CLI;
 
 public static class HaasCliServiceExtensions
 {
-    public static HaasBuilder WithSpectreConsole(this HaasBuilder builder)
+    public static HaasBuilder WithTerminalGui(this HaasBuilder builder)
     {
-        builder.Services.AddSingleton<CliLogSink>();
-        builder.Services.AddSingleton<CliLayoutManager>();
-        builder.Services.AddSingleton<CliSignalPresenter>();
+        builder.Services.AddSingleton<GuiLayoutManager>();
+        builder.Services.AddSingleton<GuiSignalPresenter>();
         
-        // Replace existing ILogger with SpectreLogger
         builder.Services.RemoveAll<HaaS.Domain.Ports.ILogger>();
-        builder.Services.AddSingleton<HaaS.Domain.Ports.ILogger, SpectreLogger>();
+        builder.Services.AddSingleton<HaaS.Domain.Ports.ILogger, GuiLogger>();
 
-        // Redirect Microsoft.Extensions.Logging to CliLogSink
         builder.Services.AddLogging(logging => logging.ClearProviders());
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, SpectreLoggingProvider>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, GuiLoggingProvider>());
         
         return builder;
     }
