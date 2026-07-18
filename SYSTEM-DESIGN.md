@@ -93,11 +93,14 @@ The heart of the system. Contains no infrastructure concerns.
 - `ISignalSourceConfigRepository` — Stores and retrieves configuration for signal sources
 - `IProviderConfigRepository` — Stores configuration for AI providers
 - `IDeferredSessionResultStore` — Holds results for asynchronous signal processing
+- `IPolicyRuleRepository` (TOBE) — CRUD for governance rules
 
 **Domain Services:**
 
 - `IAgentStrategy` — Orchestration pattern for the agent loop
 - `IToolProvider` — Resolves tool definitions and instances
+- `IAuthProvider` (TOBE) — Resolves identity from raw signal metadata
+- `IPolicyEngine` (TOBE) — Evaluates whether a session+action is permitted
 
 ### 3.2 Application Layer (`src/HaaS.Application/`)
 
@@ -144,6 +147,12 @@ Observability is handled via decorators and specialized implementations of ports
 **Agent Strategy Implementations:**
 
 - `MicrosoftAgentFrameworkStrategy` — Implementation using Microsoft Agent Framework.
+
+**Auth Providers (TOBE):**
+
+- `JwtAuthProvider` — validates JWT tokens
+- `ApiKeyAuthProvider` — API key lookup
+- `PassthroughAuthProvider` — dev/no-auth mode
 
 **Repository Implementations:**
 
@@ -195,19 +204,22 @@ To add a new signal source: implement `SignalSource` → register in config. No 
 ```
 — At ingress (signal source adapter) —
 1. Signal arrives via a source (e.g., CLI).
-2. Signal is enqueued to the SignalQueue (or processed directly by DirectHaasEngine).
+2. AuthProvider (TOBE) resolves identity from signal metadata.
+3. Signal is enqueued to the SignalQueue (or processed directly by DirectHaasEngine) with identity.
 
 — Queue worker (after dequeue) —
-3. SignalWorker dequeues the signal.
-4. RunSessionUseCase is invoked for the signal.
-5. Session configuration is resolved from repositories.
-6. Agent loop begins (Microsoft Agent Framework) using MicrosoftAgentFrameworkStrategy.
+4. SignalWorker dequeues the signal.
+5. RunSessionUseCase is invoked for the signal.
+6. Session configuration is resolved from repositories.
+7. PolicyEngine (TOBE) checks: is this source+identity allowed to start this session?
+8. PolicyEngine (TOBE) resolves the set of tools permitted for this session.
+9. Agent loop begins (Microsoft Agent Framework) using MicrosoftAgentFrameworkStrategy.
    a. Agent thinks → calls a tool.
-   b. Execute tool via ToolProvider.
+   b. Execute tool via ToolProvider (pre-filtered by policy in the future).
    c. Agent state and messages are persisted to per-session SQLite.
    d. Repeat until agent produces final output.
-7. Output is presented back to the signal source via ISignalPresenter.
-8. Signal is acknowledged in the queue.
+10. Output is presented back to the signal source via ISignalPresenter.
+11. Signal is acknowledged in the queue.
 ```
 
 ## 6. Multi-Agent Strategies
@@ -226,21 +238,31 @@ Each strategy wraps the Microsoft Agent Framework loop with additional coordinat
 ## 7. Session Lifecycle
 
 ```
-Created ──→ Running ──→ Completed
-               │
-               ├──→ Failed
-               └──→ Cancelled
+Created ──→ Authenticated (TOBE) ──→ Authorized (TOBE) ──→ Running ──→ Completed
+               │                                            │
+               └──→ Failed                                  └──→ Failed
 ```
 
 - **Created:** Initial state for a new session record.
+- **Authenticated (TOBE):** Identity resolved via AuthProvider.
+- **Authorized (TOBE):** Policy engine approved session start.
 - **Running:** Agent loop is active.
 - **Completed/Failed/Cancelled:** Terminal states.
 
 ## 8. Governance Model
 
-Governance is primarily handled via `SignalSourceConfig`, which defines the tools available to a session.
+Governance is currently primarily handled via `SignalSourceConfig`, which defines the tools available to a session.
 
-Policy rules are stored in SQLite and support:
+### Future Implementation (TOBE)
+
+Policy rules will be evaluated at three gates:
+
+| Gate | When | What is checked |
+|------|------|----------------|
+| Session Start | After auth, before loop | Is this identity+source allowed to start a session? |
+| Tool Resolution | After session start, before loop | What tools is this session permitted to use? Only those tools are handed to the agent. |
+
+Policy rules will be stored in SQLite and support:
 
 - **Allow/deny lists** — specific tools or sources
 - **RBAC** — role-based (admin, operator, viewer)
@@ -352,6 +374,17 @@ provider_configs:
   Provider TEXT PRIMARY KEY,
   Endpoint TEXT NOT NULL,
   ApiKey TEXT
+
+### Shared: `policies.db` (TOBE)
+
+```
+policy_rules:
+  id TEXT PRIMARY KEY,
+  priority INTEGER NOT NULL,
+  effect TEXT NOT NULL,
+  conditions_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 ```
 
 ### Per-session: `sessions/<session_id>.db`
@@ -376,8 +409,8 @@ messages:
 | **SQLite with WAL mode** | Zero-ops, ACID, good enough for single-tenant on-prem. WAL allows concurrent reads during writes. |
 | **No barrel files** | Prevents circular dependencies, keeps import graph explicit |
 | **Microsoft Agent Framework wraps the loop** | We don't reinvent agent orchestration. Governance resolves permitted tools before the loop; observability wraps the process. |
-| **Auth flows through** | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it. Session auth reaches custom tools via the `tool_call` extension hook (see `IMPLEMENTATION-CONSIDERATIONS.md`).
-| **Per-session governance** | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
+| **Auth flows through** (TOBE) | Identity is resolved once at signal ingress and carried in the Session object — never re-authenticated unless policy demands it. Session auth reaches custom tools via the `tool_call` extension hook (see `IMPLEMENTATION-CONSIDERATIONS.md`).
+| **Per-session governance** (TOBE) | Policy resolves the tool set per session based on identity + source metadata. The agent only sees tools it's allowed to use — no per-call gate needed. |
 | **Per-signal config resolution** | Each signal carries optional overrides (inline or by reference) for model, policies, prompt, skills. `ConfigRepository.resolve()` merges these against global defaults before the session starts. Keeps global config simple while enabling fine-grained per-signal tuning without ad-hoc env vars. |
 | **Session continuation opt-in** | Only signal sources that declare `allowSessionContinuation` inspect incoming signals for a `session_id`. This avoids accidental hijacking — a Kafka consumer or public webhook will never load an arbitrary session. Continuation appends new input to the agent loop context, enabling multi-turn interactions across signals. |
 | **Config via repository port** | `ConfigRepository` in domain decouples config source from consumers. Starts with a YAML file adapter; can swap to SQLite or any store later without touching application code. |
@@ -394,14 +427,14 @@ Enterprise signal volumes can exceed the throughput of a single sequential agent
 Signals are not processed inline. Instead they land in a `signal_queue` table, and a configurable worker pool dequeues them:
 
 ```
-Signal arrives ──→ Auth ──→ signal_queue ──→ dequeue ──→ Session + Policy ──→ Agent Loop ──→ Output
+Signal arrives ──→ Auth (TOBE) ──→ signal_queue ──→ dequeue ──→ Session + Policy (TOBE) ──→ Agent Loop ──→ Output
                                     │                                            ↑
                                     │                                     Worker pool
                                     │                                 (N concurrent sessions)
                                     └──────────────────────────────────────────┘
 ```
 
-**Signal sources authenticate at ingress** and enqueue the signal with the resolved identity. Sources return immediately after enqueuing. The response channel for bidirectional sources waits on the session completing or a timeout.
+**Signal sources authenticate at ingress (TOBE)** and enqueue the signal with the resolved identity. Sources return immediately after enqueuing. The response channel for bidirectional sources waits on the session completing or a timeout.
 
 This works because the queue decouples *processing capacity* from *ingestion*, but response delivery still happens inline — the signal source adapter holds an in-memory promise that the worker resolves when the session finishes. `maxConcurrentSessions` limits how many connections can be *in-flight*, not how many signals can be queued.
 
