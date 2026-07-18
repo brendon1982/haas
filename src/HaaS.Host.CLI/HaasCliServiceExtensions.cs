@@ -15,6 +15,7 @@ public static class HaasCliServiceExtensions
     {
         builder.Services.AddSingleton<CliLogSink>();
         builder.Services.AddSingleton<CliLayoutManager>();
+        builder.Services.AddSingleton<CliSignalPresenter>();
         
         // Replace existing ILogger with SpectreLogger
         builder.Services.RemoveAll<HaaS.Domain.Ports.ILogger>();

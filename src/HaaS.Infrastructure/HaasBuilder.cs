@@ -3,6 +3,7 @@ using HaaS.Adapters.Deferred;
 using HaaS.Application;
 using HaaS.Domain.Ports;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Infrastructure;
@@ -50,8 +51,8 @@ public readonly struct HaasBuilder
         where TSource : class, ISignalSource
         where TPresenter : class, ISignalPresenter
     {
-        Services.AddTransient<TSource>();
-        Services.AddTransient<TPresenter>();
+        Services.TryAddTransient<TSource>();
+        Services.TryAddTransient<TPresenter>();
 
         var options = new SignalSourceOptions(typeof(TSource));
         Services.AddSingleton(options);
