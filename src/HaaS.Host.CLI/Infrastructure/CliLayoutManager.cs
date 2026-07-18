@@ -1,8 +1,11 @@
-namespace HaaS.Host.CLI.Infrastructure;
-
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Collections.Generic;
+
+namespace HaaS.Host.CLI.Infrastructure;
 
 public sealed class CliLayoutManager
 {
@@ -109,32 +112,28 @@ public sealed class CliLayoutManager
         var consoleHeight = AnsiConsole.Console.Profile.Height;
         var consoleWidth = AnsiConsole.Console.Profile.Width;
         var mainHeight = Math.Max(5, consoleHeight - 13 - 2);
-        var mainWidth = consoleWidth - 4;
+        var mainWidth = Math.Max(10, consoleWidth - 4);
         if (_mainContent != null && historyList.Any()) mainWidth /= 2;
         
-        _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, historyList.Count - 1));
-
-        // Better "TakeLast" that accounts for wrapping to avoid cutting off latest messages
-        var chatRows = new List<IRenderable>();
-        int usedLines = 0;
-        foreach (var msg in historyList.SkipLast(_scrollOffset).Reverse())
+        // Split all messages into lines while preserving markup-ish state
+        var allLines = new List<IRenderable>();
+        foreach (var msg in historyList)
         {
-            // Estimate lines used by this message (including some buffer for markup)
-            var cleanMsg = msg.Replace("[", "[[").Replace("]", "]]"); // rough way to ignore markup length
-            int lines = (msg.Length / Math.Max(1, mainWidth)) + 1;
-            if (usedLines + lines > mainHeight && chatRows.Any()) break;
-            
-            chatRows.Add(new Markup(msg));
-            usedLines += lines;
+            allLines.AddRange(SplitIntoLines(msg, mainWidth));
         }
-        chatRows.Reverse();
+
+        _scrollOffset = Math.Clamp(_scrollOffset, 0, Math.Max(0, allLines.Count - 1));
+
+        var visibleLines = allLines
+            .SkipLast(_scrollOffset)
+            .TakeLast(mainHeight);
         
-        var historyContent = new Rows(chatRows);
+        var historyContent = new Rows(visibleLines);
         var historyHeaderText = _isBusy ? "History (AI is thinking...)" : "History";
         var historyHeader = $"[blue]{historyHeaderText}[/]";
         if (_scrollOffset > 0)
         {
-            historyHeader += $" [yellow](Scrolled up: {_scrollOffset})[/]";
+            historyHeader += $" [yellow](Scrolled up: {_scrollOffset} lines)[/]";
         }
 
         if (_mainContent != null && historyList.Any())
@@ -187,5 +186,51 @@ public sealed class CliLayoutManager
                 .Border(BoxBorder.Rounded)
                 .Header("[green]Input[/]")
         );
+    }
+
+    private IEnumerable<IRenderable> SplitIntoLines(string markup, int width)
+    {
+        var lines = markup.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        foreach (var line in lines)
+        {
+            // Simplistic wrapping that preserves prefix tags
+            // Our messages usually look like: [color]User:[/] Message
+            var parts = Regex.Split(line, @"(\[.*?\])");
+            
+            var currentLineMarkup = new StringBuilder();
+            int currentLineLength = 0;
+
+            foreach (var part in parts)
+            {
+                if (part.StartsWith("[") && part.EndsWith("]"))
+                {
+                    currentLineMarkup.Append(part);
+                    continue;
+                }
+
+                var text = part;
+                while (text.Length > 0)
+                {
+                    int spaceLeft = width - currentLineLength;
+                    if (spaceLeft <= 0)
+                    {
+                        yield return new Markup(currentLineMarkup.ToString());
+                        currentLineMarkup.Clear();
+                        currentLineLength = 0;
+                        spaceLeft = width;
+                    }
+
+                    int toTake = Math.Min(text.Length, spaceLeft);
+                    currentLineMarkup.Append(text.Substring(0, toTake).Replace("[", "[[").Replace("]", "]]"));
+                    text = text.Substring(toTake);
+                    currentLineLength += toTake;
+                }
+            }
+
+            if (currentLineMarkup.Length > 0)
+            {
+                yield return new Markup(currentLineMarkup.ToString());
+            }
+        }
     }
 }
