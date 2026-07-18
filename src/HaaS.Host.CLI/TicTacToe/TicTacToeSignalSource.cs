@@ -34,38 +34,47 @@ public class TicTacToeSignalSource : ISignalSource
             .AutoClear(false)
             .StartAsync(async ctx =>
             {
-                while (true)
+                Action refresh = () => ctx.Refresh();
+                _layoutManager.OnLayoutUpdated += refresh;
+                try
                 {
-                    UpdateLayout();
-                    ctx.Refresh();
-
-                    if (CheckGameOver(ctx))
-                    {
-                        await Task.Delay(2000); // Give user time to see the result
-                        _lifetime?.StopApplication();
-                        break;
-                    }
-
-                    var position = await GetHumanMoveAsync(ctx);
-                    if (position == 0) // Quit
-                    {
-                        _lifetime?.StopApplication();
-                        break;
-                    }
-
-                    _game.PlacePlayerMarker(position);
-
-                    if (CheckGameOver(ctx))
+                    while (true)
                     {
                         UpdateLayout();
                         ctx.Refresh();
-                        await Task.Delay(2000);
-                        _lifetime?.StopApplication();
-                        break;
-                    }
 
-                    // Trigger the AI to move by sending a signal through the HaaS engine
-                    await TriggerAiMoveAsync(handler, position, ctx);
+                        if (CheckGameOver(ctx))
+                        {
+                            await Task.Delay(2000); // Give user time to see the result
+                            _lifetime?.StopApplication();
+                            break;
+                        }
+
+                        var position = await GetHumanMoveAsync(ctx);
+                        if (position == 0) // Quit
+                        {
+                            _lifetime?.StopApplication();
+                            break;
+                        }
+
+                        _game.PlacePlayerMarker(position);
+
+                        if (CheckGameOver(ctx))
+                        {
+                            UpdateLayout();
+                            ctx.Refresh();
+                            await Task.Delay(2000);
+                            _lifetime?.StopApplication();
+                            break;
+                        }
+
+                        // Trigger the AI to move by sending a signal through the HaaS engine
+                        await TriggerAiMoveAsync(handler, position, ctx);
+                    }
+                }
+                finally
+                {
+                    _layoutManager.OnLayoutUpdated -= refresh;
                 }
             });
     }

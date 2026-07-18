@@ -13,13 +13,14 @@ public static class HaasCliServiceExtensions
 {
     public static HaasBuilder WithSpectreConsole(this HaasBuilder builder, CliLayoutManager? layoutManager = null)
     {
-        builder.Services.AddSingleton<CliLogSink>();
         if (layoutManager != null)
         {
+            builder.Services.AddSingleton<CliLogSink>(sp => layoutManager.LogSink);
             builder.Services.AddSingleton<CliLayoutManager>(sp => layoutManager);
         }
         else
         {
+            builder.Services.AddSingleton<CliLogSink>();
             builder.Services.AddSingleton<CliLayoutManager>();
         }
         builder.Services.AddSingleton<CliSignalPresenter>();

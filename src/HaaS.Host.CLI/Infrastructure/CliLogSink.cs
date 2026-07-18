@@ -1,11 +1,14 @@
 namespace HaaS.Host.CLI.Infrastructure;
 
 using System.Collections.Concurrent;
+using System;
 
 public sealed class CliLogSink
 {
     private readonly ConcurrentQueue<string> _logs = new();
     private readonly int _maxEntries;
+
+    public event Action? OnLogAdded;
 
     public CliLogSink(int maxEntries = 100)
     {
@@ -19,6 +22,7 @@ public sealed class CliLogSink
         {
             _logs.TryDequeue(out _);
         }
+        OnLogAdded?.Invoke();
     }
 
     public IEnumerable<string> GetLogs() => _logs.ToArray();

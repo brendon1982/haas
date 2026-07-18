@@ -29,32 +29,41 @@ public class ChatSignalSource : ISignalSource
             .AutoClear(false)
             .StartAsync(async ctx =>
             {
-                while (true)
+                Action refresh = () => ctx.Refresh();
+                _layoutManager.OnLayoutUpdated += refresh;
+                try
                 {
-                    UpdateLayout(ctx);
-
-                    var line = await ReadLineAsync(ctx);
-
-                    if (string.IsNullOrWhiteSpace(line))
-                        continue;
-
-                    if (line.Equals("/exit", StringComparison.OrdinalIgnoreCase) || line.Equals("/quit", StringComparison.OrdinalIgnoreCase))
+                    while (true)
                     {
-                        _lifetime?.StopApplication();
-                        break;
+                        UpdateLayout(ctx);
+
+                        var line = await ReadLineAsync(ctx);
+
+                        if (string.IsNullOrWhiteSpace(line))
+                            continue;
+
+                        if (line.Equals("/exit", StringComparison.OrdinalIgnoreCase) || line.Equals("/quit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _lifetime?.StopApplication();
+                            break;
+                        }
+
+                        _presenter.AddUserMessage(line);
+                        _layoutManager.SetBusy(true);
+                        UpdateLayout(ctx);
+
+                        var handle = await handler(new IncomingSignal(line.Trim()));
+
+                        // Wait for the worker to finish and present the result
+                        await handle.WaitForResultAsync();
+
+                        _layoutManager.SetBusy(false);
+                        UpdateLayout(ctx);
                     }
-
-                    _presenter.AddUserMessage(line);
-                    _layoutManager.SetBusy(true);
-                    UpdateLayout(ctx);
-
-                    var handle = await handler(new IncomingSignal(line.Trim()));
-
-                    // Wait for the worker to finish and present the result
-                    await handle.WaitForResultAsync();
-                    
-                    _layoutManager.SetBusy(false);
-                    UpdateLayout(ctx);
+                }
+                finally
+                {
+                    _layoutManager.OnLayoutUpdated -= refresh;
                 }
             });
     }

@@ -16,11 +16,15 @@ public sealed class CliLayoutManager
     private bool _isBusy;
     private int _scrollOffset;
 
+    public event Action? OnLayoutUpdated;
+
+    public CliLogSink LogSink => _logSink;
     public Layout Layout { get; }
 
     public CliLayoutManager(CliLogSink logSink)
     {
         _logSink = logSink;
+        _logSink.OnLogAdded += UpdateLayout;
         Layout = new Layout("Root")
             .SplitRows(
                 new Layout("Main"),
@@ -102,6 +106,7 @@ public sealed class CliLayoutManager
 
     private void UpdateLayout()
     {
+        OnLayoutUpdated?.Invoke();
         var headerText = _isBusy ? "Content (AI is thinking...)" : "Content";
         var header = $"[blue]{headerText}[/]";
         
