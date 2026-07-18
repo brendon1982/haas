@@ -7,6 +7,14 @@ using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Host.CLI.TicTacToe;
 
+/// <summary>
+/// Tic-Tac-Toe Module: A more advanced example showing a tool-augmented agent.
+/// Demonstrates:
+/// - Using a background worker pool for processing signals.
+/// - Sophisticated system prompts to guide agent strategy.
+/// - Class-based tool registration for complex state management.
+/// - Integrating a custom game engine with the HaaS agent loop.
+/// </summary>
 public class TicTacToeModule : ICliModule
 {
     public string Name => "Tic-Tac-Toe";

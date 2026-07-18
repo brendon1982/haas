@@ -7,6 +7,11 @@ using Spectre.Console;
 
 namespace HaaS.Host.CLI;
 
+/// <summary>
+/// A CLI-based SignalSource for AI Chat.
+/// Acts as an adapter between the user's terminal input and the HaaS engine.
+/// Demonstrates how to handle real-time input and session-based interactions in a TUI.
+/// </summary>
 public class ChatSignalSource : ISignalSource
 {
     private readonly CliLayoutManager _layoutManager;
@@ -25,6 +30,7 @@ public class ChatSignalSource : ISignalSource
     public async Task ListenAsync(Func<IncomingSignal, Task<ISignalHandle>> handler)
     {
         _layoutManager.SetMainContent(null);
+        AnsiConsole.Clear();
         await AnsiConsole.Live(_layoutManager.Layout)
             .AutoClear(false)
             .StartAsync(async ctx =>
@@ -35,7 +41,7 @@ public class ChatSignalSource : ISignalSource
                 {
                     while (true)
                     {
-                        var line = await ReadLineAsync(ctx);
+                        var line = await _layoutManager.ReadInputAsync("> ");
 
                         if (string.IsNullOrWhiteSpace(line))
                             continue;
@@ -62,78 +68,6 @@ public class ChatSignalSource : ISignalSource
                     _layoutManager.OnLayoutUpdated -= refresh;
                 }
             });
-    }
-
-    private void UpdateLayout(LiveDisplayContext ctx)
-    {
-        ctx.Refresh();
-    }
-
-    private async Task<string> ReadLineAsync(LiveDisplayContext ctx)
-    {
-        var input = string.Empty;
-        _layoutManager.SetInput($"> {input}_");
-
-        while (true)
-        {
-            // Block until a key is available (no polling)
-            var key = await Task.Run(() => Console.ReadKey(true));
-            
-            bool finished = ProcessKey(key, ref input);
-            
-            // Drain any other keys that were pressed simultaneously
-            while (!finished && Console.KeyAvailable)
-            {
-                key = Console.ReadKey(true);
-                finished = ProcessKey(key, ref input);
-            }
-
-            if (finished)
-            {
-                _layoutManager.SetInput(string.Empty);
-                return input;
-            }
-
-            _layoutManager.SetInput($"> {input}_");
-        }
-    }
-
-    private bool ProcessKey(ConsoleKeyInfo key, ref string input)
-    {
-        // Handle scrolling
-        if (key.Key == ConsoleKey.PageUp)
-        {
-            _layoutManager.Scroll(5);
-        }
-        else if (key.Key == ConsoleKey.PageDown)
-        {
-            _layoutManager.Scroll(-5);
-        }
-        else if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input))
-        {
-            _layoutManager.Scroll(1);
-        }
-        else if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input))
-        {
-            _layoutManager.Scroll(-1);
-        }
-        else if (key.Key == ConsoleKey.Enter)
-        {
-            return true;
-        }
-        else if (key.Key == ConsoleKey.Backspace)
-        {
-            if (input.Length > 0)
-            {
-                input = input[..^1];
-            }
-        }
-        else if (!char.IsControl(key.KeyChar))
-        {
-            input += key.KeyChar;
-        }
-        
-        return false;
     }
 
     public Task ShutdownAsync() => Task.CompletedTask;

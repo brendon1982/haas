@@ -7,6 +7,14 @@ using Microsoft.Extensions.Hosting;
 
 namespace HaaS.Host.CLI;
 
+/// <summary>
+/// AI Chat Module: A basic example of a long-running conversation.
+/// Demonstrates:
+/// - Fluent builder for HaaS engine setup.
+/// - In-memory configuration for multiple AI providers.
+/// - Simple SignalSource and Presenter registration.
+/// - Tool registration using lambda expressions.
+/// </summary>
 public class ChatModule : ICliModule
 {
     public string Name => "AI Chat";

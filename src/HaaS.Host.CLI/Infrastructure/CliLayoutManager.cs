@@ -76,6 +76,63 @@ public sealed class CliLayoutManager
         UpdateLayout();
     }
 
+    /// <summary>
+    /// Reads user input from the console while maintaining the layout and supporting scrolling.
+    /// This simplifies SignalSource implementations by encapsulating the low-level key processing.
+    /// </summary>
+    public async Task<string> ReadInputAsync(string prompt, CancellationToken ct = default)
+    {
+        var input = string.Empty;
+        SetInput($"{prompt}{input}_");
+
+        while (!ct.IsCancellationRequested)
+        {
+            // Block until a key is available
+            var key = await Task.Run(() => Console.ReadKey(true), ct);
+
+            if (ProcessKey(key, ref input))
+            {
+                SetInput(string.Empty);
+                return input;
+            }
+
+            // Drain any other keys that were pressed simultaneously
+            while (Console.KeyAvailable)
+            {
+                key = Console.ReadKey(true);
+                if (ProcessKey(key, ref input))
+                {
+                    SetInput(string.Empty);
+                    return input;
+                }
+            }
+
+            SetInput($"{prompt}{input}_");
+        }
+
+        return string.Empty;
+    }
+
+    private bool ProcessKey(ConsoleKeyInfo key, ref string input)
+    {
+        // Handle scrolling
+        if (key.Key == ConsoleKey.PageUp) Scroll(5);
+        else if (key.Key == ConsoleKey.PageDown) Scroll(-5);
+        else if (key.Key == ConsoleKey.UpArrow && string.IsNullOrEmpty(input)) Scroll(1);
+        else if (key.Key == ConsoleKey.DownArrow && string.IsNullOrEmpty(input)) Scroll(-1);
+        else if (key.Key == ConsoleKey.Enter) return true;
+        else if (key.Key == ConsoleKey.Backspace)
+        {
+            if (input.Length > 0) input = input[..^1];
+        }
+        else if (!char.IsControl(key.KeyChar))
+        {
+            input += key.KeyChar;
+        }
+
+        return false;
+    }
+
     public async Task RunLiveAsync(Func<Task> action)
     {
         _isBusy = true;
@@ -115,7 +172,6 @@ public sealed class CliLayoutManager
 
     private void UpdateLayout()
     {
-        OnLayoutUpdated?.Invoke();
         var headerText = _isBusy ? "Content (AI is thinking...)" : "Content";
         var header = $"[blue]{headerText}[/]";
         
@@ -215,11 +271,13 @@ public sealed class CliLayoutManager
 
         // Input box
         Layout["Input"].Update(
-            new Panel(new Markup(_input))
+            new Panel(new Markup(_input.EscapeMarkup()))
                 .Expand()
                 .Border(BoxBorder.Rounded)
                 .Header("[green]Input[/]")
         );
+
+        OnLayoutUpdated?.Invoke();
     }
 
     private IEnumerable<IRenderable> SplitIntoLines(string markup, int width)
