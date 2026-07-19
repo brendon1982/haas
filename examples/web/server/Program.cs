@@ -17,11 +17,26 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSingleton<WebSignalBus>();
+
 var haas = builder.Services.AddHaas();
-haas.AddQueuedWorkerPool(workerCount: 2, pool =>
-{
-    // Sources will be added in later steps
-});
+haas.WithSqlitePersistence("data", includeConfig: false)
+    .AddQueuedWorkerPool(workerCount: 2, pool =>
+    {
+        pool.AddSignalSource<ChatWebSignalSource, WebSignalPresenter>(config =>
+        {
+            config.UseProvider("ollama")
+                  .UseModel("llama3.2")
+                  .UseSystemPrompt("You are an assistant in a web chat. Reply concisely.");
+        });
+
+        pool.AddSignalSource<TicTacToeWebSignalSource, WebSignalPresenter>(config =>
+        {
+            config.UseProvider("ollama")
+                  .UseModel("llama3.2")
+                  .UseSystemPrompt("You are a TicTacToe player. Use tools to play.");
+        });
+    });
 
 // Configure AI Clients (similar to CLI example)
 builder.Services.AddSingleton<IChatClient>(sp => 

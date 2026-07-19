@@ -1,3 +1,4 @@
+using HaaS.Domain.ValueObjects;
 using Microsoft.AspNetCore.SignalR;
 
 namespace HaaS.Host.Web;
@@ -10,9 +11,15 @@ public class HaaSWebHub : Hub
         // Potential logic to track sessions by ConnectionId
     }
 
+    private readonly WebSignalBus _bus;
+
+    public HaaSWebHub(WebSignalBus bus)
+    {
+        _bus = bus;
+    }
+
     public async Task SendMessage(string source, string message)
     {
-        // This will be expanded in Step 2 to route to WebSignalSource
-        await Clients.Caller.SendAsync("ReceiveMessage", "System", $"Enqueued message for {source}: {message}");
+        await _bus.PushAsync(source, new IncomingSignal(message, Context.ConnectionId));
     }
 }
