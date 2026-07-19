@@ -15,8 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HaaS.Adapters\HaaS.Adapters.csproj" />
-    <ProjectReference Include="..\HaaS.Infrastructure\HaaS.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\library\HaaS.Adapters\HaaS.Adapters.csproj" />
+    <ProjectReference Include="..\..\..\library\HaaS.Infrastructure\HaaS.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

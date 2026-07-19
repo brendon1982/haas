@@ -17,8 +17,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HaaS.Host.CLI\HaaS.Host.CLI.csproj" />
-    <ProjectReference Include="..\HaaS.Infrastructure\HaaS.Infrastructure.csproj" />
-    <ProjectReference Include="..\HaaS.Adapters\HaaS.Adapters.csproj" />
+    <ProjectReference Include="..\..\..\library\HaaS.Infrastructure\HaaS.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\library\HaaS.Adapters\HaaS.Adapters.csproj" />
   </ItemGroup>
 
 </Project>

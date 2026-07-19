@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="../../library/HaaS.Adapters/HaaS.Adapters.csproj" />
+  <Project Path="../../library/HaaS.Application/HaaS.Application.csproj" />
+  <Project Path="../../library/HaaS.Domain/HaaS.Domain.csproj" />
+  <Project Path="../../library/HaaS.Infrastructure/HaaS.Infrastructure.csproj" />
+  <Project Path="HaaS.Host.CLI.Tests/HaaS.Host.CLI.Tests.csproj" />
+  <Project Path="HaaS.Host.CLI/HaaS.Host.CLI.csproj" />
+</Solution>

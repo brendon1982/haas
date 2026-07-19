@@ -64,7 +64,7 @@ Enterprise customers need an on-premise AI orchestration platform that:
 
 ## 3. Layer Definitions
 
-### 3.1 Domain Layer (`src/HaaS.Domain/`)
+### 3.1 Domain Layer (`library/HaaS.Domain/`)
 
 The heart of the system. Contains no infrastructure concerns.
 
@@ -102,7 +102,7 @@ The heart of the system. Contains no infrastructure concerns.
 - `IAuthProvider` (TOBE) — Resolves identity from raw signal metadata
 - `IPolicyEngine` (TOBE) — Evaluates whether a session+action is permitted
 
-### 3.2 Application Layer (`src/HaaS.Application/`)
+### 3.2 Application Layer (`library/HaaS.Application/`)
 
 Orchestrates domain objects to fulfill use cases.
 
@@ -124,7 +124,7 @@ Orchestrates domain objects to fulfill use cases.
 
 **Pattern:** Each use case is a class accepting domain ports via constructor injection, with async methods that throw on error.
 
-### 3.3 Adapter Layer (`src/HaaS.Adapters/`)
+### 3.3 Adapter Layer (`library/HaaS.Adapters/`)
 
 Implements the ports defined in `domain/`. Swappable by configuration.
 
@@ -168,7 +168,7 @@ Each port is backed by an adapter that chooses its own storage topology.
 
 InMemory adapters (e.g., `InMemorySignalQueue`, `InMemorySessionRepository`) are also available for testing and development.
 
-### 3.4 Infrastructure Layer (`src/HaaS.Infrastructure/`)
+### 3.4 Infrastructure Layer (`library/HaaS.Infrastructure/`)
 
 Wires everything together. Configuration, dependency injection, SQLite setup, and host bootstrap.
 

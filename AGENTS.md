@@ -15,23 +15,23 @@ On-prem, customer-configurable enterprise AI harness. Routes inputs from multipl
 
 ## Commands
 
-- `dotnet build src\haas.sln` — compiles the full solution
-- `dotnet test src\haas.sln` — runs all tests
-- `dotnet run --project src_csharp/haas/HaaS.Host.CLI` — runs the CLI host
+- `dotnet build library\haas.sln` — compiles the full solution
+- `dotnet test library\haas.sln` — runs all tests
+- `dotnet run --project examples\CLI\HaaS.Host.CLI` — runs the CLI host
 - Install packages with `dotnet add package ...`
 
-> **Verification:** Always build and test against the **solution file** (`src\haas.sln`), not individual projects. Building individual projects can miss cross-project reference breaks (e.g. changed constructor signatures in `HaaS.Adapters` that break callers in `HaaS.Host.CLI`).
+> **Verification:** Always build and test against the **solution file** (`library\haas.sln`), not individual projects. Building individual projects can miss cross-project reference breaks (e.g. changed constructor signatures in `HaaS.Adapters` that break callers in `HaaS.Host.CLI`).
 
 ## Architecture (from SYSTEM-DESIGN.md)
 
 DDD 4-layer, dependencies point inward:
 
 ```
-src/
-  domain/       # Entities, value objects, aggregates, domain services, repository ports
-  application/  # Use cases / application services, DTOs, orchestrators
-  adapter/      # Controllers, presenters, repo implementations, signal/execution/observability adapters
-  infra/        # SQLite, logging, config, DI wiring, HTTP servers, etc.
+library/
+  HaaS.Domain/         # Entities, value objects, aggregates, domain services, repository ports
+  HaaS.Application/    # Use cases / application services, DTOs, orchestrators
+  HaaS.Adapters/       # Controllers, presenters, repo implementations, signal/execution/observability adapters
+  HaaS.Infrastructure/ # SQLite, logging, config, DI wiring, HTTP servers, etc.
 ```
 
 Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `infra/` wires everything together.
