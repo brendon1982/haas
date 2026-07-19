@@ -8,17 +8,26 @@ public class WebSignalPresenter : ISignalPresenter
 {
     private readonly IHubContext<HaaSWebHub> _hubContext;
     private readonly string _sourceType;
+    private readonly SessionManager _sessionManager;
 
-    public WebSignalPresenter(IHubContext<HaaSWebHub> hubContext, string sourceType)
+    public WebSignalPresenter(IHubContext<HaaSWebHub> hubContext, string sourceType, SessionManager sessionManager)
     {
         _hubContext = hubContext;
         _sourceType = sourceType;
+        _sessionManager = sessionManager;
     }
 
     public async Task PresentAsync(SessionResult result)
     {
         await _hubContext.Clients.Client(result.SessionId)
             .SendAsync("ReceiveMessage", _sourceType, result.Output);
+
+        if (_sourceType == "tictactoe")
+        {
+            var game = _sessionManager.GetOrCreateTicTacToeGame(result.SessionId);
+            await _hubContext.Clients.Client(result.SessionId)
+                .SendAsync("BoardUpdated", game.Board);
+        }
     }
 
     public async Task PresentErrorAsync(string? sessionId, Exception exception)
@@ -33,10 +42,12 @@ public class WebSignalPresenter : ISignalPresenter
 
 public class ChatWebSignalPresenter : WebSignalPresenter
 {
-    public ChatWebSignalPresenter(IHubContext<HaaSWebHub> hubContext) : base(hubContext, "chat") { }
+    public ChatWebSignalPresenter(IHubContext<HaaSWebHub> hubContext, SessionManager sessionManager) 
+        : base(hubContext, "chat", sessionManager) { }
 }
 
 public class TicTacToeWebSignalPresenter : WebSignalPresenter
 {
-    public TicTacToeWebSignalPresenter(IHubContext<HaaSWebHub> hubContext) : base(hubContext, "tictactoe") { }
+    public TicTacToeWebSignalPresenter(IHubContext<HaaSWebHub> hubContext, SessionManager sessionManager) 
+        : base(hubContext, "tictactoe", sessionManager) { }
 }

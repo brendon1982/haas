@@ -1,4 +1,8 @@
+using HaaS.Application.UseCases;
+using HaaS.Adapters.Observability;
 using HaaS.Host.Web;
+using HaaS.Host.Web.TicTacToe;
+using HaaS.Domain.Ports;
 using HaaS.Infrastructure;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
@@ -18,8 +22,23 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton<WebSignalBus>();
+builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddScoped<ScopedSessionContext>();
+builder.Services.AddScoped<WebTicTacToeToolHandlers>();
 
 var haas = builder.Services.AddHaas();
+
+// Decorate IRunSessionUseCase manually since we don't have Scrutor
+builder.Services.AddScoped<RunSessionUseCase>();
+builder.Services.AddScoped<IRunSessionUseCase>(sp =>
+{
+    var inner = sp.GetRequiredService<RunSessionUseCase>();
+    var logger = sp.GetRequiredService<HaaS.Domain.Ports.ILogger>();
+    var observable = new ObservableRunSessionUseCase(inner, logger);
+    var context = sp.GetRequiredService<ScopedSessionContext>();
+    return new SessionContextRunSessionUseCaseDecorator(observable, context);
+});
+
 haas.WithSqlitePersistence("data", includeConfig: false)
     .AddQueuedWorkerPool(workerCount: 2, pool =>
     {
@@ -34,7 +53,10 @@ haas.WithSqlitePersistence("data", includeConfig: false)
         {
             config.UseProvider("ollama")
                   .UseModel("llama3.2")
-                  .UseSystemPrompt("You are a TicTacToe player. Use tools to play.");
+                  .UseSystemPrompt("You are a TicTacToe player. Use tools to play.")
+                  .AddTool("get_board")
+                  .AddTool("get_valid_moves")
+                  .AddTool("place_marker");
         });
     });
 
@@ -45,6 +67,12 @@ builder.Services.AddSingleton<IChatClient>(sp =>
 });
 
 var app = builder.Build();
+
+// Register tools
+var toolProvider = app.Services.GetRequiredService<IToolProvider>();
+toolProvider.Register<WebTicTacToeToolHandlers>("get_board", "Returns the current board", h => h.GetBoard);
+toolProvider.Register<WebTicTacToeToolHandlers>("get_valid_moves", "Returns valid moves", h => h.GetValidMoves);
+toolProvider.Register<WebTicTacToeToolHandlers>("place_marker", "Places a marker", (WebTicTacToeToolHandlers h) => (Func<int, string>)h.PlaceMarker);
 
 app.UseCors();
 
