@@ -23,14 +23,14 @@ var haas = builder.Services.AddHaas();
 haas.WithSqlitePersistence("data", includeConfig: false)
     .AddQueuedWorkerPool(workerCount: 2, pool =>
     {
-        pool.AddSignalSource<ChatWebSignalSource, WebSignalPresenter>(config =>
+        pool.AddSignalSource<ChatWebSignalSource, ChatWebSignalPresenter>(config =>
         {
             config.UseProvider("ollama")
                   .UseModel("llama3.2")
                   .UseSystemPrompt("You are an assistant in a web chat. Reply concisely.");
         });
 
-        pool.AddSignalSource<TicTacToeWebSignalSource, WebSignalPresenter>(config =>
+        pool.AddSignalSource<TicTacToeWebSignalSource, TicTacToeWebSignalPresenter>(config =>
         {
             config.UseProvider("ollama")
                   .UseModel("llama3.2")
