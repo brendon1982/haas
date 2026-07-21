@@ -6,48 +6,27 @@ namespace HaaS.Host.Web;
 
 public class WebSignalPresenter : ISignalPresenter
 {
-    private readonly IHubContext<HaaSWebHub> _hubContext;
-    private readonly string _sourceType;
-    private readonly SessionManager _sessionManager;
+    protected readonly IHubContext<HaaSWebHub> HubContext;
+    protected readonly string SourceType;
 
-    public WebSignalPresenter(IHubContext<HaaSWebHub> hubContext, string sourceType, SessionManager sessionManager)
+    public WebSignalPresenter(IHubContext<HaaSWebHub> hubContext, string sourceType)
     {
-        _hubContext = hubContext;
-        _sourceType = sourceType;
-        _sessionManager = sessionManager;
+        HubContext = hubContext;
+        SourceType = sourceType;
     }
 
-    public async Task PresentAsync(SessionResult result)
+    public virtual async Task PresentAsync(SessionResult result)
     {
-        await _hubContext.Clients.Client(result.SessionId)
-            .SendAsync("ReceiveMessage", _sourceType, result.Output);
-
-        if (_sourceType == "tictactoe")
-        {
-            var game = _sessionManager.GetOrCreateTicTacToeGame(result.SessionId);
-            await _hubContext.Clients.Client(result.SessionId)
-                .SendAsync("BoardUpdated", game.Board);
-        }
+        await HubContext.Clients.Client(result.SessionId!)
+            .SendAsync("ReceiveMessage", SourceType, result.Output);
     }
 
     public async Task PresentErrorAsync(string? sessionId, Exception exception)
     {
         if (sessionId != null)
         {
-            await _hubContext.Clients.Client(sessionId)
-                .SendAsync("ReceiveError", _sourceType, exception.Message);
+            await HubContext.Clients.Client(sessionId)
+                .SendAsync("ReceiveError", SourceType, exception.Message);
         }
     }
-}
-
-public class ChatWebSignalPresenter : WebSignalPresenter
-{
-    public ChatWebSignalPresenter(IHubContext<HaaSWebHub> hubContext, SessionManager sessionManager) 
-        : base(hubContext, "chat", sessionManager) { }
-}
-
-public class TicTacToeWebSignalPresenter : WebSignalPresenter
-{
-    public TicTacToeWebSignalPresenter(IHubContext<HaaSWebHub> hubContext, SessionManager sessionManager) 
-        : base(hubContext, "tictactoe", sessionManager) { }
 }

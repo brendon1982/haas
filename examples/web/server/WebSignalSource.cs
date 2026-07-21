@@ -50,13 +50,3 @@ public class WebSignalSource : ISignalSource
 
     public Task ShutdownAsync() => Task.CompletedTask;
 }
-
-public class ChatWebSignalSource : WebSignalSource
-{
-    public ChatWebSignalSource(WebSignalBus bus) : base("chat", bus) { }
-}
-
-public class TicTacToeWebSignalSource : WebSignalSource
-{
-    public TicTacToeWebSignalSource(WebSignalBus bus) : base("tictactoe", bus) { }
-}

@@ -1,20 +1,23 @@
 using System.Collections.Concurrent;
-using HaaS.Host.Web.TicTacToe;
 
 namespace HaaS.Host.Web;
 
 public class SessionManager
 {
-    private readonly ConcurrentDictionary<string, TicTacToeGame> _tictactoeGames = new();
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<Type, object>> _sessionStates = new();
 
-    public TicTacToeGame GetOrCreateTicTacToeGame(string sessionId)
+    public T GetOrCreate<T>(string sessionId) where T : class, new()
     {
-        return _tictactoeGames.GetOrAdd(sessionId, _ => new TicTacToeGame());
+        var states = _sessionStates.GetOrAdd(sessionId, _ => new ConcurrentDictionary<Type, object>());
+        return (T)states.GetOrAdd(typeof(T), _ => new T());
     }
 
-    public void ResetTicTacToeGame(string sessionId)
+    public void Remove<T>(string sessionId)
     {
-        _tictactoeGames.TryRemove(sessionId, out _);
+        if (_sessionStates.TryGetValue(sessionId, out var states))
+        {
+            states.TryRemove(typeof(T), out _);
+        }
     }
 }
 

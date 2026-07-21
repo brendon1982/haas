@@ -11,7 +11,7 @@ public class WebTicTacToeToolHandlers
         _sessionContext = sessionContext;
     }
 
-    private TicTacToeGame GetGame() => _sessionManager.GetOrCreateTicTacToeGame(_sessionContext.SessionId ?? "unknown");
+    private TicTacToeGame GetGame() => _sessionManager.GetOrCreate<TicTacToeGame>(_sessionContext.SessionId ?? "unknown");
 
     public string GetBoard()
     {
