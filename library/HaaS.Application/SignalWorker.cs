@@ -47,6 +47,11 @@ public class SignalWorker
                 return;
             }
 
+            if (queued.Signal.SessionId != null)
+            {
+                await registration.Presenter.PresentProcessingAsync(queued.Signal.SessionId);
+            }
+
             var result = await _runSessionUseCase.ExecuteAsync(queued.Signal, registration.Presenter);
             _resultStore.SetResult(result.SessionId, result);
             

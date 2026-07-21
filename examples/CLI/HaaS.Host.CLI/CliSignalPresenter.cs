@@ -17,6 +17,8 @@ public class CliSignalPresenter : ISignalPresenter
 
     public string? LastSessionId { get; private set; }
 
+    public Task PresentProcessingAsync(string sessionId) => Task.CompletedTask;
+
     public Task PresentAsync(SessionResult result)
     {
         LastSessionId = result.SessionId;

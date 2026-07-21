@@ -1,4 +1,11 @@
 <div class="flex flex-col items-center max-w-4xl mx-auto space-y-8">
+  <!-- Connection Status Banner -->
+  @if (connectionStatus !== 'Connected') {
+    <div class="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-amber-800 text-sm font-medium animate-pulse">
+      {{ connectionStatus === 'Reconnecting' ? 'Connection lost. Reconnecting...' : 'Disconnected from server.' }}
+    </div>
+  }
+
   <div class="text-center space-y-2">
     <div [class]="'text-2xl font-bold px-6 py-2 rounded-full inline-block ' + 
       (isPlayerTurn ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700 animate-pulse')">

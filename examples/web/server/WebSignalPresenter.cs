@@ -15,6 +15,12 @@ public class WebSignalPresenter : ISignalPresenter
         SourceType = sourceType;
     }
 
+    public virtual async Task PresentProcessingAsync(string sessionId)
+    {
+        await HubContext.Clients.Client(sessionId)
+            .SendAsync("ProcessingStarted", SourceType);
+    }
+
     public virtual async Task PresentAsync(SessionResult result)
     {
         await HubContext.Clients.Client(result.SessionId!)

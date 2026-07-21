@@ -14,6 +14,7 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
   public isPlayerTurn: boolean = true;
   public status: string = 'Your turn (X)';
   public aiLog: string[] = [];
+  public connectionStatus: string = 'Connected';
   private subscription: Subscription = new Subscription();
 
   constructor(private signalRService: SignalRService) {}
@@ -33,6 +34,15 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
     );
 
     this.subscription.add(
+      this.signalRService.processingStarted$.subscribe(sourceType => {
+        if (sourceType === 'tictactoe') {
+          this.isPlayerTurn = false;
+          this.status = 'AI is thinking...';
+        }
+      })
+    );
+
+    this.subscription.add(
       this.signalRService.boardUpdated$.subscribe(board => {
         this.board = board;
       })
@@ -44,6 +54,19 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
           this.status = `Error: ${data.error}`;
           this.isPlayerTurn = true;
         }
+      })
+    );
+
+    this.subscription.add(
+      this.signalRService.connectionState$.subscribe(state => {
+        this.connectionStatus = state;
+      })
+    );
+
+    this.subscription.add(
+      this.signalRService.reconnected$.subscribe(() => {
+        // Request board refresh on reconnection
+        this.signalRService.resetGame();
       })
     );
   }

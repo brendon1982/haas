@@ -162,6 +162,7 @@ file sealed class FakeHaasEngine : IHaasEngine
 
 file sealed class FakePresenter : ISignalPresenter
 {
+    public Task PresentProcessingAsync(string sessionId) => Task.CompletedTask;
     public Task PresentAsync(SessionResult result) => Task.CompletedTask;
     public Task PresentErrorAsync(string? sessionId, Exception exception) => Task.CompletedTask;
 }

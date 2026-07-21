@@ -289,6 +289,13 @@ file sealed class FakePresenter : ISignalPresenter
 {
     public string? LastSessionId { get; private set; }
     public Exception? LastException { get; private set; }
+    public bool ProcessingPresented { get; private set; }
+
+    public Task PresentProcessingAsync(string sessionId)
+    {
+        ProcessingPresented = true;
+        return Task.CompletedTask;
+    }
 
     public Task PresentAsync(SessionResult result)
     {

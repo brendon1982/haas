@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -10,6 +10,9 @@ export class SignalRService {
   public messageReceived$ = new Subject<{ sourceType: string, message: string }>();
   public errorReceived$ = new Subject<{ sourceType: string, error: string }>();
   public boardUpdated$ = new Subject<string[]>();
+  public processingStarted$ = new Subject<string>();
+  public connectionState$ = new BehaviorSubject<signalR.HubConnectionState>(signalR.HubConnectionState.Disconnected);
+  public reconnected$ = new Subject<void>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -28,6 +31,23 @@ export class SignalRService {
     this.hubConnection.on('BoardUpdated', (board: string[]) => {
       this.boardUpdated$.next(board);
     });
+
+    this.hubConnection.on('ProcessingStarted', (sourceType: string) => {
+      this.processingStarted$.next(sourceType);
+    });
+
+    this.hubConnection.onreconnecting(() => {
+      this.connectionState$.next(signalR.HubConnectionState.Reconnecting);
+    });
+
+    this.hubConnection.onreconnected(() => {
+      this.connectionState$.next(signalR.HubConnectionState.Connected);
+      this.reconnected$.next();
+    });
+
+    this.hubConnection.onclose(() => {
+      this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+    });
   }
 
   public startConnection(): void {
@@ -36,10 +56,14 @@ export class SignalRService {
         .start()
         .then(() => {
           console.log('SignalR Connection started');
-          // For TicTacToe we might want the initial board
+          this.connectionState$.next(signalR.HubConnectionState.Connected);
+          // Initial state request
           this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
         })
-        .catch(err => console.log('Error while starting SignalR connection: ' + err));
+        .catch(err => {
+          console.log('Error while starting SignalR connection: ' + err);
+          this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+        });
     }
   }
 
