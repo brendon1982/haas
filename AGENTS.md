@@ -90,3 +90,9 @@ Dependencies point **inward**: `adapter/` → `application/` → `domain/`. `inf
 1. `SYSTEM-DESIGN.md` — canonical architecture
 2. `package.json`, `pnpm-workspace.yaml`, `.gitignore`
 3. Before editing a module, read its sister test file first
+
+## Module-Specific Guidelines
+
+Some modules have their own `AGENTS.md` with specialized rules (e.g., frontend frameworks, specific protocols). Always check for and follow these local guidelines when working in these directories:
+
+- `examples/web/client/AGENTS.md` — Angular, TypeScript, and UI standards.

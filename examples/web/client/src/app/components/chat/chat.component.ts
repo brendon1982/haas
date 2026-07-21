@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, signal, computed, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignalRService } from '../../services/signalr.service';
@@ -15,9 +15,11 @@ interface Message {
   selector: 'app-chat',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './chat.component.html'
+  templateUrl: './chat.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
+  private signalRService = inject(SignalRService);
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   
   public messages = signal<Message[]>([]);
@@ -32,7 +34,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   private subscription: Subscription = new Subscription();
   private shouldScrollToBottom: boolean = true;
 
-  constructor(public signalRService: SignalRService) {}
+  constructor() {}
 
   ngOnInit(): void {
     this.signalRService.startConnection();
