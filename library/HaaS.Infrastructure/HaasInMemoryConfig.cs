@@ -5,7 +5,7 @@ using OllamaSharp;
 using OpenAI;
 using System.ClientModel;
 
-namespace HaaS.Host.CLI;
+namespace HaaS.Infrastructure;
 
 public class HaasInMemoryConfig
 {

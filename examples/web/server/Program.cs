@@ -4,8 +4,6 @@ using HaaS.Host.Web;
 using HaaS.Host.Web.TicTacToe;
 using HaaS.Domain.Ports;
 using HaaS.Infrastructure;
-using Microsoft.Extensions.AI;
-using OllamaSharp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,31 +38,30 @@ builder.Services.AddScoped<IRunSessionUseCase>(sp =>
 });
 
 haas.WithSqlitePersistence("data", includeConfig: false)
+    .WithInMemoryConfig(config =>
+    {
+        config.UseOllama();
+        config.UseOpenRouter();
+    })
     .AddQueuedWorkerPool(workerCount: 2, pool =>
     {
         pool.AddSignalSource<ChatWebSignalSource, ChatWebSignalPresenter>(config =>
         {
-            config.UseProvider("ollama")
-                  .UseModel("llama3.2")
+            config.UseProvider("openrouter")
+                  .UseModel("cohere/north-mini-code:free")
                   .UseSystemPrompt("You are an assistant in a web chat. Reply concisely.");
         });
 
         pool.AddSignalSource<TicTacToeWebSignalSource, TicTacToeWebSignalPresenter>(config =>
         {
-            config.UseProvider("ollama")
-                  .UseModel("llama3.2")
+            config.UseProvider("openrouter")
+                  .UseModel("cohere/north-mini-code:free")
                   .UseSystemPrompt("You are a TicTacToe player. Use tools to play.")
                   .AddTool("get_board")
                   .AddTool("get_valid_moves")
                   .AddTool("place_marker");
         });
     });
-
-// Configure AI Clients (similar to CLI example)
-builder.Services.AddSingleton<IChatClient>(sp => 
-{
-    return new OllamaApiClient(new Uri("http://localhost:11434"), "llama3.2");
-});
 
 var app = builder.Build();
 
