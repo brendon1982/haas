@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { BehaviorSubject, Subject } from 'rxjs';
 
@@ -14,39 +14,53 @@ export class SignalRService {
   public connectionState$ = new BehaviorSubject<signalR.HubConnectionState>(signalR.HubConnectionState.Disconnected);
   public reconnected$ = new Subject<void>();
 
-  constructor() {
+  constructor(private ngZone: NgZone) {
     this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl('http://localhost:5000/haasHub')
       .withAutomaticReconnect()
       .build();
 
     this.hubConnection.on('ReceiveMessage', (sourceType: string, message: string) => {
-      this.messageReceived$.next({ sourceType, message });
+      this.ngZone.run(() => {
+        this.messageReceived$.next({ sourceType, message });
+      });
     });
 
     this.hubConnection.on('ReceiveError', (sourceType: string, error: string) => {
-      this.errorReceived$.next({ sourceType, error });
+      this.ngZone.run(() => {
+        this.errorReceived$.next({ sourceType, error });
+      });
     });
 
     this.hubConnection.on('BoardUpdated', (board: string[]) => {
-      this.boardUpdated$.next(board);
+      this.ngZone.run(() => {
+        this.boardUpdated$.next(board);
+      });
     });
 
     this.hubConnection.on('ProcessingStarted', (sourceType: string) => {
-      this.processingStarted$.next(sourceType);
+      this.ngZone.run(() => {
+        this.processingStarted$.next(sourceType);
+      });
     });
 
     this.hubConnection.onreconnecting(() => {
-      this.connectionState$.next(signalR.HubConnectionState.Reconnecting);
+      this.ngZone.run(() => {
+        this.connectionState$.next(signalR.HubConnectionState.Reconnecting);
+      });
     });
 
     this.hubConnection.onreconnected(() => {
-      this.connectionState$.next(signalR.HubConnectionState.Connected);
-      this.reconnected$.next();
+      this.ngZone.run(() => {
+        this.connectionState$.next(signalR.HubConnectionState.Connected);
+        this.reconnected$.next();
+      });
     });
 
     this.hubConnection.onclose(() => {
-      this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+      this.ngZone.run(() => {
+        this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+      });
     });
   }
 
@@ -55,14 +69,18 @@ export class SignalRService {
       this.hubConnection
         .start()
         .then(() => {
-          console.log('SignalR Connection started');
-          this.connectionState$.next(signalR.HubConnectionState.Connected);
-          // Initial state request
-          this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
+          this.ngZone.run(() => {
+            console.log('SignalR Connection started');
+            this.connectionState$.next(signalR.HubConnectionState.Connected);
+            // Initial state request
+            this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
+          });
         })
         .catch(err => {
-          console.log('Error while starting SignalR connection: ' + err);
-          this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+          this.ngZone.run(() => {
+            console.log('Error while starting SignalR connection: ' + err);
+            this.connectionState$.next(signalR.HubConnectionState.Disconnected);
+          });
         });
     }
   }
