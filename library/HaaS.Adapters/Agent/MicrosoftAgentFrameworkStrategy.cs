@@ -92,7 +92,7 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var response = await agent.RunAsync(messages, session);
 
-        var result = new SessionResult(Output: response.Text, SessionId: sessionId);
+        var result = new SessionResult(Output: response.Text, SessionId: sessionId, MessageId: signal.MessageId);
         await presenter.PresentAsync(result);
         return result;
     }

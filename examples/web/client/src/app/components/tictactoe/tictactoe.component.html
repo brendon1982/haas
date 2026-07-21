@@ -1,28 +1,28 @@
 <div class="flex flex-col items-center max-w-4xl mx-auto space-y-8">
   <!-- Connection Status Banner -->
-  @if (connectionStatus !== 'Connected') {
+  @if (connectionStatus() !== 'Connected') {
     <div class="w-full bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-amber-800 text-sm font-medium animate-pulse">
-      {{ connectionStatus === 'Reconnecting' ? 'Connection lost. Reconnecting...' : 'Disconnected from server.' }}
+      {{ connectionStatus() === 'Reconnecting' ? 'Connection lost. Reconnecting...' : 'Disconnected from server.' }}
     </div>
   }
 
   <div class="text-center space-y-2">
     <div [class]="'text-2xl font-bold px-6 py-2 rounded-full inline-block ' + 
-      (isPlayerTurn ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700 animate-pulse')">
-      {{ status }}
+      (isPlayerTurn() ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700 animate-pulse')">
+      {{ status() }}
     </div>
     <p class="text-gray-500 text-sm">Play against the HaaS-powered AI opponent</p>
   </div>
 
   <div class="grid grid-cols-3 gap-3 bg-gray-200 p-3 rounded-2xl shadow-xl">
-    @for (cell of board; track $index) {
+    @for (cell of board(); track $index) {
       <button 
         (click)="makeMove($index)"
-        [disabled]="!isPlayerTurn || cell !== ' '"
+        [disabled]="!isPlayerTurn() || cell !== ' '"
         [class]="'w-24 h-24 sm:w-32 sm:h-32 rounded-xl text-5xl font-black flex items-center justify-center transition-all shadow-sm ' + 
           (cell === 'X' ? 'bg-indigo-600 text-white' : 
            cell === 'O' ? 'bg-white text-rose-600 border-2 border-rose-100' : 
-           isPlayerTurn ? 'bg-white text-gray-200 hover:bg-indigo-50 cursor-pointer' : 'bg-gray-50 text-transparent cursor-not-allowed')">
+           isPlayerTurn() ? 'bg-white text-gray-200 hover:bg-indigo-50 cursor-pointer' : 'bg-gray-50 text-transparent cursor-not-allowed')">
         {{ cell }}
       </button>
     }
@@ -56,12 +56,12 @@
         AI Thought Log
       </h3>
       <div class="space-y-2">
-        @for (log of aiLog; track $index) {
+        @for (log of aiLog(); track $index) {
           <div class="bg-white/60 p-2 rounded-lg text-xs text-indigo-800 border border-indigo-100 animate-fadeIn">
             {{ log }}
           </div>
         }
-        @if (aiLog.length === 0) {
+        @if (aiLog().length === 0) {
           <p class="text-indigo-300 text-xs italic">Waiting for AI to think...</p>
         }
       </div>

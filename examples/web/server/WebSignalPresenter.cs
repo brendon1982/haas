@@ -15,16 +15,16 @@ public class WebSignalPresenter : ISignalPresenter
         SourceType = sourceType;
     }
 
-    public virtual async Task PresentProcessingAsync(string sessionId)
+    public virtual async Task PresentProcessingAsync(string sessionId, string? messageId = null)
     {
         await HubContext.Clients.Client(sessionId)
-            .SendAsync("ProcessingStarted", SourceType);
+            .SendAsync("ProcessingStarted", SourceType, messageId);
     }
 
     public virtual async Task PresentAsync(SessionResult result)
     {
         await HubContext.Clients.Client(result.SessionId!)
-            .SendAsync("ReceiveMessage", SourceType, result.Output);
+            .SendAsync("ReceiveMessage", SourceType, result.Output, result.MessageId);
     }
 
     public async Task PresentErrorAsync(string? sessionId, Exception exception)

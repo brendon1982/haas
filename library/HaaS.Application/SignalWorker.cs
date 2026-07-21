@@ -49,7 +49,7 @@ public class SignalWorker
 
             if (queued.Signal.SessionId != null)
             {
-                await registration.Presenter.PresentProcessingAsync(queued.Signal.SessionId);
+                await registration.Presenter.PresentProcessingAsync(queued.Signal.SessionId, queued.Signal.MessageId);
             }
 
             var result = await _runSessionUseCase.ExecuteAsync(queued.Signal, registration.Presenter);

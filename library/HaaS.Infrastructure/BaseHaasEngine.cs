@@ -72,7 +72,8 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
                     incoming.Payload,
                     reg.Source.Type,
                     incoming.SessionId ?? reg.LastSessionId?.ToString(),
-                    incoming.ArrivedAt
+                    incoming.ArrivedAt,
+                    incoming.MessageId
                 );
 
                 var handle = await ProcessSignalAsync(signal, reg);

@@ -17,7 +17,8 @@ public class HaaSWebHub : Hub
 
     public async Task SendMessage(string source, string message)
     {
-        await _bus.PushAsync(source, new IncomingSignal(message, Context.ConnectionId));
+        var messageId = Guid.NewGuid().ToString();
+        await _bus.PushAsync(source, new IncomingSignal(message, Context.ConnectionId, MessageId: messageId));
     }
 
     public async Task SendMove(int position)

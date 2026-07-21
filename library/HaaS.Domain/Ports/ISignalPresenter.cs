@@ -4,7 +4,7 @@ namespace HaaS.Domain.Ports;
 
 public interface ISignalPresenter
 {
-    Task PresentProcessingAsync(string sessionId);
+    Task PresentProcessingAsync(string sessionId, string? messageId = null);
     Task PresentAsync(SessionResult result);
     Task PresentErrorAsync(string? sessionId, Exception exception);
 }

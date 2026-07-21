@@ -1,66 +1,55 @@
-import { Injectable, NgZone } from '@angular/core';
+import { Injectable, signal, WritableSignal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
-import { BehaviorSubject, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SignalRService {
   private hubConnection: signalR.HubConnection;
-  public messageReceived$ = new Subject<{ sourceType: string, message: string }>();
+  public messageReceived$ = new Subject<{ sourceType: string, message: string, messageId?: string }>();
   public errorReceived$ = new Subject<{ sourceType: string, error: string }>();
   public boardUpdated$ = new Subject<string[]>();
-  public processingStarted$ = new Subject<string>();
-  public connectionState$ = new BehaviorSubject<signalR.HubConnectionState>(signalR.HubConnectionState.Disconnected);
+  public processingStarted$ = new Subject<{ sourceType: string, messageId?: string }>();
+  
+  private _connectionState = signal<signalR.HubConnectionState>(signalR.HubConnectionState.Disconnected);
+  public connectionState = this._connectionState.asReadonly();
+  
   public reconnected$ = new Subject<void>();
 
-  constructor(private ngZone: NgZone) {
+  constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl('http://localhost:5000/haasHub')
       .withAutomaticReconnect()
       .build();
 
-    this.hubConnection.on('ReceiveMessage', (sourceType: string, message: string) => {
-      this.ngZone.run(() => {
-        this.messageReceived$.next({ sourceType, message });
-      });
+    this.hubConnection.on('ReceiveMessage', (sourceType: string, message: string, messageId?: string) => {
+      this.messageReceived$.next({ sourceType, message, messageId });
     });
 
     this.hubConnection.on('ReceiveError', (sourceType: string, error: string) => {
-      this.ngZone.run(() => {
-        this.errorReceived$.next({ sourceType, error });
-      });
+      this.errorReceived$.next({ sourceType, error });
     });
 
     this.hubConnection.on('BoardUpdated', (board: string[]) => {
-      this.ngZone.run(() => {
-        this.boardUpdated$.next(board);
-      });
+      this.boardUpdated$.next(board);
     });
 
-    this.hubConnection.on('ProcessingStarted', (sourceType: string) => {
-      this.ngZone.run(() => {
-        this.processingStarted$.next(sourceType);
-      });
+    this.hubConnection.on('ProcessingStarted', (sourceType: string, messageId?: string) => {
+      this.processingStarted$.next({ sourceType, messageId });
     });
 
     this.hubConnection.onreconnecting(() => {
-      this.ngZone.run(() => {
-        this.connectionState$.next(signalR.HubConnectionState.Reconnecting);
-      });
+      this._connectionState.set(signalR.HubConnectionState.Reconnecting);
     });
 
     this.hubConnection.onreconnected(() => {
-      this.ngZone.run(() => {
-        this.connectionState$.next(signalR.HubConnectionState.Connected);
-        this.reconnected$.next();
-      });
+      this._connectionState.set(signalR.HubConnectionState.Connected);
+      this.reconnected$.next();
     });
 
     this.hubConnection.onclose(() => {
-      this.ngZone.run(() => {
-        this.connectionState$.next(signalR.HubConnectionState.Disconnected);
-      });
+      this._connectionState.set(signalR.HubConnectionState.Disconnected);
     });
   }
 
@@ -69,18 +58,14 @@ export class SignalRService {
       this.hubConnection
         .start()
         .then(() => {
-          this.ngZone.run(() => {
-            console.log('SignalR Connection started');
-            this.connectionState$.next(signalR.HubConnectionState.Connected);
-            // Initial state request
-            this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
-          });
+          console.log('SignalR Connection started');
+          this._connectionState.set(signalR.HubConnectionState.Connected);
+          // Initial state request
+          this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
         })
         .catch(err => {
-          this.ngZone.run(() => {
-            console.log('Error while starting SignalR connection: ' + err);
-            this.connectionState$.next(signalR.HubConnectionState.Disconnected);
-          });
+          console.log('Error while starting SignalR connection: ' + err);
+          this._connectionState.set(signalR.HubConnectionState.Disconnected);
         });
     }
   }

@@ -435,7 +435,7 @@ file sealed class RecordingPresenter : ISignalPresenter
 {
     public List<SessionResult> Results { get; } = [];
 
-    public Task PresentProcessingAsync(string sessionId) => Task.CompletedTask;
+    public Task PresentProcessingAsync(string sessionId, string? messageId = null) => Task.CompletedTask;
 
     public Task PresentAsync(SessionResult result)
     {

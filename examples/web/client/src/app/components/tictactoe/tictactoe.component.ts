@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SignalRService } from '../../services/signalr.service';
 import { Subscription } from 'rxjs';
@@ -10,14 +10,18 @@ import { Subscription } from 'rxjs';
   templateUrl: './tictactoe.component.html'
 })
 export class TicTacToeComponent implements OnInit, OnDestroy {
-  public board: string[] = Array(9).fill(' ');
-  public isPlayerTurn: boolean = true;
-  public status: string = 'Your turn (X)';
-  public aiLog: string[] = [];
-  public connectionStatus: string = 'Connected';
+  public board = signal<string[]>(Array(9).fill(' '));
+  public isPlayerTurn = signal<boolean>(true);
+  public status = signal<string>('Your turn (X)');
+  public aiLog = signal<string[]>([]);
+  
+  public connectionStatus = computed(() => {
+    return this.signalRService.connectionState();
+  });
+
   private subscription: Subscription = new Subscription();
 
-  constructor(private signalRService: SignalRService) {}
+  constructor(public signalRService: SignalRService) {}
 
   ngOnInit(): void {
     this.signalRService.startConnection();
@@ -25,41 +29,37 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
     this.subscription.add(
       this.signalRService.messageReceived$.subscribe(data => {
         if (data.sourceType === 'tictactoe') {
-          this.aiLog.unshift(data.message);
-          if (this.aiLog.length > 5) this.aiLog.pop();
-          this.isPlayerTurn = true;
-          this.status = 'Your turn (X)';
+          this.aiLog.update(log => {
+            const newLog = [data.message, ...log];
+            return newLog.slice(0, 5);
+          });
+          this.isPlayerTurn.set(true);
+          this.status.set('Your turn (X)');
         }
       })
     );
 
     this.subscription.add(
-      this.signalRService.processingStarted$.subscribe(sourceType => {
-        if (sourceType === 'tictactoe') {
-          this.isPlayerTurn = false;
-          this.status = 'AI is thinking...';
+      this.signalRService.processingStarted$.subscribe(data => {
+        if (data.sourceType === 'tictactoe') {
+          this.isPlayerTurn.set(false);
+          this.status.set('AI is thinking...');
         }
       })
     );
 
     this.subscription.add(
       this.signalRService.boardUpdated$.subscribe(board => {
-        this.board = board;
+        this.board.set(board);
       })
     );
 
     this.subscription.add(
       this.signalRService.errorReceived$.subscribe(data => {
         if (data.sourceType === 'tictactoe') {
-          this.status = `Error: ${data.error}`;
-          this.isPlayerTurn = true;
+          this.status.set(`Error: ${data.error}`);
+          this.isPlayerTurn.set(true);
         }
-      })
-    );
-
-    this.subscription.add(
-      this.signalRService.connectionState$.subscribe(state => {
-        this.connectionStatus = state;
       })
     );
 
@@ -76,18 +76,18 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
   }
 
   public makeMove(index: number): void {
-    if (this.isPlayerTurn && this.board[index] === ' ') {
-      this.isPlayerTurn = false;
-      this.status = 'AI is thinking...';
+    if (this.isPlayerTurn() && this.board()[index] === ' ') {
+      this.isPlayerTurn.set(false);
+      this.status.set('AI is thinking...');
       this.signalRService.sendMove(index + 1);
     }
   }
 
   public reset(): void {
-    this.board = Array(9).fill(' ');
-    this.aiLog = [];
-    this.isPlayerTurn = true;
-    this.status = 'Your turn (X)';
+    this.board.set(Array(9).fill(' '));
+    this.aiLog.set([]);
+    this.isPlayerTurn.set(true);
+    this.status.set('Your turn (X)');
     this.signalRService.resetGame();
   }
 }

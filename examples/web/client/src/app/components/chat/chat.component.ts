@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SignalRService } from '../../services/signalr.service';
 import { Subscription } from 'rxjs';
 
 interface Message {
+  id?: string;
   text: string;
   sender: 'user' | 'ai' | 'system';
   isThinking?: boolean;
@@ -19,15 +20,19 @@ interface Message {
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   
-  public messages: Message[] = [];
-  public newMessage: string = '';
-  public isThinking: boolean = false;
-  public connectionStatus: string = 'Connected';
+  public messages = signal<Message[]>([]);
+  public newMessage = signal<string>('');
+  public isThinking = signal<boolean>(false);
+  
+  public connectionStatus = computed(() => {
+    const state = this.signalRService.connectionState();
+    return state;
+  });
   
   private subscription: Subscription = new Subscription();
   private shouldScrollToBottom: boolean = true;
 
-  constructor(private signalRService: SignalRService) {}
+  constructor(public signalRService: SignalRService) {}
 
   ngOnInit(): void {
     this.signalRService.startConnection();
@@ -35,19 +40,33 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.subscription.add(
       this.signalRService.messageReceived$.subscribe(data => {
         if (data.sourceType === 'chat') {
-          this.isThinking = false;
-          // Remove any thinking placeholders
-          this.messages = this.messages.filter(m => !m.isThinking);
-          this.messages.push({ text: data.message, sender: 'ai' });
+          this.isThinking.set(false);
+          // If we have an ID, replace the thinking placeholder with that ID
+          if (data.messageId) {
+            this.messages.update(msgs => msgs.map(m => 
+              m.id === data.messageId 
+                ? { ...m, text: data.message, isThinking: false } 
+                : m
+            ));
+          } else {
+            // Fallback: Remove all thinking placeholders and add new message
+            this.messages.update(msgs => [
+              ...msgs.filter(m => !m.isThinking),
+              { text: data.message, sender: 'ai' }
+            ]);
+          }
         }
       })
     );
 
     this.subscription.add(
-      this.signalRService.processingStarted$.subscribe(sourceType => {
-        if (sourceType === 'chat' && !this.isThinking) {
-          this.isThinking = true;
-          this.messages.push({ text: 'Working...', sender: 'ai', isThinking: true });
+      this.signalRService.processingStarted$.subscribe(data => {
+        if (data.sourceType === 'chat' && !this.isThinking()) {
+          this.isThinking.set(true);
+          this.messages.update(msgs => [
+            ...msgs,
+            { id: data.messageId, text: 'Working...', sender: 'ai', isThinking: true }
+          ]);
         }
       })
     );
@@ -55,16 +74,12 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.subscription.add(
       this.signalRService.errorReceived$.subscribe(data => {
         if (data.sourceType === 'chat') {
-          this.isThinking = false;
-          this.messages = this.messages.filter(m => !m.isThinking);
-          this.messages.push({ text: `Error: ${data.error}`, sender: 'system' });
+          this.isThinking.set(false);
+          this.messages.update(msgs => [
+            ...msgs.filter(m => !m.isThinking),
+            { text: `Error: ${data.error}`, sender: 'system' }
+          ]);
         }
-      })
-    );
-
-    this.subscription.add(
-      this.signalRService.connectionState$.subscribe(state => {
-        this.connectionStatus = state;
       })
     );
   }
@@ -92,13 +107,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   public sendMessage(): void {
-    if (this.newMessage.trim() && this.connectionStatus === 'Connected') {
-      this.messages.push({ text: this.newMessage, sender: 'user' });
-      this.signalRService.sendMessage('chat', this.newMessage);
-      this.newMessage = '';
-      // We don't set isThinking here, we wait for the ProcessingStarted signal from server
-      // But we can set a local flag if we want immediate feedback, 
-      // though the server should be fast to respond with "Processing"
+    const text = this.newMessage().trim();
+    if (text && this.connectionStatus() === 'Connected') {
+      this.messages.update(msgs => [...msgs, { id: crypto.randomUUID(), text: text, sender: 'user' }]);
+      this.signalRService.sendMessage('chat', text);
+      this.newMessage.set('');
     }
   }
 }
