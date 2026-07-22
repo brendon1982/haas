@@ -87,7 +87,7 @@ file sealed class FakeSignalQueue : ISignalQueue
 
     public Task<QueuedSignal?> DequeueAsync() => Task.FromResult<QueuedSignal?>(null);
     public Task AckAsync(string signalId) => Task.CompletedTask;
-    public Task NackAsync(string signalId) => Task.CompletedTask;
+    public Task NackAsync(string signalId, string? error = null) => Task.CompletedTask;
 }
 
 file sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider

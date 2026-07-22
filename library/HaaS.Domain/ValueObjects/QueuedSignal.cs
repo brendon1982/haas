@@ -9,7 +9,9 @@ public record QueuedSignal(
     DateTimeOffset? PickedAt = null,
     DateTimeOffset? CompletedAt = null,
     int RetryCount = 0,
-    int MaxRetries = 3
+    int MaxRetries = 3,
+    DateTimeOffset? VisibleAt = null,
+    string? LastError = null
 );
 
 public enum SignalStatus

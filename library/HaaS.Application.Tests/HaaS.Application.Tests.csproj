@@ -21,6 +21,7 @@
     <ProjectReference Include="..\HaaS.Application\HaaS.Application.csproj" />
     <ProjectReference Include="..\HaaS.Domain\HaaS.Domain.csproj" />
     <ProjectReference Include="..\HaaS.Domain.Tests\HaaS.Domain.Tests.csproj" />
+    <ProjectReference Include="..\HaaS.Adapters\HaaS.Adapters.csproj" />
   </ItemGroup>
 
 </Project>
