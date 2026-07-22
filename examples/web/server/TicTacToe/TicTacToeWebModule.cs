@@ -22,6 +22,6 @@ public static class TicTacToeWebModule
     {
         toolProvider.Register<WebTicTacToeToolHandlers>("get_board", "Returns the current board", h => h.GetBoard);
         toolProvider.Register<WebTicTacToeToolHandlers>("get_valid_moves", "Returns valid moves", h => h.GetValidMoves);
-        toolProvider.Register<WebTicTacToeToolHandlers>("place_marker", "Places a marker", (WebTicTacToeToolHandlers h) => (Func<int, string>)h.PlaceMarker);
+        toolProvider.Register<WebTicTacToeToolHandlers>("place_marker", "Places a marker", (WebTicTacToeToolHandlers h) => (Func<int, Task<string>>)h.PlaceMarker);
     }
 }

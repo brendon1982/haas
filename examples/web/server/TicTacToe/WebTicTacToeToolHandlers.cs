@@ -1,14 +1,19 @@
+using System.Linq;
+using Microsoft.AspNetCore.SignalR;
+
 namespace HaaS.Host.Web.TicTacToe;
 
 public class WebTicTacToeToolHandlers
 {
     private readonly SessionManager _sessionManager;
     private readonly ScopedSessionContext _sessionContext;
+    private readonly IHubContext<HaaSWebHub> _hubContext;
 
-    public WebTicTacToeToolHandlers(SessionManager sessionManager, ScopedSessionContext sessionContext)
+    public WebTicTacToeToolHandlers(SessionManager sessionManager, ScopedSessionContext sessionContext, IHubContext<HaaSWebHub> hubContext)
     {
         _sessionManager = sessionManager;
         _sessionContext = sessionContext;
+        _hubContext = hubContext;
     }
 
     private TicTacToeGame GetGame() => _sessionManager.GetOrCreate<TicTacToeGame>(_sessionContext.SessionId ?? "unknown");
@@ -26,7 +31,7 @@ public class WebTicTacToeToolHandlers
 
     public string GetValidMoves() => string.Join(", ", GetGame().GetValidMoves());
 
-    public string PlaceMarker(int position)
+    public async Task<string> PlaceMarker(int position)
     {
         var game = GetGame();
         if (game.AiHasMovedThisTurn)
@@ -36,6 +41,14 @@ public class WebTicTacToeToolHandlers
             return $"Error: Position {position} is invalid or already taken. Valid moves: {string.Join(", ", game.GetValidMoves())}";
 
         game.TryPlaceAiMarker(position);
+        
+        // Notify client immediately
+        if (_sessionContext.SessionId != null)
+        {
+            await _hubContext.Clients.Client(_sessionContext.SessionId)
+                .SendAsync("BoardUpdated", game.Board.Select(c => c.ToString()).ToArray());
+        }
+
         return $"Successfully placed 'O' at position {position}. Turn ended.";
     }
 }
