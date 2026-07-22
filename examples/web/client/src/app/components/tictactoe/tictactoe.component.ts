@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, signal, computed, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SignalRService } from '../../services/signalr.service';
+import { TicTacToeSignalRService } from '../../services/tictactoe-signalr.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -11,7 +11,7 @@ import { Subscription } from 'rxjs';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TicTacToeComponent implements OnInit, OnDestroy {
-  public signalRService = inject(SignalRService);
+  public signalRService = inject(TicTacToeSignalRService);
   public board = signal<string[]>(Array(9).fill(' '));
   public isPlayerTurn = signal<boolean>(true);
   public status = signal<string>('Your turn (X)');

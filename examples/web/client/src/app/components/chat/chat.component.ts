@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, signal, computed, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SignalRService } from '../../services/signalr.service';
+import { ChatSignalRService } from '../../services/chat-signalr.service';
 import { Subscription } from 'rxjs';
 
 interface Message {
@@ -19,7 +19,7 @@ interface Message {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
-  private signalRService = inject(SignalRService);
+  private signalRService = inject(ChatSignalRService);
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
   
   public messages = signal<Message[]>([]);
@@ -112,7 +112,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     const text = this.newMessage().trim();
     if (text && this.connectionStatus() === 'Connected') {
       this.messages.update(msgs => [...msgs, { id: crypto.randomUUID(), text: text, sender: 'user' }]);
-      this.signalRService.sendMessage('chat', text);
+      this.signalRService.sendMessage(text);
       this.newMessage.set('');
     }
   }

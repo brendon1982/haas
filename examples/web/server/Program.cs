@@ -58,7 +58,8 @@ app.Services.GetRequiredService<IToolProvider>().RegisterTicTacToeTools();
 
 app.UseCors();
 
-app.MapHub<HaaSWebHub>("/haasHub");
+app.MapHub<ChatHub>("/chatHub");
+app.MapHub<TicTacToeHub>("/tictactoeHub");
 
 app.MapGet("/", () => "HaaS Web Host is running.");
 

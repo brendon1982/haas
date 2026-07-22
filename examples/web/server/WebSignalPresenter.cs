@@ -4,12 +4,12 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace HaaS.Host.Web;
 
-public class WebSignalPresenter : ISignalPresenter
+public class WebSignalPresenter<THub> : ISignalPresenter where THub : Hub
 {
-    protected readonly IHubContext<HaaSWebHub> HubContext;
+    protected readonly IHubContext<THub> HubContext;
     protected readonly string SourceType;
 
-    public WebSignalPresenter(IHubContext<HaaSWebHub> hubContext, string sourceType)
+    public WebSignalPresenter(IHubContext<THub> hubContext, string sourceType)
     {
         HubContext = hubContext;
         SourceType = sourceType;

@@ -1,11 +1,11 @@
-import { Injectable, signal, WritableSignal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
-export class SignalRService {
+export class TicTacToeSignalRService {
   private hubConnection: signalR.HubConnection;
   public messageReceived$ = new Subject<{ sourceType: string, message: string, messageId?: string }>();
   public errorReceived$ = new Subject<{ sourceType: string, error: string }>();
@@ -19,7 +19,7 @@ export class SignalRService {
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5000/haasHub')
+      .withUrl('http://localhost:5000/tictactoeHub')
       .withAutomaticReconnect()
       .build();
 
@@ -58,21 +58,16 @@ export class SignalRService {
       this.hubConnection
         .start()
         .then(() => {
-          console.log('SignalR Connection started');
+          console.log('Tic-Tac-Toe SignalR Connection started');
           this._connectionState.set(signalR.HubConnectionState.Connected);
           // Initial state request
           this.hubConnection.invoke('ResetGame').catch(err => console.error(err));
         })
         .catch(err => {
-          console.log('Error while starting SignalR connection: ' + err);
+          console.log('Error while starting Tic-Tac-Toe SignalR connection: ' + err);
           this._connectionState.set(signalR.HubConnectionState.Disconnected);
         });
     }
-  }
-
-  public sendMessage(sourceType: string, message: string): void {
-    this.hubConnection.invoke('SendMessage', sourceType, message)
-      .catch(err => console.error('Error sending message:', err));
   }
 
   public sendMove(position: number): void {

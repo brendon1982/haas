@@ -7,9 +7,9 @@ public class WebTicTacToeToolHandlers
 {
     private readonly SessionManager _sessionManager;
     private readonly ScopedSessionContext _sessionContext;
-    private readonly IHubContext<HaaSWebHub> _hubContext;
+    private readonly IHubContext<TicTacToeHub> _hubContext;
 
-    public WebTicTacToeToolHandlers(SessionManager sessionManager, ScopedSessionContext sessionContext, IHubContext<HaaSWebHub> hubContext)
+    public WebTicTacToeToolHandlers(SessionManager sessionManager, ScopedSessionContext sessionContext, IHubContext<TicTacToeHub> hubContext)
     {
         _sessionManager = sessionManager;
         _sessionContext = sessionContext;

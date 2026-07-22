@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace HaaS.Host.Web.TicTacToe;
 
-public class TicTacToeWebSignalPresenter : WebSignalPresenter
+public class TicTacToeWebSignalPresenter : WebSignalPresenter<TicTacToeHub>
 {
     private readonly SessionManager _sessionManager;
 
-    public TicTacToeWebSignalPresenter(IHubContext<HaaSWebHub> hubContext, SessionManager sessionManager) 
+    public TicTacToeWebSignalPresenter(IHubContext<TicTacToeHub> hubContext, SessionManager sessionManager) 
         : base(hubContext, "tictactoe")
     {
         _sessionManager = sessionManager;
