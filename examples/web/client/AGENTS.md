@@ -1,6 +1,30 @@
 
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
+## Commands
+
+- `pnpm install` — Install dependencies.
+- `pnpm start` — Run the development server (available at `http://localhost:4200`).
+- `pnpm build` — Build the production application.
+- `pnpm test` — Run unit tests via Vitest.
+- `pnpm ng <command>` — Run local Angular CLI commands.
+
+## Testing Nuances (Vitest + Angular 21)
+
+- **Standard TestBed**: Use `TestBed.configureTestingModule` as usual.
+- **Modernity**: Prioritize `inject()` within tests to resolve dependencies.
+- **Signals**: Use `fixture.detectChanges()` to propagate signal changes to the DOM.
+- **Async**: Use `await fixture.whenStable()` or `fakeAsync`/`tick` for asynchronous operations.
+- **DO NOT** use Karma or Protractor; the project is fully migrated to Vitest.
+
+## Common Antipatterns (DO NOT)
+
+- **DO NOT** use `standalone: true` (it is the default).
+- **DO NOT** use `ngClass` or `ngStyle`; use `[class]` and `[style]` bindings instead.
+- **DO NOT** use `constructor` injection; use the `inject()` function.
+- **DO NOT** use `NgZone` or `ChangeDetectorRef.detectChanges()`.
+- **DO NOT** use legacy decorators like `@Input`, `@Output`, `@ViewChild`, `@HostBinding`, or `@HostListener`.
+
 ## TypeScript Best Practices
 
 - Use strict type checking

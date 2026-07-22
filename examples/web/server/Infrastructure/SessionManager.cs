@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace HaaS.Host.Web;
+namespace HaaS.Host.Web.Infrastructure;
 
 public class SessionManager
 {

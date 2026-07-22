@@ -1,8 +1,8 @@
 using HaaS.Application.UseCases;
 using HaaS.Adapters.Observability;
-using HaaS.Host.Web;
 using HaaS.Host.Web.TicTacToe;
 using HaaS.Host.Web.Chat;
+using HaaS.Host.Web.Infrastructure;
 using HaaS.Domain.Ports;
 using HaaS.Infrastructure;
 
@@ -20,11 +20,13 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Shared Infrastructure
 builder.Services.AddSingleton<WebSignalBus>();
 builder.Services.AddSingleton<SessionManager>();
 builder.Services.AddScoped<ScopedSessionContext>();
-builder.Services.AddScoped<WebTicTacToeToolHandlers>();
-builder.Services.AddScoped<TicTacToeHubHandlers>();
+
+// Module Services
+builder.Services.AddTicTacToeServices();
 
 var haas = builder.Services.AddHaas();
 

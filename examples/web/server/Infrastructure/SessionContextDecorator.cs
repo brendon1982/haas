@@ -2,7 +2,7 @@ using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
-namespace HaaS.Host.Web;
+namespace HaaS.Host.Web.Infrastructure;
 
 public class SessionContextRunSessionUseCaseDecorator : IRunSessionUseCase
 {

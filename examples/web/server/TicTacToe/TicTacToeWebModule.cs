@@ -1,5 +1,7 @@
 using HaaS.Domain.Ports;
 using HaaS.Infrastructure;
+using HaaS.Host.Web.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HaaS.Host.Web.TicTacToe;
 
@@ -16,6 +18,12 @@ public static class TicTacToeWebModule
                   .AddTool("get_valid_moves")
                   .AddTool("place_marker");
         });
+    }
+
+    public static void AddTicTacToeServices(this IServiceCollection services)
+    {
+        services.AddScoped<WebTicTacToeToolHandlers>();
+        services.AddScoped<TicTacToeHubHandlers>();
     }
 
     public static void RegisterTicTacToeTools(this IToolProvider toolProvider)

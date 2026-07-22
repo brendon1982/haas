@@ -1,4 +1,5 @@
 using HaaS.Infrastructure;
+using HaaS.Host.Web.Infrastructure;
 
 namespace HaaS.Host.Web.Chat;
 

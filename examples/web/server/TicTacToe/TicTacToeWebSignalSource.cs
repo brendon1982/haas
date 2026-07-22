@@ -1,3 +1,5 @@
+using HaaS.Host.Web.Infrastructure;
+
 namespace HaaS.Host.Web.TicTacToe;
 
 public class TicTacToeWebSignalSource : WebSignalSource

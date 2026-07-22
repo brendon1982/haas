@@ -2,7 +2,7 @@ using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.AspNetCore.SignalR;
 
-namespace HaaS.Host.Web;
+namespace HaaS.Host.Web.Infrastructure;
 
 public class WebSignalPresenter<THub> : ISignalPresenter where THub : Hub
 {

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using HaaS.Host.Web.Infrastructure;
 
 namespace HaaS.Host.Web.Chat;
 

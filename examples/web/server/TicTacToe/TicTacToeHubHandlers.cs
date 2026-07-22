@@ -1,6 +1,7 @@
 using System.Linq;
 using HaaS.Domain.ValueObjects;
 using Microsoft.AspNetCore.SignalR;
+using HaaS.Host.Web.Infrastructure;
 
 namespace HaaS.Host.Web.TicTacToe;
 

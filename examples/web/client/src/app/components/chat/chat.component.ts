@@ -1,6 +1,5 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, signal, computed, ChangeDetectionStrategy, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { Component, OnInit, OnDestroy, ElementRef, AfterViewChecked, signal, computed, ChangeDetectionStrategy, inject, viewChild } from '@angular/core';
+import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { ChatSignalRService } from '../../services/chat-signalr.service';
 import { Subscription } from 'rxjs';
 
@@ -13,28 +12,24 @@ interface Message {
 
 @Component({
   selector: 'app-chat',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [ReactiveFormsModule],
   templateUrl: './chat.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   private signalRService = inject(ChatSignalRService);
-  @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
+  private scrollContainer = viewChild<ElementRef>('scrollContainer');
   
   public messages = signal<Message[]>([]);
-  public newMessage = signal<string>('');
+  public newMessageControl = new FormControl('', { nonNullable: true });
   public isThinking = signal<boolean>(false);
   
   public connectionStatus = computed(() => {
-    const state = this.signalRService.connectionState();
-    return state;
+    return this.signalRService.connectionState();
   });
   
   private subscription: Subscription = new Subscription();
   private shouldScrollToBottom: boolean = true;
-
-  constructor() {}
 
   ngOnInit(): void {
     this.signalRService.startConnection();
@@ -95,25 +90,28 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   public onScroll(): void {
-    const element = this.scrollContainer.nativeElement;
+    const container = this.scrollContainer();
+    if (!container) return;
+    const element = container.nativeElement;
     const atBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
     this.shouldScrollToBottom = atBottom;
   }
 
   private scrollToBottom(): void {
-    if (this.shouldScrollToBottom && this.scrollContainer) {
+    const container = this.scrollContainer();
+    if (this.shouldScrollToBottom && container) {
       try {
-        this.scrollContainer.nativeElement.scrollTop = this.scrollContainer.nativeElement.scrollHeight;
+        container.nativeElement.scrollTop = container.nativeElement.scrollHeight;
       } catch (err) {}
     }
   }
 
   public sendMessage(): void {
-    const text = this.newMessage().trim();
+    const text = this.newMessageControl.value.trim();
     if (text && this.connectionStatus() === 'Connected') {
       this.messages.update(msgs => [...msgs, { id: crypto.randomUUID(), text: text, sender: 'user' }]);
       this.signalRService.sendMessage(text);
-      this.newMessage.set('');
+      this.newMessageControl.setValue('');
     }
   }
 }

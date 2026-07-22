@@ -1,11 +1,8 @@
 import { Routes } from '@angular/router';
-import { ChatComponent } from './components/chat/chat.component';
-import { TicTacToeComponent } from './components/tictactoe/tictactoe.component';
-import { HomeComponent } from './components/home/home.component';
 
 export const routes: Routes = [
-  { path: 'home', component: HomeComponent },
-  { path: 'chat', component: ChatComponent },
-  { path: 'tictactoe', component: TicTacToeComponent },
+  { path: 'home', loadComponent: () => import('./components/home/home.component').then(m => m.HomeComponent) },
+  { path: 'chat', loadComponent: () => import('./components/chat/chat.component').then(m => m.ChatComponent) },
+  { path: 'tictactoe', loadComponent: () => import('./components/tictactoe/tictactoe.component').then(m => m.TicTacToeComponent) },
   { path: '', redirectTo: '/home', pathMatch: 'full' }
 ];
