@@ -1,12 +1,18 @@
-<div class="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto">
+<div class="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
   <!-- Connection Status Banner -->
   @if (connectionStatus() !== 'Connected') {
-    <div class="bg-amber-50 border-b border-amber-200 p-2 text-center text-amber-800 text-sm font-medium animate-pulse">
+    <div class="shrink-0 rounded-lg border border-amber-200 bg-amber-50 p-2 text-center text-sm font-medium text-amber-800 animate-pulse"
+         role="status">
       {{ connectionStatus() === 'Reconnecting' ? 'Connection lost. Reconnecting...' : 'Disconnected from server.' }}
     </div>
   }
 
-  <div #scrollContainer (scroll)="onScroll()" class="flex-1 overflow-y-auto mb-4 space-y-4 p-4 bg-gray-50 rounded-lg shadow-inner border border-gray-200">
+  <div #scrollContainer
+       (scroll)="onScroll()"
+       class="mb-4 min-h-0 flex-1 space-y-4 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-inner"
+       role="log"
+       aria-label="Conversation with HaaS AI"
+       aria-live="polite">
     @for (msg of messages(); track msg.id) {
       <div class="flex"
            [class.justify-end]="msg.sender === 'user'"
@@ -41,8 +47,8 @@
       </div>
     }
     @if (messages().length === 0) {
-      <div class="flex flex-col items-center justify-center h-full text-gray-400 space-y-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div class="flex h-full flex-col items-center justify-center space-y-2 text-gray-400">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
         <p>Start a conversation with HaaS AI...</p>
@@ -50,18 +56,20 @@
     }
   </div>
 
-  <div class="flex gap-2 bg-white p-2 rounded-xl shadow-lg border border-gray-100">
+  <div class="flex shrink-0 gap-2 rounded-xl border border-gray-100 bg-white p-2 shadow-lg">
     <input 
       type="text" 
       [formControl]="newMessageControl"
       (keyup.enter)="sendMessage()"
       placeholder="Type your message..." 
-      class="flex-1 p-3 border-none focus:ring-0 text-gray-700 placeholder-gray-400"
+      aria-label="Message"
+      class="min-w-0 flex-1 border-none p-3 text-gray-700 placeholder-gray-400 focus:ring-0"
     />
     <button 
+      type="button"
       (click)="sendMessage()" 
       [disabled]="!newMessageControl.value.trim()"
-      class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+      class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
     >
       <span>Send</span>
       <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

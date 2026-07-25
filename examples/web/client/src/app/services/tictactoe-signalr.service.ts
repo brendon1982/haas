@@ -2,17 +2,24 @@ import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { BaseSignalRService } from './base-signalr.service';
 
+export interface TicTacToeState {
+  board: string[];
+  winner: 'X' | 'O' | null;
+  isDraw: boolean;
+  isGameOver: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class TicTacToeSignalRService extends BaseSignalRService {
-  public boardUpdated$ = new Subject<string[]>();
+  public boardUpdated$ = new Subject<TicTacToeState>();
 
   constructor() {
     super('http://localhost:5000/tictactoeHub', 'Tic-Tac-Toe');
 
-    this.hubConnection.on('BoardUpdated', (board: string[]) => {
-      this.boardUpdated$.next(board);
+    this.hubConnection.on('BoardUpdated', (state: TicTacToeState) => {
+      this.boardUpdated$.next(state);
     });
   }
 

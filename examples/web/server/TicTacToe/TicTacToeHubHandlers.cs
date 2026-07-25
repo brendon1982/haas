@@ -1,4 +1,3 @@
-using System.Linq;
 using HaaS.Domain.ValueObjects;
 using Microsoft.AspNetCore.SignalR;
 using HaaS.Host.Web.Infrastructure;
@@ -19,12 +18,19 @@ public class TicTacToeHubHandlers
     public async Task SendMove(Hub hub, int position)
     {
         var game = _sessionManager.GetOrCreate<TicTacToeGame>(hub.Context.ConnectionId);
+        if (game.IsGameOver())
+            return;
+
         if (game.IsValidMove(position))
         {
             game.PlacePlayerMarker(position);
             game.ResetTurn();
-            
-            await hub.Clients.Caller.SendAsync("BoardUpdated", game.Board.Select(c => c.ToString()).ToArray());
+
+            var state = TicTacToeState.FromGame(game);
+            await hub.Clients.Caller.SendAsync("BoardUpdated", state);
+
+            if (state.IsGameOver)
+                return;
             
             // Trigger AI
             var message = $"The player (X) just moved at position {position}. It's your turn (O). Make your move.";
@@ -37,6 +43,6 @@ public class TicTacToeHubHandlers
     {
         _sessionManager.Remove<TicTacToeGame>(hub.Context.ConnectionId);
         var game = _sessionManager.GetOrCreate<TicTacToeGame>(hub.Context.ConnectionId);
-        await hub.Clients.Caller.SendAsync("BoardUpdated", game.Board.Select(c => c.ToString()).ToArray());
+        await hub.Clients.Caller.SendAsync("BoardUpdated", TicTacToeState.FromGame(game));
     }
 }

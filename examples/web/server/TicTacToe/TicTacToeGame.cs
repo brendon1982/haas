@@ -13,11 +13,14 @@ public class TicTacToeGame
 
     public bool IsValidMove(int position)
     {
-        return position >= 1 && position <= 9 && _board[position - 1] == ' ';
+        return !IsGameOver() && position >= 1 && position <= 9 && _board[position - 1] == ' ';
     }
 
     public IEnumerable<int> GetValidMoves()
     {
+        if (IsGameOver())
+            return [];
+
         var positions = new List<int>();
         for (var i = 0; i < _board.Length; i++)
             if (_board[i] == ' ')
@@ -66,4 +69,6 @@ public class TicTacToeGame
     }
 
     public bool IsDraw() => Array.TrueForAll(_board, c => c != ' ') && GetWinner() == null;
+
+    public bool IsGameOver() => GetWinner() != null || IsDraw();
 }

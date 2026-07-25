@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, computed, ChangeDetectionStrategy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { TicTacToeSignalRService } from '../../services/tictactoe-signalr.service';
 import { Subscription } from 'rxjs';
 
@@ -14,6 +14,24 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
   public isPlayerTurn = signal<boolean>(true);
   public status = signal<string>('Your turn (X)');
   public aiLog = signal<string[]>([]);
+  public winner = signal<'X' | 'O' | null>(null);
+  public isDraw = signal(false);
+  public gameOver = signal(false);
+  public displayStatus = computed(() => {
+    if (this.winner() === 'X') {
+      return 'You win!';
+    }
+
+    if (this.winner() === 'O') {
+      return 'AI wins!';
+    }
+
+    if (this.isDraw()) {
+      return "It's a draw!";
+    }
+
+    return this.status();
+  });
   
   public connectionStatus = computed(() => {
     return this.signalRService.connectionState();
@@ -31,15 +49,17 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
             const newLog = [data.message, ...log];
             return newLog.slice(0, 5);
           });
-          this.isPlayerTurn.set(true);
-          this.status.set('Your turn (X)');
+          if (!this.gameOver()) {
+            this.isPlayerTurn.set(true);
+            this.status.set('Your turn (X)');
+          }
         }
       })
     );
 
     this.subscription.add(
       this.signalRService.processingStarted$.subscribe(data => {
-        if (data.sourceType === 'tictactoe') {
+        if (data.sourceType === 'tictactoe' && !this.gameOver()) {
           this.isPlayerTurn.set(false);
           this.status.set('AI is thinking...');
         }
@@ -47,8 +67,14 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
     );
 
     this.subscription.add(
-      this.signalRService.boardUpdated$.subscribe(board => {
-        this.board.set(board);
+      this.signalRService.boardUpdated$.subscribe(state => {
+        this.board.set(state.board);
+        this.winner.set(state.winner);
+        this.isDraw.set(state.isDraw);
+        this.gameOver.set(state.isGameOver);
+        if (state.isGameOver) {
+          this.isPlayerTurn.set(false);
+        }
       })
     );
 
@@ -74,7 +100,7 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
   }
 
   public makeMove(index: number): void {
-    if (this.isPlayerTurn() && this.board()[index] === ' ') {
+    if (!this.gameOver() && this.isPlayerTurn() && this.board()[index] === ' ') {
       this.isPlayerTurn.set(false);
       this.status.set('AI is thinking...');
       this.signalRService.sendMove(index + 1);
@@ -83,6 +109,9 @@ export class TicTacToeComponent implements OnInit, OnDestroy {
 
   public reset(): void {
     this.board.set(Array(9).fill(' '));
+    this.winner.set(null);
+    this.isDraw.set(false);
+    this.gameOver.set(false);
     this.aiLog.set([]);
     this.isPlayerTurn.set(true);
     this.status.set('Your turn (X)');

@@ -1,4 +1,3 @@
-using System.Linq;
 using Microsoft.AspNetCore.SignalR;
 using HaaS.Host.Web.Infrastructure;
 
@@ -35,6 +34,12 @@ public class WebTicTacToeToolHandlers
     public async Task<string> PlaceMarker(int position)
     {
         var game = GetGame();
+        if (game.GetWinner() is char winner)
+            return $"Error: The game is over. {(winner == 'X' ? "The player won." : "The AI won.")}";
+
+        if (game.IsDraw())
+            return "Error: The game is over. The board is full.";
+
         if (game.AiHasMovedThisTurn)
             return "Error: You have already moved this turn. Wait for the player to move.";
 
@@ -47,7 +52,7 @@ public class WebTicTacToeToolHandlers
         if (_sessionContext.SessionId != null)
         {
             await _hubContext.Clients.Client(_sessionContext.SessionId)
-                .SendAsync("BoardUpdated", game.Board.Select(c => c.ToString()).ToArray());
+                .SendAsync("BoardUpdated", TicTacToeState.FromGame(game));
         }
 
         return $"Successfully placed 'O' at position {position}. Turn ended.";

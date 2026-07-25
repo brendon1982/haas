@@ -1,10 +1,10 @@
-import { Component, OnInit, OnDestroy, ElementRef, AfterViewChecked, signal, computed, ChangeDetectionStrategy, inject, viewChild } from '@angular/core';
+import { afterRenderEffect, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { ReactiveFormsModule, FormControl } from '@angular/forms';
 import { ChatSignalRService } from '../../services/chat-signalr.service';
 import { Subscription } from 'rxjs';
 
 interface Message {
-  id?: string;
+  id: string;
   text: string;
   sender: 'user' | 'ai' | 'system';
   isThinking?: boolean;
@@ -16,9 +16,9 @@ interface Message {
   templateUrl: './chat.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
+export class ChatComponent implements OnInit, OnDestroy {
   private signalRService = inject(ChatSignalRService);
-  private scrollContainer = viewChild<ElementRef>('scrollContainer');
+  private scrollContainer = viewChild<ElementRef<HTMLDivElement>>('scrollContainer');
   
   public messages = signal<Message[]>([]);
   public newMessageControl = new FormControl('', { nonNullable: true });
@@ -30,6 +30,10 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
   
   private subscription: Subscription = new Subscription();
   private shouldScrollToBottom: boolean = true;
+  private readonly scrollEffect = afterRenderEffect(() => {
+    this.messages();
+    this.scrollToBottom();
+  });
 
   ngOnInit(): void {
     this.signalRService.startConnection();
@@ -49,7 +53,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
             // Fallback: Remove all thinking placeholders and add new message
             this.messages.update(msgs => [
               ...msgs.filter(m => !m.isThinking),
-              { text: data.message, sender: 'ai' }
+              { id: crypto.randomUUID(), text: data.message, sender: 'ai' }
             ]);
           }
         }
@@ -62,7 +66,7 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.isThinking.set(true);
           this.messages.update(msgs => [
             ...msgs,
-            { id: data.messageId, text: 'Working...', sender: 'ai', isThinking: true }
+            { id: data.messageId ?? crypto.randomUUID(), text: 'Working...', sender: 'ai', isThinking: true }
           ]);
         }
       })
@@ -74,15 +78,11 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
           this.isThinking.set(false);
           this.messages.update(msgs => [
             ...msgs.filter(m => !m.isThinking),
-            { text: `Error: ${data.error}`, sender: 'system' }
+            { id: crypto.randomUUID(), text: `Error: ${data.error}`, sender: 'system' }
           ]);
         }
       })
     );
-  }
-
-  ngAfterViewChecked(): void {
-    this.scrollToBottom();
   }
 
   ngOnDestroy(): void {
@@ -93,22 +93,27 @@ export class ChatComponent implements OnInit, OnDestroy, AfterViewChecked {
     const container = this.scrollContainer();
     if (!container) return;
     const element = container.nativeElement;
-    const atBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
-    this.shouldScrollToBottom = atBottom;
+    this.shouldScrollToBottom = this.isAtBottom(element);
   }
 
   private scrollToBottom(): void {
     const container = this.scrollContainer();
-    if (this.shouldScrollToBottom && container) {
-      try {
-        container.nativeElement.scrollTop = container.nativeElement.scrollHeight;
-      } catch (err) {}
+    if (!this.shouldScrollToBottom || !container) {
+      return;
     }
+
+    const element = container.nativeElement;
+    element.scrollTop = element.scrollHeight;
+  }
+
+  private isAtBottom(element: HTMLDivElement): boolean {
+    return element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
   }
 
   public sendMessage(): void {
     const text = this.newMessageControl.value.trim();
     if (text && this.connectionStatus() === 'Connected') {
+      this.shouldScrollToBottom = true;
       this.messages.update(msgs => [...msgs, { id: crypto.randomUUID(), text: text, sender: 'user' }]);
       this.signalRService.sendMessage(text);
       this.newMessageControl.setValue('');
