@@ -1,4 +1,5 @@
 using HaaS.Application.UseCases;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 
 namespace HaaS.Application;
@@ -33,12 +34,13 @@ public class SignalWorker
             return;
         }
 
+        SignalSourceRegistration? registration = null;
         try
         {
             _logger.LogInformation("Processing signal {0} for source {1}, SessionId: {2}", 
                 queued.Id, queued.Envelope.Signal.Source, queued.Envelope.Signal.SessionId);
             
-            var registration = _registry.GetBySourceType(queued.Envelope.Signal.Source);
+            registration = _registry.GetBySourceType(queued.Envelope.Signal.Source);
             if (registration == null)
             {
                 _logger.LogWarning("No registration found for source type {0}. Nacking signal {1}", 
@@ -57,6 +59,17 @@ public class SignalWorker
             
             await _queue.AckAsync(queued.Id);
             _logger.LogInformation("Successfully completed signal {0}", queued.Id);
+        }
+        catch (GovernanceDeniedException ex)
+        {
+            _logger.LogWarning("Governance denied queued signal.");
+            if (registration is not null)
+            {
+                await registration.Presenter.PresentErrorAsync(ex.SessionId, ex);
+            }
+
+            _resultStore.SetError(ex.SessionId, ex);
+            await _queue.AckAsync(queued.Id);
         }
         catch (Exception ex)
         {

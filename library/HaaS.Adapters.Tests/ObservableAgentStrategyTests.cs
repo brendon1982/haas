@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Observability;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Domain.Tests.Builders;
@@ -83,6 +84,36 @@ public class ObservableAgentStrategyTests
         Expect(errorLogs[0].Message).To.Contain("duration");
         Expect(errorLogs[0].Exception).Not.To.Be.Null();
         Expect(errorLogs[0].Exception!.Message).To.Contain(expectedError);
+    }
+
+    [Test]
+    public void Execute_WhenGovernanceIsDenied_LogsRedactedWarningAndRethrows()
+    {
+        // Arrange
+        var reasonCode = "matched-internal-policy-rule";
+        var inner = new FailingStrategy(new GovernanceDeniedException(
+            "sess-denied",
+            "ToolResolution",
+            reasonCode,
+            "internal-rule"));
+        var logger = new FakeLogger();
+        var sut = SutBuilder.Create()
+            .WithStrategy(inner)
+            .WithLogger(logger)
+            .Build();
+        var signal = SignalTestBuilder.Create().Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(
+                AgentExecutionRequestTestBuilder.Create().WithSignal(signal).Build(),
+                new RecordingPresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        var warningLogs = logger.Logs.Where(log => log.Level == LogLevel.Warning).ToList();
+        Expect(warningLogs).To.Contain.Exactly(1);
+        Expect(warningLogs[0].Message).Not.To.Contain(reasonCode);
+        Expect(warningLogs[0].Message).Not.To.Contain("internal-rule");
+        Expect(warningLogs[0].Exception).To.Be.Null();
+        Expect(logger.Logs.Count(log => log.Level == LogLevel.Error)).To.Equal(0);
     }
 }
 

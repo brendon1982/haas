@@ -255,6 +255,56 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
+    public async Task Execute_UsesRequestPermittedToolsInsteadOfThePersistedToolBelt()
+    {
+        // Arrange
+        var sessionId = "sess-request-tools";
+        var persistedTool = "persisted-tool";
+        var permittedTool = "permitted-tool";
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithToolBelt(new ToolBelt([persistedTool]))
+            .Build();
+        var repo = new InMemorySessionRepository();
+        await repo.SaveAsync(record);
+        var capturedOptions = new List<ChatOptions?>();
+        var chatClient = new CapturingChatOptionsClient("response", capturedOptions);
+        var factory = new FakeChatClientFactory(chatClient);
+        var messageStore = new InMemorySessionMessageStore();
+        var toolProvider = new FakeToolProvider();
+        toolProvider.Register(new ToolDefinition(
+            persistedTool,
+            "",
+            (Func<string, Task<string>>)(input => Task.FromResult(input))));
+        toolProvider.Register(new ToolDefinition(
+            permittedTool,
+            "",
+            (Func<string, Task<string>>)(input => Task.FromResult(input))));
+        var sut = StrategySutBuilder.Create()
+            .WithChatClientFactory(factory)
+            .WithRepository(repo)
+            .WithMessageStore(messageStore)
+            .WithToolProvider(toolProvider)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithPayload("hi")
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create()
+            .WithSignal(signal)
+            .WithSessionId(sessionId)
+            .WithPermittedTool(permittedTool)
+            .Build(), new RecordingPresenter());
+
+        // Assert
+        var options = capturedOptions.Single();
+        Expect(options!.Tools).Not.To.Be.Null();
+        Expect(options.Tools!).To.Contain.Exactly(1);
+        Expect(options.Tools![0].Name).To.Equal(permittedTool);
+    }
+
+    [Test]
     public async Task Execute_WithInstanceMethod_ShouldNotThrowTargetException()
     {
         // Arrange

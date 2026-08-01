@@ -357,6 +357,309 @@ public class RunSessionUseCaseTests
     }
 
     [Test]
+    public async Task Execute_WhenSessionStartIsAllowed_EvaluatesPolicyBeforeRunningStrategy()
+    {
+        // Arrange
+        var sessionId = "sess-allowed";
+        var identity = IdentityTestBuilder.Create()
+            .WithIssuer("issuer")
+            .WithSubject("subject")
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                    .WithIdentity(identity)
+                    .Build())
+                .WithAttribute("tenant", "contoso")
+                .Build())
+            .Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .WithToolBelt(ToolBelt.Empty)
+            .Build());
+        var policy = new RecordingPolicyEngine(PolicyDecisionTestBuilder.Create().Build());
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(policy.Requests).To.Contain.Exactly(1);
+        var request = policy.Requests[0];
+        Expect(request.Gate).To.Equal(PolicyGate.SessionStart);
+        Expect(request.SessionId).To.Equal(sessionId);
+        Expect(request.Source).To.Equal(signal.Source);
+        Expect(request.Identity).To.Equal(identity);
+        Expect(request.Attributes["tenant"]).To.Equal("contoso");
+        Expect(strategy.Request?.SessionId).To.Equal(sessionId);
+    }
+
+    [Test]
+    public async Task Execute_WhenSessionStartIsDenied_DoesNotCreateSessionOrRunStrategy()
+    {
+        // Arrange
+        var sessionId = "sess-denied-new";
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var policy = new RecordingPolicyEngine(PolicyDecisionTestBuilder.Create()
+            .WithEffect(PolicyEffect.Deny)
+            .WithReasonCode("policy-denied")
+            .WithMatchedRuleId("deny-session-start")
+            .Build());
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        Expect(await repository.LoadAsync(sessionId)).To.Be.Null();
+        Expect(strategy.Request).To.Be.Null();
+    }
+
+    [Test]
+    public async Task Execute_WhenSessionStartFallsBackToAllow_Continues()
+    {
+        // Arrange
+        var sessionId = "sess-fallback";
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var policy = new RecordingPolicyEngine(PolicyDecisionTestBuilder.Create()
+            .WithReasonCode(PolicyDecisionReasonCodes.Fallback)
+            .Build());
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(await repository.LoadAsync(sessionId)).Not.To.Be.Null();
+        Expect(strategy.Request).Not.To.Be.Null();
+    }
+
+    [Test]
+    public async Task Execute_WithContinuation_ReevaluatesSessionStartUsingCurrentClaims()
+    {
+        // Arrange
+        var sessionId = "sess-current-claims";
+        var identity = IdentityTestBuilder.Create()
+            .WithIssuer("issuer")
+            .WithSubject("subject")
+            .WithClaim("role", "elevated-operator")
+            .Build();
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithSourceType("cli")
+            .WithIdentityIssuer(identity.Issuer)
+            .WithIdentitySubject(identity.Subject)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource(storedRecord.SourceType)
+            .WithSessionId(storedRecord.SessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                    .WithIdentity(identity)
+                    .Build())
+                .Build())
+            .Build();
+        var repository = new FakeSessionRepository();
+        await repository.SaveAsync(storedRecord);
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var policy = new RecordingPolicyEngine(PolicyDecisionTestBuilder.Create().Build());
+        var sut = UseCaseSutBuilder.Create()
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(policy.Requests).To.Contain.Exactly(1);
+        Expect(policy.Requests[0].Identity.GetClaimValues("role"))
+            .To.Equal(new HashSet<string>(["elevated-operator"], StringComparer.Ordinal));
+    }
+
+    [Test]
+    public async Task Execute_WhenExistingSessionStartIsDenied_PreservesItsStatus()
+    {
+        // Arrange
+        var sessionId = "sess-denied-existing";
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId(sessionId)
+            .WithSourceType("cli")
+            .WithStatus(SessionRecord.Statuses.Completed)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource(storedRecord.SourceType)
+            .WithSessionId(storedRecord.SessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
+        var repository = new FakeSessionRepository();
+        await repository.SaveAsync(storedRecord);
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var policy = new RecordingPolicyEngine(PolicyDecisionTestBuilder.Create()
+            .WithEffect(PolicyEffect.Deny)
+            .Build());
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        Expect(await repository.LoadAsync(sessionId)).To.Equal(storedRecord);
+        Expect(strategy.Request).To.Be.Null();
+    }
+
+    [Test]
+    public async Task Execute_ResolvesOnlyAllowedConfiguredToolsAndPreservesTheStoredBelt()
+    {
+        // Arrange
+        var sessionId = "sess-filtered-tools";
+        var allowedTool = "calendar";
+        var deniedTool = "finance";
+        var unconfiguredTool = "admin";
+        var configuredBelt = new ToolBelt([allowedTool, deniedTool]);
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .WithToolBelt(configuredBelt)
+            .Build());
+        var policy = new RecordingPolicyEngine(request => request.Gate switch
+        {
+            PolicyGate.SessionStart => PolicyDecisionTestBuilder.Create().Build(),
+            PolicyGate.ToolResolution when request.CandidateToolName == allowedTool
+                => PolicyDecisionTestBuilder.Create().Build(),
+            _ => PolicyDecisionTestBuilder.Create().WithEffect(PolicyEffect.Deny).Build()
+        });
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(strategy.Request).Not.To.Be.Null();
+        Expect(strategy.Request!.PermittedToolNames.ToArray()).To.Contain.Exactly(1).Equal.To(allowedTool);
+        var toolRequests = policy.Requests
+            .Where(request => request.Gate == PolicyGate.ToolResolution)
+            .Select(request => request.CandidateToolName)
+            .ToArray();
+        Expect(toolRequests.Length).To.Equal(2);
+        Expect(toolRequests[0]).To.Equal(allowedTool);
+        Expect(toolRequests[1]).To.Equal(deniedTool);
+        Expect(policy.Requests.Any(request => request.CandidateToolName == unconfiguredTool)).To.Be.False();
+        var storedRecord = await repository.LoadAsync(sessionId);
+        var storedTools = storedRecord!.ToConfig().ToolBelt.Tools;
+        Expect(storedTools.Count).To.Equal(2);
+        Expect(storedTools[0]).To.Equal(allowedTool);
+        Expect(storedTools[1]).To.Equal(deniedTool);
+    }
+
+    [Test]
+    public async Task Execute_WhenAllConfiguredToolsAreDenied_PassesNoToolsToStrategy()
+    {
+        // Arrange
+        var sessionId = "sess-no-tools";
+        var firstTool = "calendar";
+        var secondTool = "finance";
+        var signal = SignalTestBuilder.Create()
+            .WithSource("cli")
+            .WithSessionId(sessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .WithToolBelt(new ToolBelt([firstTool, secondTool]))
+            .Build());
+        var policy = new RecordingPolicyEngine(request => request.Gate == PolicyGate.SessionStart
+            ? PolicyDecisionTestBuilder.Create().Build()
+            : PolicyDecisionTestBuilder.Create().WithEffect(PolicyEffect.Deny).Build());
+        var strategy = new RequestCapturingStrategy();
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithPolicyEngine(policy)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(strategy.Request).Not.To.Be.Null();
+        Expect(strategy.Request!.PermittedToolNames.Count).To.Equal(0);
+        Expect(policy.Requests.Count(request => request.Gate == PolicyGate.ToolResolution)).To.Equal(2);
+    }
+
+    [Test]
     public async Task Execute_WhenNoSourceConfig_Throws()
     {
         // Arrange
@@ -412,6 +715,8 @@ file sealed class UseCaseSutBuilder
     private ISignalSourceConfigRepository _configRepository = new FakeSignalSourceConfigRepository();
     private TimeProvider _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
     private ISignalContextScope _contextScope = new FakeSignalContextScope();
+    private IPolicyEngine _policyEngine = new RecordingPolicyEngine(
+        PolicyDecisionTestBuilder.Create().Build());
 
     private UseCaseSutBuilder() { }
 
@@ -447,7 +752,19 @@ file sealed class UseCaseSutBuilder
         return this;
     }
 
-    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _timeProvider, _contextScope);
+    public UseCaseSutBuilder WithPolicyEngine(IPolicyEngine policyEngine)
+    {
+        _policyEngine = policyEngine;
+        return this;
+    }
+
+    public RunSessionUseCase Build() => new(
+        _strategy,
+        _repository,
+        _configRepository,
+        _timeProvider,
+        _contextScope,
+        _policyEngine);
 }
 
 file sealed class FakeSessionRepository : ISessionRepository
@@ -503,6 +820,76 @@ file sealed class ContextCapturingStrategy(FakeSignalContextScope scope) : IAgen
             .WithSessionId(request.SessionId)
             .Build());
     }
+}
+
+file sealed class RequestCapturingStrategy : IAgentStrategy
+{
+    public AgentExecutionRequest? Request { get; private set; }
+
+    public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
+    {
+        Request = request;
+        return Task.FromResult(SessionResultTestBuilder.Create()
+            .WithSessionId(request.SessionId)
+            .Build());
+    }
+}
+
+file sealed class RecordingPolicyEngine : IPolicyEngine
+{
+    private readonly Func<PolicyRequest, PolicyDecision> _evaluate;
+
+    public RecordingPolicyEngine(PolicyDecision decision)
+        : this(_ => decision)
+    {
+    }
+
+    public RecordingPolicyEngine(Func<PolicyRequest, PolicyDecision> evaluate)
+    {
+        _evaluate = evaluate;
+    }
+
+    public List<PolicyRequest> Requests { get; } = [];
+
+    public Task<PolicyDecision> EvaluateAsync(
+        PolicyRequest request,
+        CancellationToken cancellationToken)
+    {
+        Requests.Add(request);
+        return Task.FromResult(_evaluate(request));
+    }
+}
+
+file sealed class PolicyDecisionTestBuilder
+{
+    private PolicyEffect _effect = PolicyEffect.Allow;
+    private string? _matchedRuleId = "allow-rule";
+    private string _reasonCode = PolicyDecisionReasonCodes.RuleMatch;
+    private int? _priority = 1;
+
+    private PolicyDecisionTestBuilder() { }
+
+    public static PolicyDecisionTestBuilder Create() => new();
+
+    public PolicyDecisionTestBuilder WithEffect(PolicyEffect effect)
+    {
+        _effect = effect;
+        return this;
+    }
+
+    public PolicyDecisionTestBuilder WithMatchedRuleId(string? matchedRuleId)
+    {
+        _matchedRuleId = matchedRuleId;
+        return this;
+    }
+
+    public PolicyDecisionTestBuilder WithReasonCode(string reasonCode)
+    {
+        _reasonCode = reasonCode;
+        return this;
+    }
+
+    public PolicyDecision Build() => new(_effect, _matchedRuleId, _reasonCode, _priority);
 }
 
 file sealed class FakeSignalContextScope : ISignalContextScope

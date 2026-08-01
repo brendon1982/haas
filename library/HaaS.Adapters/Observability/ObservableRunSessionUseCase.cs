@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using HaaS.Application.UseCases;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
@@ -36,6 +37,14 @@ public sealed class ObservableRunSessionUseCase : IRunSessionUseCase
 
             _logger.LogInformation("Session processing completed — session: {0}, duration: {1}ms", result.SessionId, sw.ElapsedMilliseconds);
             return result;
+        }
+        catch (GovernanceDeniedException)
+        {
+            sw.Stop();
+
+            activity?.SetTag("governance.denied", true);
+            _logger.LogWarning("Session processing denied by governance — duration: {0}ms", sw.ElapsedMilliseconds);
+            throw;
         }
         catch (Exception ex)
         {

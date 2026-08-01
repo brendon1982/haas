@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 
@@ -36,6 +37,14 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
 
             _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", request.SessionId, sw.ElapsedMilliseconds);
             return result;
+        }
+        catch (GovernanceDeniedException)
+        {
+            sw.Stop();
+
+            activity?.SetTag("governance.denied", true);
+            _logger.LogWarning("Agent execution denied by governance — duration: {0}ms", sw.ElapsedMilliseconds);
+            throw;
         }
         catch (Exception ex)
         {

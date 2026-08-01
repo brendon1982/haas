@@ -11,19 +11,22 @@ public class RunSessionUseCase : IRunSessionUseCase
     private readonly ISignalSourceConfigRepository _signalSourceConfigRepository;
     private readonly TimeProvider _timeProvider;
     private readonly ISignalContextScope _signalContextScope;
+    private readonly IPolicyEngine _policyEngine;
 
     public RunSessionUseCase(
         IAgentStrategy agentStrategy,
         ISessionRepository sessionRepository,
         ISignalSourceConfigRepository signalSourceConfigRepository,
         TimeProvider timeProvider,
-        ISignalContextScope signalContextScope)
+        ISignalContextScope signalContextScope,
+        IPolicyEngine policyEngine)
     {
         _agentStrategy = agentStrategy;
         _sessionRepository = sessionRepository;
         _signalSourceConfigRepository = signalSourceConfigRepository;
         _timeProvider = timeProvider;
         _signalContextScope = signalContextScope;
+        _policyEngine = policyEngine;
     }
 
     public async Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
@@ -43,7 +46,22 @@ public class RunSessionUseCase : IRunSessionUseCase
             ValidateContinuation(existing, signal.Source, envelope.Context.Authentication.Identity, sessionId);
         }
 
+        var sessionStartDecision = await _policyEngine.EvaluateAsync(
+            new PolicyRequest(
+                sessionId,
+                PolicyGate.SessionStart,
+                signal.Source,
+                envelope.Context.Authentication.Identity,
+                envelope.Context.Attributes),
+            CancellationToken.None);
+        EnsureAllowed(sessionId, PolicyGate.SessionStart, sessionStartDecision);
+
         var config = existing?.ToConfig() ?? sourceConfig.ToSessionConfig();
+        var permittedToolNames = await ResolvePermittedToolNamesAsync(
+            sessionId,
+            signal.Source,
+            envelope.Context,
+            config);
         using var context = _signalContextScope.Push(new SignalExecutionContext(
             sessionId,
             signal.Source,
@@ -73,8 +91,12 @@ public class RunSessionUseCase : IRunSessionUseCase
         try
         {
             result = await _agentStrategy.ExecuteAsync(
-                new AgentExecutionRequest(signal, sessionId, config.ToolBelt.Tools),
+                new AgentExecutionRequest(signal, sessionId, permittedToolNames),
                 presenter);
+        }
+        catch (GovernanceDeniedException)
+        {
+            throw;
         }
         catch
         {
@@ -105,6 +127,48 @@ public class RunSessionUseCase : IRunSessionUseCase
         }
 
         return result;
+    }
+
+    private async Task<IReadOnlyList<string>> ResolvePermittedToolNamesAsync(
+        string sessionId,
+        string source,
+        SignalContext context,
+        AgentSessionConfig config)
+    {
+        var permittedToolNames = new List<string>();
+        foreach (var toolName in config.ToolBelt.Tools)
+        {
+            var decision = await _policyEngine.EvaluateAsync(
+                new PolicyRequest(
+                    sessionId,
+                    PolicyGate.ToolResolution,
+                    source,
+                    context.Authentication.Identity,
+                    context.Attributes,
+                    toolName),
+                CancellationToken.None);
+            if (decision.Allowed)
+            {
+                permittedToolNames.Add(toolName);
+            }
+        }
+
+        return permittedToolNames;
+    }
+
+    private static void EnsureAllowed(
+        string sessionId,
+        PolicyGate gate,
+        PolicyDecision decision)
+    {
+        if (!decision.Allowed)
+        {
+            throw new GovernanceDeniedException(
+                sessionId,
+                gate.ToString(),
+                decision.ReasonCode,
+                decision.MatchedRuleId);
+        }
     }
 
     private Task<string> ResolveSessionIdAsync(Signal signal)

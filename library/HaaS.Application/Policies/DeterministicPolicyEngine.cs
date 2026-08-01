@@ -239,7 +239,7 @@ public sealed class DeterministicPolicyEngine : IPolicyEngine
     private void LogDecision(PolicyRequest request, PolicyDecision decision)
     {
         _logger.LogInformation(
-            "Policy decision Gate={0} Allowed={1} Effect={2} RuleId={3} Reason={4} Priority={5} Conditions={6} SessionId={7} Source={8} Tool={9} Issuer={10} Subject={11}",
+            "Policy decision Gate={0} Allowed={1} Effect={2} RuleId={3} Reason={4} Priority={5} Conditions={6} Source={7} Tool={8} Issuer={9} Subject={10}",
             request.Gate,
             decision.Allowed,
             decision.Effect,
@@ -247,7 +247,6 @@ public sealed class DeterministicPolicyEngine : IPolicyEngine
             decision.ReasonCode,
             decision.Priority,
             string.Join(",", decision.MatchedConditionCategories),
-            request.SessionId,
             request.Source,
             request.CandidateToolName,
             request.Identity.Issuer,

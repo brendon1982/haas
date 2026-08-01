@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Observability;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 using HaaS.Application.UseCases;
 using HaaS.Domain.ValueObjects;
@@ -63,6 +64,38 @@ public class ObservableRunSessionUseCaseTests
         var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
         Expect(errorLogs).To.Contain.Exactly(1);
         Expect(errorLogs[0].Message).To.Contain("Session processing failed");
+    }
+
+    [Test]
+    public void Execute_WhenGovernanceIsDenied_LogsRedactedWarningAndRethrows()
+    {
+        // Arrange
+        var reasonCode = "matched-internal-policy-rule";
+        var inner = new FakeRunSessionUseCase
+        {
+            ErrorToThrow = new GovernanceDeniedException(
+                "sess-denied",
+                "SessionStart",
+                reasonCode,
+                "internal-rule")
+        };
+        var logger = new FakeLogger();
+        var sut = SutBuilder.Create()
+            .WithUseCase(inner)
+            .WithLogger(logger)
+            .BuildUseCase();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(
+                SignalEnvelopeTestBuilder.Create().Build(),
+                new FakePresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        var warningLogs = logger.Logs.Where(log => log.Level == LogLevel.Warning).ToList();
+        Expect(warningLogs).To.Contain.Exactly(1);
+        Expect(warningLogs[0].Message).Not.To.Contain(reasonCode);
+        Expect(warningLogs[0].Message).Not.To.Contain("internal-rule");
+        Expect(warningLogs[0].Exception).To.Be.Null();
+        Expect(logger.Logs.Count(log => log.Level == LogLevel.Error)).To.Equal(0);
     }
 }
 

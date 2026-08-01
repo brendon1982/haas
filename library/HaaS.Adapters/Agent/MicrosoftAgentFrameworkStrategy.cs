@@ -57,23 +57,20 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var chatOptions = new ChatOptions();
         _chatClientFactory.ConfigureOptions(config.Provider, chatOptions, config);
-        if (request.PermittedToolNames.Count > 0)
-        {
-            chatOptions.Tools = _toolProvider.GetTools(request.PermittedToolNames)
-                .Select(t =>
+        chatOptions.Tools = _toolProvider.GetTools(request.PermittedToolNames)
+            .Select(t =>
+            {
+                var options = new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description };
+                if (ToolProvider.ToolMethods.TryGetValue(t.Handler, out var metadata))
                 {
-                    var options = new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description };
-                    if (ToolProvider.ToolMethods.TryGetValue(t.Handler, out var metadata))
-                    {
-                        var target = ((ToolProvider)_toolProvider).GetService(metadata.ServiceType);
-                        return AIFunctionFactory.Create(metadata.Method, target, options);
-                    }
+                    var target = ((ToolProvider)_toolProvider).GetService(metadata.ServiceType);
+                    return AIFunctionFactory.Create(metadata.Method, target, options);
+                }
 
-                    return AIFunctionFactory.Create(t.Handler.GetType().GetMethod("Invoke")!, t.Handler, options);
-                })
-                .Cast<AITool>()
-                .ToList();
-        }
+                return AIFunctionFactory.Create(t.Handler.GetType().GetMethod("Invoke")!, t.Handler, options);
+            })
+            .Cast<AITool>()
+            .ToList();
 
         var agent = new ChatClientAgent(
             chatClient,
