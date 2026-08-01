@@ -4,5 +4,5 @@ namespace HaaS.Application.UseCases;
 
 public interface IEnqueueSignalUseCase
 {
-    Task<string> ExecuteAsync(Signal signal);
+    Task<string> ExecuteAsync(SignalEnvelope envelope);
 }

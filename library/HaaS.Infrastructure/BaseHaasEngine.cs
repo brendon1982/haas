@@ -41,13 +41,13 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
     }
 
     protected abstract IEnumerable<SignalSourceRegistration> GetRelevantRegistrations();
-    protected abstract Task<ISignalHandle> ExecuteProcessSignalAsync(Signal signal, SignalSourceRegistration reg);
+    protected abstract Task<ISignalHandle> ExecuteProcessSignalAsync(SignalEnvelope envelope, SignalSourceRegistration reg);
 
-    public async Task<ISignalHandle> ProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
+    public async Task<ISignalHandle> ProcessSignalAsync(SignalEnvelope envelope, SignalSourceRegistration reg)
     {
         try
         {
-            var handle = await ExecuteProcessSignalAsync(signal, reg);
+            var handle = await ExecuteProcessSignalAsync(envelope, reg);
             if (handle == null)
             {
                 throw new InvalidOperationException($"Engine {GetType().Name} returned a null handle.");
@@ -57,7 +57,7 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
         }
         catch (Exception ex)
         {
-            await reg.Presenter.PresentErrorAsync(signal.SessionId, ex);
+            await reg.Presenter.PresentErrorAsync(envelope.Signal.SessionId, ex);
             throw;
         }
     }
@@ -75,8 +75,9 @@ public abstract class BaseHaasEngine : BackgroundService, IHaasEngine
                     incoming.ArrivedAt,
                     incoming.MessageId
                 );
+                var envelope = new SignalEnvelope(signal, incoming.Context);
 
-                var handle = await ProcessSignalAsync(signal, reg);
+                var handle = await ProcessSignalAsync(envelope, reg);
                 
                 if (Guid.TryParse(handle.SessionId, out var guid))
                 {

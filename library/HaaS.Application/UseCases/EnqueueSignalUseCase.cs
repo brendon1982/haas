@@ -16,16 +16,19 @@ public class EnqueueSignalUseCase : IEnqueueSignalUseCase
         _logger = logger;
     }
 
-    public async Task<string> ExecuteAsync(Signal signal)
+    public async Task<string> ExecuteAsync(SignalEnvelope envelope)
     {
+        ArgumentNullException.ThrowIfNull(envelope);
+
+        var signal = envelope.Signal;
         var sessionId = signal.SessionId ?? Guid.NewGuid().ToString();
         var signalWithMetadata = signal with 
         { 
             SessionId = sessionId,
-            ArrivedAt = _timeProvider.GetUtcNow()
+            ArrivedAt = signal.ArrivedAt ?? _timeProvider.GetUtcNow()
         };
 
-        await _queue.EnqueueAsync(signalWithMetadata, Identity.Anonymous);
+        await _queue.EnqueueAsync(new SignalEnvelope(signalWithMetadata, envelope.Context));
         _logger.LogInformation("Enqueued signal for source {0}, SessionId: {1}", signal.Source, sessionId);
 
         return sessionId;

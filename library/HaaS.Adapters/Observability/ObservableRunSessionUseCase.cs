@@ -18,17 +18,17 @@ public sealed class ObservableRunSessionUseCase : IRunSessionUseCase
         _logger = logger;
     }
 
-    public async Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
     {
         using var activity = ActivitySource.StartActivity("RunSession");
-        activity?.SetTag("signal.source", signal.Source);
+        activity?.SetTag("signal.source", envelope.Signal.Source);
         
-        _logger.LogInformation("Session processing started from source: {0}", signal.Source);
+        _logger.LogInformation("Session processing started from source: {0}", envelope.Signal.Source);
         var sw = Stopwatch.StartNew();
 
         try
         {
-            var result = await _inner.ExecuteAsync(signal, presenter);
+            var result = await _inner.ExecuteAsync(envelope, presenter);
             sw.Stop();
 
             activity?.SetTag("session.id", result.SessionId);

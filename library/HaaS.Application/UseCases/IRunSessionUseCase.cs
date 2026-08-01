@@ -5,5 +5,5 @@ namespace HaaS.Application.UseCases;
 
 public interface IRunSessionUseCase
 {
-    Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter);
+    Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter);
 }

@@ -15,9 +15,9 @@ public class SessionContextRunSessionUseCaseDecorator : IRunSessionUseCase
         _context = context;
     }
 
-    public async Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
     {
-        _context.SessionId = signal.SessionId;
-        return await _inner.ExecuteAsync(signal, presenter);
+        _context.SessionId = envelope.Signal.SessionId;
+        return await _inner.ExecuteAsync(envelope, presenter);
     }
 }

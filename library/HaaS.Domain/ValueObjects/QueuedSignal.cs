@@ -2,8 +2,7 @@ namespace HaaS.Domain.ValueObjects;
 
 public record QueuedSignal(
     string Id,
-    Signal Signal,
-    Identity Identity,
+    SignalEnvelope Envelope,
     SignalStatus Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset? PickedAt = null,

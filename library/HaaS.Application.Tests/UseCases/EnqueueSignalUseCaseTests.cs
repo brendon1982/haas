@@ -3,6 +3,7 @@ using static NExpect.Expectations;
 using HaaS.Application.UseCases;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
+using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
 
 namespace HaaS.Application.Tests.UseCases;
@@ -11,7 +12,7 @@ namespace HaaS.Application.Tests.UseCases;
 public class EnqueueSignalUseCaseTests
 {
     [Test]
-    public async Task ExecuteAsync_ShouldEnqueueSignalWithArrivedAtTimestamp()
+    public async Task ExecuteAsync_ShouldPreserveContextAndAddMissingSignalMetadata()
     {
         // Arrange
         var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);
@@ -25,20 +26,41 @@ public class EnqueueSignalUseCaseTests
             .WithLogger(logger)
             .Build();
         var expectedPayload = "test";
-        var signal = new Signal(expectedPayload, "cli");
+        var expectedMessageId = "message-42";
+        var expectedIdentity = IdentityTestBuilder.Create()
+            .WithIssuer("issuer")
+            .WithSubject("subject")
+            .WithClaim("role", "operator")
+            .Build();
+        var expectedContext = SignalContextTestBuilder.Create()
+            .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                .WithIdentity(expectedIdentity)
+                .WithAuthenticationMethod("oauth")
+                .WithCredentialReference("calendar", "vault", "calendar-ref")
+                .Build())
+            .WithAttribute("tenant", "contoso")
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(SignalTestBuilder.Create()
+                .WithPayload(expectedPayload)
+                .WithSource("cli")
+                .WithMessageId(expectedMessageId)
+                .Build())
+            .WithContext(expectedContext)
+            .Build();
 
         // Act
-        var sessionId = await sut.ExecuteAsync(signal);
+        var sessionId = await sut.ExecuteAsync(envelope);
 
         // Assert
         Expect(sessionId).Not.To.Be.Null();
-        var enqueued = queue.EnqueuedSignals;
+        var enqueued = queue.EnqueuedEnvelopes;
         Expect(enqueued).To.Contain.Exactly(1);
-        var (s, i) = enqueued[0];
-        Expect(s.Payload).To.Equal(expectedPayload);
-        Expect(s.ArrivedAt).To.Equal(now);
-        Expect(s.SessionId).To.Equal(sessionId);
-        Expect(i).To.Equal(Identity.Anonymous);
+        Expect(enqueued[0].Signal.Payload).To.Equal(expectedPayload);
+        Expect(enqueued[0].Signal.ArrivedAt).To.Equal(now);
+        Expect(enqueued[0].Signal.MessageId).To.Equal(expectedMessageId);
+        Expect(enqueued[0].Signal.SessionId).To.Equal(sessionId);
+        Expect(enqueued[0].Context).To.Equal(expectedContext);
     }
 }
 
@@ -77,11 +99,11 @@ file sealed class UseCaseSutBuilder
 
 file sealed class FakeSignalQueue : ISignalQueue
 {
-    public List<(Signal Signal, Identity Identity)> EnqueuedSignals { get; } = [];
+    public List<SignalEnvelope> EnqueuedEnvelopes { get; } = [];
 
-    public Task EnqueueAsync(Signal signal, Identity identity)
+    public Task EnqueueAsync(SignalEnvelope envelope)
     {
-        EnqueuedSignals.Add((signal, identity));
+        EnqueuedEnvelopes.Add(envelope);
         return Task.CompletedTask;
     }
 

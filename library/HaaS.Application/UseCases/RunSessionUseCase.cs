@@ -22,11 +22,12 @@ public class RunSessionUseCase : IRunSessionUseCase
         _timeProvider = timeProvider;
     }
 
-    public async Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
     {
-        ArgumentNullException.ThrowIfNull(signal);
+        ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(presenter);
 
+        var signal = envelope.Signal;
         var sourceConfig = await _signalSourceConfigRepository.GetBySourceTypeAsync(signal.Source)
             ?? throw new InvalidOperationException($"No signal source config found for source type '{signal.Source}'.");
         var config = sourceConfig.ToSessionConfig();

@@ -18,6 +18,7 @@ public class RunSessionUseCaseTests
         var signal = SignalTestBuilder.Create()
             .WithSource("cli")
             .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
         var sourceConfig = SignalSourceConfigTestBuilder.Create()
             .WithSourceType("cli")
             .WithProvider("openai")
@@ -44,7 +45,7 @@ public class RunSessionUseCaseTests
 
         // Act
         var presenter = new FakePresenter();
-        await sut.ExecuteAsync(signal, presenter);
+        await sut.ExecuteAsync(envelope, presenter);
 
         // Assert
         var record = await repo.LoadAsync(presenter.LastSessionId!);
@@ -79,6 +80,7 @@ public class RunSessionUseCaseTests
             .WithSource("cli")
             .WithSessionId("sess-existing")
             .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
         var sourceConfig = SignalSourceConfigTestBuilder.Create()
             .WithSourceType("cli")
             .WithProvider("openai")
@@ -106,7 +108,7 @@ public class RunSessionUseCaseTests
 
         // Act
         var presenter = new FakePresenter();
-        await sut.ExecuteAsync(signal, presenter);
+        await sut.ExecuteAsync(envelope, presenter);
 
         // Assert
         Expect(presenter.LastSessionId).To.Equal("sess-existing");
@@ -127,6 +129,7 @@ public class RunSessionUseCaseTests
         var signal = SignalTestBuilder.Create()
             .WithSource("cli")
             .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
         var sourceConfig = SignalSourceConfigTestBuilder.Create()
             .WithSourceType("cli")
             .WithProvider("ollama")
@@ -148,7 +151,7 @@ public class RunSessionUseCaseTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("fail");
 
@@ -165,10 +168,11 @@ public class RunSessionUseCaseTests
         var signal = SignalTestBuilder.Create()
             .WithSource("unknown")
             .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
         var sut = UseCaseSutBuilder.Create().Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("unknown");
     }
@@ -182,7 +186,7 @@ public class RunSessionUseCaseTests
         // Act & Assert
         Expect(async () => await sut.ExecuteAsync(null!, new FakePresenter()))
             .To.Throw<ArgumentNullException>()
-            .With.Message.Containing("signal");
+            .With.Message.Containing("envelope");
     }
 
     [Test]
@@ -191,9 +195,10 @@ public class RunSessionUseCaseTests
         // Arrange
         var sut = UseCaseSutBuilder.Create().Build();
         var signal = SignalTestBuilder.Create().Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().WithSignal(signal).Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, null!))
+        Expect(async () => await sut.ExecuteAsync(envelope, null!))
             .To.Throw<ArgumentNullException>()
             .With.Message.Containing("presenter");
     }

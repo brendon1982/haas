@@ -27,14 +27,14 @@ public class DirectHaasEngine : BaseHaasEngine
     protected override IEnumerable<SignalSourceRegistration> GetRelevantRegistrations()
         => Registry.GetAll().Where(r => !r.IsQueued);
 
-    protected override async Task<ISignalHandle> ExecuteProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
+    protected override async Task<ISignalHandle> ExecuteProcessSignalAsync(SignalEnvelope envelope, SignalSourceRegistration reg)
     {
         using var scope = _scopeFactory.CreateScope();
         try
         {
             _scopeAccessor.ServiceProvider = scope.ServiceProvider;
             var runSessionUseCase = scope.ServiceProvider.GetRequiredService<IRunSessionUseCase>();
-            var result = await runSessionUseCase.ExecuteAsync(signal, reg.Presenter);
+            var result = await runSessionUseCase.ExecuteAsync(envelope, reg.Presenter);
             return new DirectSignalHandle(result.SessionId);
         }
         finally

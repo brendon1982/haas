@@ -10,11 +10,11 @@ public class InMemorySignalQueue(TimeProvider? timeProvider = null) : ISignalQue
     private readonly ConcurrentDictionary<string, QueuedSignal> _processing = new();
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    public Task EnqueueAsync(Signal signal, Identity identity)
+    public Task EnqueueAsync(SignalEnvelope envelope)
     {
         var id = Guid.NewGuid().ToString();
         var queued = new QueuedSignal(
-            id, signal, identity, SignalStatus.Pending, _timeProvider.GetUtcNow());
+            id, envelope, SignalStatus.Pending, _timeProvider.GetUtcNow());
         _queue.Enqueue(queued);
         return Task.CompletedTask;
     }

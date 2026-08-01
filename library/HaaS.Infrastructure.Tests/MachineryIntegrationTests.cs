@@ -60,6 +60,57 @@ public class MachineryIntegrationTests
     }
 
     [Test]
+    public async Task IncomingSignalContext_ReachesDirectRunSessionUnchanged()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddHaas();
+        var capturingUseCase = new ContextCapturingRunSessionUseCase();
+        services.AddScoped<IRunSessionUseCase>(_ => capturingUseCase);
+        var manualSource = new ManualSignalSource();
+        var config = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType("manual")
+            .Build();
+        services.AddSingleton(new SignalSourceRegistration(
+            manualSource,
+            new CapturingPresenter(),
+            config,
+            isQueued: false));
+        using var provider = services.BuildServiceProvider();
+        var engine = provider.GetRequiredService<IHaasEngine>();
+        using var cancellation = new CancellationTokenSource();
+        var engineTask = engine.StartAsync(cancellation.Token);
+        var expectedContext = SignalContextTestBuilder.Create()
+            .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                .WithIdentity(IdentityTestBuilder.Create()
+                    .WithIssuer("issuer")
+                    .WithSubject("subject")
+                    .WithClaim("role", "operator")
+                    .Build())
+                .WithAuthenticationMethod("oauth")
+                .WithCredentialReference("calendar", "vault", "calendar-ref")
+                .Build())
+            .WithAttribute("tenant", "contoso")
+            .Build();
+        var incoming = IncomingSignalTestBuilder.Create()
+            .WithPayload("context propagation")
+            .WithContext(expectedContext)
+            .Build();
+
+        // Act
+        await Task.Delay(100);
+        await manualSource.PushAsync(incoming);
+
+        // Assert
+        Expect(capturingUseCase.ReceivedEnvelope?.Context).To.Equal(expectedContext);
+
+        // Cleanup
+        cancellation.Cancel();
+        manualSource.Stop();
+        await engineTask;
+    }
+
+    [Test]
     public async Task Signal_FailsInStrategy_ErrorReachesPresenter()
     {
         // Arrange
@@ -149,6 +200,19 @@ file sealed class CapturingStrategy : IAgentStrategy
         var result = ResultToReturn with { SessionId = request.SessionId };
         await presenter.PresentAsync(result);
         return result;
+    }
+}
+
+file sealed class ContextCapturingRunSessionUseCase : IRunSessionUseCase
+{
+    public SignalEnvelope? ReceivedEnvelope { get; private set; }
+
+    public Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
+    {
+        ReceivedEnvelope = envelope;
+        return Task.FromResult(SessionResultTestBuilder.Create()
+            .WithSessionId(envelope.Signal.SessionId ?? "session-42")
+            .Build());
     }
 }
 

@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Collections.Immutable;
 using System.Text.Json;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
@@ -32,9 +33,10 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
                 id TEXT PRIMARY KEY,
                 session_id TEXT,
                 source_type TEXT NOT NULL,
-                source_metadata_json TEXT,
-                identity_json TEXT,
                 payload_json TEXT,
+                context_json TEXT,
+                arrived_at TEXT,
+                message_id TEXT,
                 status TEXT NOT NULL DEFAULT 'pending',
                 created_at TEXT NOT NULL,
                 picked_at TEXT,
@@ -46,14 +48,29 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
             );";
         command.ExecuteNonQuery();
 
-        // Migration for existing tables
-        command.CommandText = "ALTER TABLE signal_queue ADD COLUMN visible_at TEXT;";
-        try { command.ExecuteNonQuery(); } catch { }
-        command.CommandText = "ALTER TABLE signal_queue ADD COLUMN last_error TEXT;";
-        try { command.ExecuteNonQuery(); } catch { }
+        AddColumnIfMissing(connection, "context_json", "TEXT");
+        AddColumnIfMissing(connection, "arrived_at", "TEXT");
+        AddColumnIfMissing(connection, "message_id", "TEXT");
+        AddColumnIfMissing(connection, "visible_at", "TEXT");
+        AddColumnIfMissing(connection, "last_error", "TEXT");
     }
 
-    public async Task EnqueueAsync(Signal signal, Identity identity)
+    private static void AddColumnIfMissing(SqliteConnection connection, string columnName, string columnType)
+    {
+        var columnExistsCommand = connection.CreateCommand();
+        columnExistsCommand.CommandText = "SELECT COUNT(*) FROM pragma_table_info('signal_queue') WHERE name = $columnName;";
+        columnExistsCommand.Parameters.AddWithValue("$columnName", columnName);
+        if (Convert.ToInt64(columnExistsCommand.ExecuteScalar()) != 0)
+        {
+            return;
+        }
+
+        var addColumnCommand = connection.CreateCommand();
+        addColumnCommand.CommandText = $"ALTER TABLE signal_queue ADD COLUMN {columnName} {columnType};";
+        addColumnCommand.ExecuteNonQuery();
+    }
+
+    public async Task EnqueueAsync(SignalEnvelope envelope)
     {
         using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
@@ -61,16 +78,18 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
         var command = connection.CreateCommand();
         command.CommandText = 
             @"INSERT INTO signal_queue (
-                id, session_id, source_type, identity_json, payload_json, status, created_at
+                id, session_id, source_type, payload_json, context_json, arrived_at, message_id, status, created_at
             ) VALUES (
-                $id, $sessionId, $source, $identity, $payload, 'pending', $createdAt
+                $id, $sessionId, $source, $payload, $context, $arrivedAt, $messageId, 'pending', $createdAt
             );";
 
         command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-        command.Parameters.AddWithValue("$sessionId", (object?)signal.SessionId ?? DBNull.Value);
-        command.Parameters.AddWithValue("$source", signal.Source);
-        command.Parameters.AddWithValue("$identity", JsonSerializer.Serialize(identity));
-        command.Parameters.AddWithValue("$payload", signal.Payload);
+        command.Parameters.AddWithValue("$sessionId", (object?)envelope.Signal.SessionId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", envelope.Signal.Source);
+        command.Parameters.AddWithValue("$payload", envelope.Signal.Payload);
+        command.Parameters.AddWithValue("$context", SerializeContext(envelope.Context));
+        command.Parameters.AddWithValue("$arrivedAt", (object?)envelope.Signal.ArrivedAt?.ToString("O") ?? DBNull.Value);
+        command.Parameters.AddWithValue("$messageId", (object?)envelope.Signal.MessageId ?? DBNull.Value);
         command.Parameters.AddWithValue("$createdAt", _timeProvider.GetUtcNow().ToString("O"));
 
         await command.ExecuteNonQueryAsync();
@@ -93,7 +112,7 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
                   WHERE status = 'pending' AND (visible_at IS NULL OR visible_at <= $now) 
                   ORDER BY created_at ASC LIMIT 1
               )
-              RETURNING id, session_id, source_type, identity_json, payload_json, status, created_at, picked_at, completed_at, retry_count, max_retries, visible_at, last_error;";
+              RETURNING id, session_id, source_type, payload_json, context_json, arrived_at, message_id, status, created_at, picked_at, completed_at, retry_count, max_retries, visible_at, last_error;";
         
         command.Parameters.AddWithValue("$now", nowStr);
 
@@ -103,21 +122,31 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
             var id = reader.GetString(0);
             var sessionId = reader.IsDBNull(1) ? null : reader.GetString(1);
             var sourceType = reader.GetString(2);
-            var identityJson = reader.GetString(3);
-            var payload = reader.GetString(4);
-            var statusStr = reader.GetString(5);
-            var createdAtStr = reader.GetString(6);
-            var pickedAtStr = reader.IsDBNull(7) ? null : reader.GetString(7);
-            var completedAtStr = reader.IsDBNull(8) ? null : reader.GetString(8);
-            var retryCount = reader.GetInt32(9);
-            var maxRetries = reader.GetInt32(10);
-            var visibleAtStr = reader.IsDBNull(11) ? null : reader.GetString(11);
-            var lastError = reader.IsDBNull(12) ? null : reader.GetString(12);
+            var payload = reader.GetString(3);
+            var context = reader.IsDBNull(4)
+                ? SignalContext.Anonymous
+                : DeserializeContext(reader.GetString(4));
+            var arrivedAtStr = reader.IsDBNull(5) ? null : reader.GetString(5);
+            var messageId = reader.IsDBNull(6) ? null : reader.GetString(6);
+            var statusStr = reader.GetString(7);
+            var createdAtStr = reader.GetString(8);
+            var pickedAtStr = reader.IsDBNull(9) ? null : reader.GetString(9);
+            var completedAtStr = reader.IsDBNull(10) ? null : reader.GetString(10);
+            var retryCount = reader.GetInt32(11);
+            var maxRetries = reader.GetInt32(12);
+            var visibleAtStr = reader.IsDBNull(13) ? null : reader.GetString(13);
+            var lastError = reader.IsDBNull(14) ? null : reader.GetString(14);
 
             return new QueuedSignal(
                 id,
-                new Signal(payload, sourceType, sessionId),
-                JsonSerializer.Deserialize<Identity>(identityJson) ?? Identity.Anonymous,
+                new SignalEnvelope(
+                    new Signal(
+                        payload,
+                        sourceType,
+                        sessionId,
+                        arrivedAtStr is null ? null : DateTimeOffset.Parse(arrivedAtStr),
+                        messageId),
+                    context),
                 Enum.Parse<SignalStatus>(statusStr, true),
                 DateTimeOffset.Parse(createdAtStr),
                 pickedAtStr != null ? DateTimeOffset.Parse(pickedAtStr) : null,
@@ -131,6 +160,96 @@ public class SharedSqliteSignalQueueStore : ISignalQueue
 
         return null;
     }
+
+    private static SignalContext DeserializeContext(string contextJson)
+    {
+        try
+        {
+            var persisted = JsonSerializer.Deserialize<PersistedSignalContext>(contextJson)
+                ?? throw new JsonException("Signal context JSON must not deserialize to null.");
+            var authentication = persisted.Authentication
+                ?? throw new JsonException("Signal context authentication is required.");
+            var identity = authentication.Identity
+                ?? throw new JsonException("Signal context identity is required.");
+            var claims = identity.Claims
+                ?? throw new JsonException("Signal context identity claims are required.");
+            var attributes = persisted.Attributes
+                ?? throw new JsonException("Signal context attributes are required.");
+            var credentialReferences = authentication.CredentialReferences
+                ?? throw new JsonException("Signal context credential references are required.");
+
+            var domainIdentity = new Identity(
+                identity.Issuer,
+                identity.Subject,
+                claims.ToImmutableDictionary(
+                    claim => claim.Key,
+                    claim => (claim.Value ?? throw new JsonException("Signal context claim values are required."))
+                        .ToImmutableHashSet(StringComparer.Ordinal),
+                    StringComparer.Ordinal));
+            var domainCredentialReferences = credentialReferences.Values.Select(reference =>
+            {
+                if (reference is null)
+                {
+                    throw new JsonException("Signal context credential reference is required.");
+                }
+
+                return new CredentialReference(reference.Name, reference.Provider, reference.Reference);
+            });
+            return new SignalContext(
+                new AuthenticationContext(domainIdentity, authentication.AuthenticationMethod, domainCredentialReferences),
+                attributes);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException)
+        {
+            throw new InvalidOperationException("Queued signal contains invalid context_json.", exception);
+        }
+    }
+
+    private static string SerializeContext(SignalContext context)
+    {
+        var authentication = context.Authentication;
+        var identity = authentication.Identity;
+        return JsonSerializer.Serialize(new PersistedSignalContext(
+            new PersistedAuthenticationContext(
+                new PersistedIdentity(
+                    identity.Issuer,
+                    identity.Subject,
+                    identity.Claims.ToDictionary(
+                        claim => claim.Key,
+                        claim => claim.Value.ToArray(),
+                        StringComparer.Ordinal)),
+                authentication.AuthenticationMethod,
+                authentication.CredentialReferences.ToDictionary(
+                    reference => reference.Key,
+                    reference => new PersistedCredentialReference(
+                        reference.Value.Name,
+                        reference.Value.Provider,
+                        reference.Value.Reference),
+                    StringComparer.Ordinal)),
+            context.Attributes.ToDictionary(
+                attribute => attribute.Key,
+                attribute => attribute.Value,
+                StringComparer.Ordinal)));
+    }
+
+    private sealed record PersistedSignalContext(
+        PersistedAuthenticationContext Authentication,
+        Dictionary<string, string> Attributes);
+
+    private sealed record PersistedAuthenticationContext(
+        PersistedIdentity Identity,
+        string AuthenticationMethod,
+        Dictionary<string, PersistedCredentialReference> CredentialReferences);
+
+    private sealed record PersistedIdentity(
+        string Issuer,
+        string Subject,
+        Dictionary<string, string[]> Claims);
+
+    private sealed record PersistedCredentialReference(
+        string Name,
+        string Provider,
+        string Reference);
 
     public async Task AckAsync(string id)
     {

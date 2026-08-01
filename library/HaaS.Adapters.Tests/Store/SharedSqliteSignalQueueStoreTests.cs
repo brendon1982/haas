@@ -16,7 +16,7 @@ public class SharedSqliteSignalQueueStoreTests
     [SetUp]
     public void SetUp()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db");
+        _dbPath = Path.Combine(Directory.GetCurrentDirectory(), $"{Guid.NewGuid()}.db");
     }
 
     [TearDown]
@@ -30,26 +30,48 @@ public class SharedSqliteSignalQueueStoreTests
     }
 
     [Test]
-    public async Task EnqueueAndDequeue_ShouldRoundtripSignal()
+    public async Task EnqueueAndDequeue_ShouldRoundtripCompleteEnvelope()
     {
         // Arrange
         var sut = new SharedSqliteSignalQueueStore(_dbPath);
         var signal = SignalTestBuilder.Create()
             .WithPayload("hello queue")
             .WithSource("slack")
+            .WithSessionId("session-42")
+            .WithArrivedAt(new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero))
+            .WithMessageId("message-42")
             .Build();
-        var identity = IdentityTestBuilder.Create().WithIssuer("test").WithSubject("user-1").WithClaim("role", "admin").Build();
+        var identity = IdentityTestBuilder.Create()
+            .WithIssuer("test")
+            .WithSubject("user-1")
+            .WithClaim("role", "admin")
+            .Build();
+        var context = SignalContextTestBuilder.Create()
+            .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                .WithIdentity(identity)
+                .WithAuthenticationMethod("oauth")
+                .WithCredentialReference("calendar", "vault", "calendar-ref")
+                .Build())
+            .WithAttribute("tenant", "contoso")
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(context)
+            .Build();
 
         // Act
-        await sut.EnqueueAsync(signal, identity);
+        await sut.EnqueueAsync(envelope);
         var dequeued = await sut.DequeueAsync();
 
         // Assert
         Expect(dequeued).Not.To.Be.Null();
-        Expect(dequeued!.Signal.Payload).To.Equal(signal.Payload);
-        Expect(dequeued.Signal.Source).To.Equal(signal.Source);
-        Expect(dequeued.Identity.Subject).To.Equal(identity.Subject);
-        Expect(dequeued.Identity.Claims).To.Deep.Equal(identity.Claims);
+        Expect(dequeued!.Envelope.Signal).To.Equal(signal);
+        Expect(dequeued.Envelope.Context.Authentication.Identity).To.Equal(identity);
+        Expect(dequeued.Envelope.Context.Authentication.Identity.Claims).To.Deep.Equal(identity.Claims);
+        Expect(dequeued.Envelope.Context.Authentication.AuthenticationMethod).To.Equal("oauth");
+        Expect(dequeued.Envelope.Context.Attributes).To.Deep.Equal(context.Attributes);
+        Expect(dequeued.Envelope.Context.Authentication.CredentialReferences["calendar"])
+            .To.Equal(context.Authentication.CredentialReferences["calendar"]);
         Expect(dequeued.Status).To.Equal(SignalStatus.Processing);
     }
 
@@ -58,7 +80,7 @@ public class SharedSqliteSignalQueueStoreTests
     {
         // Arrange
         var sut = new SharedSqliteSignalQueueStore(_dbPath);
-        await sut.EnqueueAsync(SignalTestBuilder.Create().Build(), Identity.Anonymous);
+        await sut.EnqueueAsync(SignalEnvelopeTestBuilder.Create().Build());
         var dequeued = await sut.DequeueAsync();
 
         // Act
@@ -76,7 +98,7 @@ public class SharedSqliteSignalQueueStoreTests
         var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(now);
         var sut = new SharedSqliteSignalQueueStore(_dbPath, timeProvider);
-        await sut.EnqueueAsync(SignalTestBuilder.Create().Build(), Identity.Anonymous);
+        await sut.EnqueueAsync(SignalEnvelopeTestBuilder.Create().Build());
         var dequeued = await sut.DequeueAsync();
 
         // Act
@@ -101,7 +123,7 @@ public class SharedSqliteSignalQueueStoreTests
         var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
         var timeProvider = new FakeTimeProvider(now);
         var sut = new SharedSqliteSignalQueueStore(_dbPath, timeProvider);
-        await sut.EnqueueAsync(SignalTestBuilder.Create().Build(), Identity.Anonymous);
+        await sut.EnqueueAsync(SignalEnvelopeTestBuilder.Create().Build());
         
         // 1st attempt
         var d1 = await sut.DequeueAsync();
@@ -133,6 +155,98 @@ public class SharedSqliteSignalQueueStoreTests
         Expect(await reader.ReadAsync()).To.Be.True();
         Expect(reader.GetString(0)).To.Equal("failed");
         Expect(reader.GetString(1)).To.Equal("permanent failure");
+    }
+
+    [Test]
+    public async Task Constructor_WhenDatabaseContainsLegacyQueueRow_MigratesAndReturnsAnonymousContext()
+    {
+        // Arrange
+        var expectedPayload = "legacy payload";
+        var expectedSource = "legacy-source";
+        var expectedSessionId = "legacy-session";
+        var expectedCreatedAt = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+        await CreateLegacyQueueRowAsync(expectedPayload, expectedSource, expectedSessionId, expectedCreatedAt);
+
+        // Act
+        var sut = new SharedSqliteSignalQueueStore(_dbPath);
+        var dequeued = await sut.DequeueAsync();
+
+        // Assert
+        Expect(dequeued).Not.To.Be.Null();
+        Expect(dequeued!.Envelope.Signal.Payload).To.Equal(expectedPayload);
+        Expect(dequeued.Envelope.Signal.Source).To.Equal(expectedSource);
+        Expect(dequeued.Envelope.Signal.SessionId).To.Equal(expectedSessionId);
+        Expect(dequeued.Envelope.Signal.ArrivedAt).To.Be.Null();
+        Expect(dequeued.Envelope.Signal.MessageId).To.Be.Null();
+        Expect(dequeued.Envelope.Context).To.Equal(SignalContext.Anonymous);
+    }
+
+    [Test]
+    public async Task DequeueAsync_WhenContextJsonIsInvalid_ThrowsInsteadOfUsingAnonymousContext()
+    {
+        // Arrange
+        var sut = new SharedSqliteSignalQueueStore(_dbPath);
+        var id = "invalid-context";
+        var source = "source";
+        var payload = "payload";
+        var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+        using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
+        {
+            await connection.OpenAsync();
+            var command = connection.CreateCommand();
+            command.CommandText =
+                @"INSERT INTO signal_queue (id, source_type, payload_json, context_json, status, created_at, retry_count, max_retries)
+                  VALUES ($id, $source, $payload, $context, 'pending', $createdAt, 0, 3);";
+            command.Parameters.AddWithValue("$id", id);
+            command.Parameters.AddWithValue("$source", source);
+            command.Parameters.AddWithValue("$payload", payload);
+            command.Parameters.AddWithValue("$context", "{");
+            command.Parameters.AddWithValue("$createdAt", now.ToString("O"));
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Act & Assert
+        Expect(async () => await sut.DequeueAsync())
+            .To.Throw<InvalidOperationException>()
+            .With.Message.Containing("context_json");
+    }
+
+    private async Task CreateLegacyQueueRowAsync(
+        string payload,
+        string source,
+        string sessionId,
+        DateTimeOffset createdAt)
+    {
+        using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        await connection.OpenAsync();
+        var command = connection.CreateCommand();
+        command.CommandText =
+            @"CREATE TABLE signal_queue (
+                id TEXT PRIMARY KEY,
+                session_id TEXT,
+                source_type TEXT NOT NULL,
+                source_metadata_json TEXT,
+                identity_json TEXT,
+                payload_json TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TEXT NOT NULL,
+                picked_at TEXT,
+                completed_at TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                max_retries INTEGER NOT NULL DEFAULT 3
+            );
+            INSERT INTO signal_queue (
+                id, session_id, source_type, identity_json, payload_json, status, created_at, retry_count, max_retries
+            ) VALUES (
+                $id, $sessionId, $source, $identity, $payload, 'pending', $createdAt, 0, 3
+            );";
+        command.Parameters.AddWithValue("$id", "legacy-id");
+        command.Parameters.AddWithValue("$sessionId", sessionId);
+        command.Parameters.AddWithValue("$source", source);
+        command.Parameters.AddWithValue("$identity", "{}");
+        command.Parameters.AddWithValue("$payload", payload);
+        command.Parameters.AddWithValue("$createdAt", createdAt.ToString("O"));
+        await command.ExecuteNonQueryAsync();
     }
 }
 

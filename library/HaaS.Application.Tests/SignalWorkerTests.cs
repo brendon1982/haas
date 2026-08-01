@@ -18,8 +18,19 @@ public class SignalWorkerTests
     {
         // Arrange
         var queue = new InMemorySignalQueue();
-        var signal = new Signal("test", "source");
-        await queue.EnqueueAsync(signal, Identity.Anonymous);
+        var expectedContext = SignalContextTestBuilder.Create()
+            .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                .WithIdentity(IdentityTestBuilder.Create().WithIssuer("issuer").WithSubject("subject").Build())
+                .WithAuthenticationMethod("mtls")
+                .WithCredentialReference("api", "vault", "api-ref")
+                .Build())
+            .WithAttribute("tenant", "contoso")
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(SignalTestBuilder.Create().WithPayload("test").WithSource("source").Build())
+            .WithContext(expectedContext)
+            .Build();
+        await queue.EnqueueAsync(envelope);
         
         var runSessionUseCase = new FakeRunSessionUseCase();
         var resultStore = new FakeDeferredSessionResultStore();
@@ -36,6 +47,7 @@ public class SignalWorkerTests
         // Assert
         var dequeued = await queue.DequeueAsync();
         Expect(dequeued).To.Be.Null(); // Should be removed from queue
+        Expect(runSessionUseCase.ReceivedEnvelope?.Context).To.Equal(expectedContext);
     }
 
     [Test]
@@ -44,8 +56,10 @@ public class SignalWorkerTests
         // Arrange
         var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var queue = new InMemorySignalQueue(timeProvider);
-        var signal = new Signal("test", "source");
-        await queue.EnqueueAsync(signal, Identity.Anonymous);
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(SignalTestBuilder.Create().WithPayload("test").WithSource("source").Build())
+            .Build();
+        await queue.EnqueueAsync(envelope);
         
         var runSessionUseCase = new FakeRunSessionUseCase { ShouldFail = true };
         var resultStore = new FakeDeferredSessionResultStore();
@@ -74,8 +88,10 @@ public class SignalWorkerTests
         // Arrange
         var timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var queue = new InMemorySignalQueue(timeProvider);
-        var signal = new Signal("test", "source");
-        await queue.EnqueueAsync(signal, Identity.Anonymous);
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(SignalTestBuilder.Create().WithPayload("test").WithSource("source").Build())
+            .Build();
+        await queue.EnqueueAsync(envelope);
         
         var runSessionUseCase = new FakeRunSessionUseCase { ShouldFail = true };
         var resultStore = new FakeDeferredSessionResultStore();
@@ -108,8 +124,11 @@ public class SignalWorkerTests
 file sealed class FakeRunSessionUseCase : IRunSessionUseCase
 {
     public bool ShouldFail { get; set; }
-    public Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public SignalEnvelope? ReceivedEnvelope { get; private set; }
+
+    public Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
     {
+        ReceivedEnvelope = envelope;
         if (ShouldFail)
         {
             throw new Exception("Simulated failure");

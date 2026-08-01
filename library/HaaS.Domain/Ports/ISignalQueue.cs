@@ -4,7 +4,7 @@ namespace HaaS.Domain.Ports;
 
 public interface ISignalQueue
 {
-    Task EnqueueAsync(Signal signal, Identity identity);
+    Task EnqueueAsync(SignalEnvelope envelope);
     Task<QueuedSignal?> DequeueAsync();
     Task AckAsync(string id);
     Task NackAsync(string id, string? error = null);

@@ -7,6 +7,8 @@ public class SignalTestBuilder
     private string _payload = "default prompt";
     private string _source = "test";
     private string? _sessionId;
+    private DateTimeOffset? _arrivedAt;
+    private string? _messageId;
 
     private SignalTestBuilder() { }
 
@@ -30,5 +32,17 @@ public class SignalTestBuilder
         return this;
     }
 
-    public Signal Build() => new(_payload, _source, _sessionId);
+    public SignalTestBuilder WithArrivedAt(DateTimeOffset arrivedAt)
+    {
+        _arrivedAt = arrivedAt;
+        return this;
+    }
+
+    public SignalTestBuilder WithMessageId(string messageId)
+    {
+        _messageId = messageId;
+        return this;
+    }
+
+    public Signal Build() => new(_payload, _source, _sessionId, _arrivedAt, _messageId);
 }

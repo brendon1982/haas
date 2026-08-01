@@ -76,9 +76,9 @@ public class QueuedHaasEngine : BaseHaasEngine
     protected override IEnumerable<SignalSourceRegistration> GetRelevantRegistrations()
         => Registry.GetAll().Where(r => r.IsQueued);
 
-    protected override async Task<ISignalHandle> ExecuteProcessSignalAsync(Signal signal, SignalSourceRegistration reg)
+    protected override async Task<ISignalHandle> ExecuteProcessSignalAsync(SignalEnvelope envelope, SignalSourceRegistration reg)
     {
-        var sessionId = await _enqueueSignalUseCase.ExecuteAsync(signal);
+        var sessionId = await _enqueueSignalUseCase.ExecuteAsync(envelope);
         return new QueuedSignalHandle(sessionId, _resultStore);
     }
 }

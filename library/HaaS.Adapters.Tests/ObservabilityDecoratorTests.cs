@@ -28,11 +28,11 @@ public class ObservableRunSessionUseCaseTests
             .WithLogger(logger)
             .BuildUseCase();
         
-        var signal = SignalTestBuilder.Create().Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().Build();
         var presenter = new FakePresenter();
 
         // Act
-        var result = await sut.ExecuteAsync(signal, presenter);
+        var result = await sut.ExecuteAsync(envelope, presenter);
 
         // Assert
         Expect(result).To.Equal(expected);
@@ -54,10 +54,10 @@ public class ObservableRunSessionUseCaseTests
             .WithLogger(logger)
             .BuildUseCase();
         
-        var signal = SignalTestBuilder.Create().Build();
+        var envelope = SignalEnvelopeTestBuilder.Create().Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, new FakePresenter()))
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
             .To.Throw<InvalidOperationException>();
         
         var errorLogs = logger.Logs.Where(l => l.Level == LogLevel.Error).ToList();
@@ -147,7 +147,7 @@ file sealed class FakeRunSessionUseCase : IRunSessionUseCase
     public SessionResult? ResultToReturn { get; set; }
     public Exception? ErrorToThrow { get; set; }
 
-    public Task<SessionResult> ExecuteAsync(Signal signal, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(SignalEnvelope envelope, ISignalPresenter presenter)
     {
         if (ErrorToThrow != null) throw ErrorToThrow;
         return Task.FromResult(ResultToReturn ?? SessionResultTestBuilder.Create().Build());
