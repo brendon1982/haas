@@ -1,9 +1,7 @@
-using System.Text.Json;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Agent;
 
@@ -29,8 +27,10 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
         _timeProvider = timeProvider;
     }
 
-    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
+        var signal = request.Signal;
+        var sessionId = request.SessionId;
         var record = await _sessionRepository.LoadAsync(sessionId)
             ?? throw new InvalidOperationException($"Session {sessionId} not found.");
 
@@ -57,9 +57,9 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
 
         var chatOptions = new ChatOptions();
         _chatClientFactory.ConfigureOptions(config.Provider, chatOptions, config);
-        if (config.ToolBelt.Tools.Count > 0)
+        if (request.PermittedToolNames.Count > 0)
         {
-            chatOptions.Tools = _toolProvider.GetTools(config.ToolBelt.Tools)
+            chatOptions.Tools = _toolProvider.GetTools(request.PermittedToolNames)
                 .Select(t =>
                 {
                     var options = new AIFunctionFactoryOptions { Name = t.Name, Description = t.Description };
@@ -69,7 +69,6 @@ public class MicrosoftAgentFrameworkStrategy : IAgentStrategy
                         return AIFunctionFactory.Create(metadata.Method, target, options);
                     }
 
-                    // Fallback to reflecting on the delegate's Invoke method to ensure we have parameter names
                     return AIFunctionFactory.Create(t.Handler.GetType().GetMethod("Invoke")!, t.Handler, options);
                 })
                 .Cast<AITool>()

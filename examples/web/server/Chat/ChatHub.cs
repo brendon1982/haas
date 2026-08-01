@@ -16,6 +16,6 @@ public class ChatHub : Hub
     public async Task SendMessage(string message)
     {
         var messageId = Guid.NewGuid().ToString();
-        await _bus.PushAsync("chat", new IncomingSignal(message, Context.ConnectionId, MessageId: messageId));
+        await _bus.PushAsync("chat", new IncomingSignal(message, SignalContext.Anonymous, Context.ConnectionId, MessageId: messageId));
     }
 }

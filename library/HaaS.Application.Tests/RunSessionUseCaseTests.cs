@@ -271,9 +271,9 @@ file sealed class FakeTimeProvider(DateTimeOffset fixedTime) : TimeProvider
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public async Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
-        var updated = result with { SessionId = sessionId };
+        var updated = result with { SessionId = request.SessionId };
         await presenter.PresentAsync(updated);
         return updated;
     }
@@ -281,7 +281,7 @@ file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
         => throw error;
 }
 

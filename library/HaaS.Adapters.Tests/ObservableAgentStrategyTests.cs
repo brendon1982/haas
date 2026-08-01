@@ -34,7 +34,7 @@ public class ObservableAgentStrategyTests
 
         // Act
         var presenter = new RecordingPresenter();
-        await sut.ExecuteAsync(signal, "sess-42", presenter);
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId("sess-42").Build(), presenter);
 
         // Assert
         Expect(presenter.Results).To.Contain.Exactly(1);
@@ -70,7 +70,7 @@ public class ObservableAgentStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, "sess-fail", new RecordingPresenter()))
+        Expect(async () => await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId("sess-fail").Build(), new RecordingPresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing(expectedError);
 
@@ -118,7 +118,7 @@ file sealed class SutBuilder
 
 file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 {
-    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
         await presenter.PresentAsync(result);
         return result;
@@ -127,7 +127,7 @@ file sealed class FakeStrategy(SessionResult result) : IAgentStrategy
 
 file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
         => throw error;
 }
 

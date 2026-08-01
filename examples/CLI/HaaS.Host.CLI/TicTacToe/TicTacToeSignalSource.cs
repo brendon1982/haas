@@ -146,7 +146,7 @@ public class TicTacToeSignalSource : ISignalSource
         _game.ResetTurn();
 
         var signal = new IncomingSignal(
-            $"The player (X) just moved at position {lastPlayerMove}. It's your turn (O). Make your move.");
+            $"The player (X) just moved at position {lastPlayerMove}. It's your turn (O). Make your move.", SignalContext.Anonymous);
 
         var boardBefore = _game.Board.ToArray();
 

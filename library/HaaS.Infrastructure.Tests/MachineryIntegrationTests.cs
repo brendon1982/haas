@@ -40,7 +40,7 @@ public class MachineryIntegrationTests
         var engineTask = engine.StartAsync(cts.Token);
 
         // Act
-        var signal = new IncomingSignal("Hello Machinery");
+        var signal = IncomingSignalTestBuilder.Create().WithPayload("Hello Machinery").Build();
         
         // Give the engine a moment to start and call ListenAsync
         await Task.Delay(100); 
@@ -84,7 +84,7 @@ public class MachineryIntegrationTests
         var engineTask = engine.StartAsync(cts.Token);
 
         // Act
-        var signal = new IncomingSignal("Fail Me");
+        var signal = IncomingSignalTestBuilder.Create().WithPayload("Fail Me").Build();
         
         await Task.Delay(100); 
         
@@ -104,7 +104,7 @@ public class MachineryIntegrationTests
 
 file sealed class FailingStrategy : IAgentStrategy
 {
-    public Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
         throw new ApplicationException("Strategy failed");
     }
@@ -143,10 +143,10 @@ file sealed class CapturingStrategy : IAgentStrategy
     public Signal? LastSignal { get; private set; }
     public SessionResult ResultToReturn { get; set; } = SessionResultTestBuilder.Create().Build();
 
-    public async Task<SessionResult> ExecuteAsync(Signal signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
-        LastSignal = signal;
-        var result = ResultToReturn with { SessionId = sessionId };
+        LastSignal = request.Signal;
+        var result = ResultToReturn with { SessionId = request.SessionId };
         await presenter.PresentAsync(result);
         return result;
     }

@@ -38,7 +38,7 @@ public class SharedSqliteSignalQueueStoreTests
             .WithPayload("hello queue")
             .WithSource("slack")
             .Build();
-        var identity = new Identity("user-1", new[] { "role:admin" });
+        var identity = IdentityTestBuilder.Create().WithIssuer("test").WithSubject("user-1").WithClaim("role", "admin").Build();
 
         // Act
         await sut.EnqueueAsync(signal, identity);
@@ -48,7 +48,7 @@ public class SharedSqliteSignalQueueStoreTests
         Expect(dequeued).Not.To.Be.Null();
         Expect(dequeued!.Signal.Payload).To.Equal(signal.Payload);
         Expect(dequeued.Signal.Source).To.Equal(signal.Source);
-        Expect(dequeued.Identity.Name).To.Equal(identity.Name);
+        Expect(dequeued.Identity.Subject).To.Equal(identity.Subject);
         Expect(dequeued.Identity.Claims).To.Deep.Equal(identity.Claims);
         Expect(dequeued.Status).To.Equal(SignalStatus.Processing);
     }

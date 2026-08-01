@@ -53,7 +53,9 @@ public class RunSessionUseCase : IRunSessionUseCase
         SessionResult result;
         try
         {
-            result = await _agentStrategy.ExecuteAsync(signal, sessionId, presenter);
+            result = await _agentStrategy.ExecuteAsync(
+                new AgentExecutionRequest(signal, sessionId, config.ToolBelt.Tools),
+                presenter);
         }
         catch
         {

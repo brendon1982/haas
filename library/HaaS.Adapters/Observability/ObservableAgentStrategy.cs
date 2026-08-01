@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
-using SignalValue = HaaS.Domain.ValueObjects.Signal;
 
 namespace HaaS.Adapters.Observability;
 
@@ -18,24 +17,24 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
         _logger = logger;
     }
 
-    public async Task<SessionResult> ExecuteAsync(SignalValue signal, string sessionId, ISignalPresenter presenter)
+    public async Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
     {
         using var activity = ActivitySource.StartActivity("AgentExecute");
-        activity?.SetTag("signal.source", signal.Source);
-        activity?.SetTag("session.id", sessionId);
+        activity?.SetTag("signal.source", request.Signal.Source);
+        activity?.SetTag("session.id", request.SessionId);
 
-        _logger.LogInformation("Agent execution started — session: {0}", sessionId);
+        _logger.LogInformation("Agent execution started — session: {0}", request.SessionId);
         var sw = Stopwatch.StartNew();
 
         try
         {
-            var result = await _inner.ExecuteAsync(signal, sessionId, presenter);
+            var result = await _inner.ExecuteAsync(request, presenter);
             sw.Stop();
 
-            activity?.SetTag("session.id", sessionId);
+            activity?.SetTag("session.id", request.SessionId);
             activity?.SetTag("duration_ms", sw.ElapsedMilliseconds);
 
-            _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", sessionId, sw.ElapsedMilliseconds);
+            _logger.LogInformation("Agent execution completed — session: {0}, duration: {1}ms", request.SessionId, sw.ElapsedMilliseconds);
             return result;
         }
         catch (Exception ex)
@@ -46,7 +45,6 @@ public sealed class ObservableAgentStrategy : IAgentStrategy
             activity?.SetTag("error.message", ex.Message);
 
             _logger.LogError(ex, "Agent execution failed — duration: {0}ms", sw.ElapsedMilliseconds);
-
             throw;
         }
     }

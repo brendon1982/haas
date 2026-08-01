@@ -47,7 +47,7 @@ public class MicrosoftAgentFrameworkStrategyTests
 
         // Act
         var presenter = new RecordingPresenter();
-        await sut.ExecuteAsync(signal, sessionId, presenter);
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).Build(), presenter);
 
         // Assert
         Expect(presenter.Results).To.Contain.Exactly(1);
@@ -86,7 +86,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).Build(), new RecordingPresenter());
 
         // Assert
         var messages = await messageStore.GetMessagesAsync(sessionId);
@@ -127,7 +127,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).Build(), new RecordingPresenter());
 
         // Assert
         Expect(factory.LastProvider).To.Equal(expectedProvider);
@@ -154,7 +154,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, "nonexistent", new RecordingPresenter()))
+        Expect(async () => await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId("nonexistent").Build(), new RecordingPresenter()))
             .To.Throw<InvalidOperationException>()
             .With.Message.Containing("nonexistent");
     }
@@ -190,13 +190,13 @@ public class MicrosoftAgentFrameworkStrategyTests
         var signal1 = SignalTestBuilder.Create()
             .WithPayload("first turn")
             .Build();
-        await sut.ExecuteAsync(signal1, sessionId, presenter);
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal1).WithSessionId(sessionId).Build(), presenter);
 
         // Act - second turn
         var signal2 = SignalTestBuilder.Create()
             .WithPayload("second turn")
             .Build();
-        await sut.ExecuteAsync(signal2, sessionId, presenter);
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal2).WithSessionId(sessionId).Build(), presenter);
 
         // Assert
         Expect(presenter.Results).To.Contain.Exactly(2);
@@ -214,7 +214,7 @@ public class MicrosoftAgentFrameworkStrategyTests
     }
 
     [Test]
-    public async Task Execute_WithToolBelt_ResolvesToolsFromRegistry()
+    public async Task Execute_WithPermittedTool_ResolvesToolsFromRegistry()
     {
         // Arrange
         var sessionId = "sess-1";
@@ -222,7 +222,7 @@ public class MicrosoftAgentFrameworkStrategyTests
         var record = SessionRecordTestBuilder.Create()
             .WithSessionId(sessionId)
             .WithSourceType("cli")
-            .WithToolBelt(new ToolBelt([expectedTool]))
+            .WithToolBelt(ToolBelt.Empty)
             .Build();
         var repo = new InMemorySessionRepository();
         await repo.SaveAsync(record);
@@ -243,7 +243,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act
-        await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter());
+        await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).WithPermittedTool(expectedTool).Build(), new RecordingPresenter());
 
         // Assert
         var lastOptions = capturedOptions.LastOrDefault();
@@ -292,7 +292,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+        Expect(async () => await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).WithPermittedTool(toolName).Build(), new RecordingPresenter()))
             .Not.To.Throw();
     }
 
@@ -334,7 +334,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+        Expect(async () => await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).WithPermittedTool(toolName).Build(), new RecordingPresenter()))
             .Not.To.Throw();
     }
 
@@ -377,7 +377,7 @@ public class MicrosoftAgentFrameworkStrategyTests
             .Build();
 
         // Act & Assert
-        Expect(async () => await sut.ExecuteAsync(signal, sessionId, new RecordingPresenter()))
+        Expect(async () => await sut.ExecuteAsync(AgentExecutionRequestTestBuilder.Create().WithSignal(signal).WithSessionId(sessionId).WithPermittedTool(toolName).Build(), new RecordingPresenter()))
             .Not.To.Throw();
     }
 

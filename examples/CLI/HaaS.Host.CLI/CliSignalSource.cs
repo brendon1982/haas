@@ -37,7 +37,7 @@ public class CliSignalSource : ISignalSource
 
                 try
                 {
-                    var handle = await handler(new IncomingSignal(line.Trim()));
+                    var handle = await handler(new IncomingSignal(line.Trim(), SignalContext.Anonymous));
                     // Wait for the worker to finish and present the result
                     await handle.WaitForResultAsync(token);
                 }
