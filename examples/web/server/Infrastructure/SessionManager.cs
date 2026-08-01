@@ -20,8 +20,3 @@ public class SessionManager
         }
     }
 }
-
-public class ScopedSessionContext
-{
-    public string? SessionId { get; set; }
-}

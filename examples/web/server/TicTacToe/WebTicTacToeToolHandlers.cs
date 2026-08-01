@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using HaaS.Domain.Ports;
 using HaaS.Host.Web.Infrastructure;
 
 namespace HaaS.Host.Web.TicTacToe;
@@ -6,17 +7,21 @@ namespace HaaS.Host.Web.TicTacToe;
 public class WebTicTacToeToolHandlers
 {
     private readonly SessionManager _sessionManager;
-    private readonly ScopedSessionContext _sessionContext;
+    private readonly ISignalContextAccessor _signalContextAccessor;
     private readonly IHubContext<TicTacToeHub> _hubContext;
 
-    public WebTicTacToeToolHandlers(SessionManager sessionManager, ScopedSessionContext sessionContext, IHubContext<TicTacToeHub> hubContext)
+    public WebTicTacToeToolHandlers(
+        SessionManager sessionManager,
+        ISignalContextAccessor signalContextAccessor,
+        IHubContext<TicTacToeHub> hubContext)
     {
         _sessionManager = sessionManager;
-        _sessionContext = sessionContext;
+        _signalContextAccessor = signalContextAccessor;
         _hubContext = hubContext;
     }
 
-    private TicTacToeGame GetGame() => _sessionManager.GetOrCreate<TicTacToeGame>(_sessionContext.SessionId ?? "unknown");
+    private TicTacToeGame GetGame()
+        => _sessionManager.GetOrCreate<TicTacToeGame>(_signalContextAccessor.Current.SessionId);
 
     public string GetBoard()
     {
@@ -49,11 +54,9 @@ public class WebTicTacToeToolHandlers
         game.TryPlaceAiMarker(position);
         
         // Notify client immediately
-        if (_sessionContext.SessionId != null)
-        {
-            await _hubContext.Clients.Client(_sessionContext.SessionId)
-                .SendAsync("BoardUpdated", TicTacToeState.FromGame(game));
-        }
+        var context = _signalContextAccessor.Current;
+        await _hubContext.Clients.Client(context.SessionId)
+            .SendAsync("BoardUpdated", TicTacToeState.FromGame(game));
 
         return $"Successfully placed 'O' at position {position}. Turn ended.";
     }

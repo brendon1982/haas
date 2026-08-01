@@ -63,4 +63,4 @@
 | **Configuration** | `ConfigRepository` | YAML file, SQLite |
 | **Knowledge** | `TaskStore`, `MemoryStore`, `RegistryStore` | SQLite, Postgres, in-memory |
 | **Auth** | `AuthProvider` | JWT, OAuth2, API key, mTLS, passthrough |
-| **Governance** | `PolicyEngine` | RBAC, ABAC, allow-list, deny-list, LLM-gated |
+| **Governance** | `PolicyEngine` | Deterministic RBAC, ABAC, allow-list, deny-list |

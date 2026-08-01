@@ -35,7 +35,13 @@ public class TicTacToeHubHandlers
             // Trigger AI
             var message = $"The player (X) just moved at position {position}. It's your turn (O). Make your move.";
             var messageId = Guid.NewGuid().ToString();
-            await _bus.PushAsync("tictactoe", new IncomingSignal(message, SignalContext.Anonymous, hub.Context.ConnectionId, MessageId: messageId));
+            await _bus.PushAsync(
+                "tictactoe",
+                new IncomingSignal(
+                    message,
+                    hub.Context.User.ToSignalContext(),
+                    hub.Context.ConnectionId,
+                    MessageId: messageId));
         }
     }
 

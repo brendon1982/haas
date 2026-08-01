@@ -1,5 +1,3 @@
-using HaaS.Application.UseCases;
-using HaaS.Adapters.Observability;
 using HaaS.Host.Web.TicTacToe;
 using HaaS.Host.Web.Chat;
 using HaaS.Host.Web.Infrastructure;
@@ -23,23 +21,11 @@ builder.Services.AddCors(options =>
 // Shared Infrastructure
 builder.Services.AddSingleton<WebSignalBus>();
 builder.Services.AddSingleton<SessionManager>();
-builder.Services.AddScoped<ScopedSessionContext>();
 
 // Module Services
 builder.Services.AddTicTacToeServices();
 
 var haas = builder.Services.AddHaas();
-
-// Decorate IRunSessionUseCase manually since we don't have Scrutor
-builder.Services.AddScoped<RunSessionUseCase>();
-builder.Services.AddScoped<IRunSessionUseCase>(sp =>
-{
-    var inner = sp.GetRequiredService<RunSessionUseCase>();
-    var logger = sp.GetRequiredService<HaaS.Domain.Ports.ILogger>();
-    var observable = new ObservableRunSessionUseCase(inner, logger);
-    var context = sp.GetRequiredService<ScopedSessionContext>();
-    return new SessionContextRunSessionUseCaseDecorator(observable, context);
-});
 
 haas.WithSqlitePersistence("data", includeConfig: false)
     .WithInMemoryConfig(config =>
