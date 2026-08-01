@@ -1,6 +1,7 @@
 using NExpect;
 using static NExpect.Expectations;
 using HaaS.Application.UseCases;
+using HaaS.Domain.Exceptions;
 using HaaS.Domain.Ports;
 using HaaS.Domain.ValueObjects;
 using HaaS.Domain.Tests.Builders;
@@ -67,6 +68,8 @@ public class RunSessionUseCaseTests
         var storedRecord = SessionRecordTestBuilder.Create()
             .WithSessionId("sess-existing")
             .WithSourceType("cli")
+            .WithIdentityIssuer("test-issuer")
+            .WithIdentitySubject("test-subject")
             .WithStatus(SessionRecord.Statuses.Running)
             .WithProvider("ollama")
             .WithModelId("gemma4")
@@ -120,6 +123,198 @@ public class RunSessionUseCaseTests
         Expect(record.SystemPrompt).To.Equal("Stored system prompt");
         Expect(record.UpdatedAt).To.Equal(time.UtcNow);
         Expect(record.CreatedAt).To.Equal(storedRecord.CreatedAt); // unchanged
+    }
+
+    [Test]
+    public async Task Execute_WithExistingSessionAndDifferentSource_RejectsWithoutMutatingSession()
+    {
+        // Arrange
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-existing")
+            .WithSourceType("cli")
+            .WithIdentityIssuer("issuer")
+            .WithIdentitySubject("subject")
+            .WithStatus(SessionRecord.Statuses.Completed)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource("web")
+            .WithSessionId(storedRecord.SessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                    .WithIdentity(IdentityTestBuilder.Create()
+                        .WithIssuer(storedRecord.IdentityIssuer)
+                        .WithSubject(storedRecord.IdentitySubject)
+                        .Build())
+                    .Build())
+                .Build())
+            .Build();
+        var repository = new FakeSessionRepository();
+        await repository.SaveAsync(storedRecord);
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var sut = UseCaseSutBuilder.Create()
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        Expect(await repository.LoadAsync(storedRecord.SessionId)).To.Equal(storedRecord);
+    }
+
+    [Test]
+    public async Task Execute_WithExistingSessionAndDifferentIdentity_RejectsWithoutMutatingSession()
+    {
+        // Arrange
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-existing")
+            .WithSourceType("cli")
+            .WithIdentityIssuer("issuer")
+            .WithIdentitySubject("original-subject")
+            .WithStatus(SessionRecord.Statuses.Completed)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource(storedRecord.SourceType)
+            .WithSessionId(storedRecord.SessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(AuthenticationContextTestBuilder.Create()
+                    .WithIdentity(IdentityTestBuilder.Create()
+                        .WithIssuer(storedRecord.IdentityIssuer)
+                        .WithSubject("different-subject")
+                        .Build())
+                    .Build())
+                .Build())
+            .Build();
+        var repository = new FakeSessionRepository();
+        await repository.SaveAsync(storedRecord);
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var sut = UseCaseSutBuilder.Create()
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .Build();
+
+        // Act & Assert
+        Expect(async () => await sut.ExecuteAsync(envelope, new FakePresenter()))
+            .To.Throw<GovernanceDeniedException>();
+        Expect(await repository.LoadAsync(storedRecord.SessionId)).To.Equal(storedRecord);
+    }
+
+    [Test]
+    public async Task Execute_WithNewSession_BindsCurrentIdentityAndExposesFreshContextToStrategy()
+    {
+        // Arrange
+        var identity = IdentityTestBuilder.Create()
+            .WithIssuer("issuer")
+            .WithSubject("subject")
+            .WithClaim("role", "operator")
+            .Build();
+        var authentication = AuthenticationContextTestBuilder.Create()
+            .WithIdentity(identity)
+            .WithAuthenticationMethod("oauth")
+            .WithCredentialReference("calendar", "vault", "calendar-ref")
+            .Build();
+        var signal = SignalTestBuilder.Create().WithSource("cli").Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(authentication)
+                .WithAttribute("tenant", "contoso")
+                .Build())
+            .Build();
+        var sourceConfig = SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build();
+        var repository = new FakeSessionRepository();
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(sourceConfig);
+        var scope = new FakeSignalContextScope();
+        var strategy = new ContextCapturingStrategy(scope);
+        var sut = UseCaseSutBuilder.Create()
+            .WithStrategy(strategy)
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithContextScope(scope)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        var record = repository.AllRecords().Single();
+        Expect(record.IdentityIssuer).To.Equal(identity.Issuer);
+        Expect(record.IdentitySubject).To.Equal(identity.Subject);
+        Expect(strategy.Context?.SessionId).To.Equal(record.SessionId);
+        Expect(strategy.Context?.Source).To.Equal(signal.Source);
+        Expect(strategy.Context?.Authentication).To.Equal(authentication);
+        Expect(strategy.Context?.Attributes["tenant"]).To.Equal("contoso");
+        Expect(scope.Current).To.Be.Null();
+    }
+
+    [Test]
+    public async Task Execute_WithContinuation_ExposesCurrentClaimsAndCredentialReferences()
+    {
+        // Arrange
+        var identity = IdentityTestBuilder.Create()
+            .WithIssuer("issuer")
+            .WithSubject("subject")
+            .WithClaim("role", "operator")
+            .Build();
+        var authentication = AuthenticationContextTestBuilder.Create()
+            .WithIdentity(identity)
+            .WithAuthenticationMethod("oauth")
+            .WithCredentialReference("calendar", "vault", "current-calendar-ref")
+            .Build();
+        var storedRecord = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-existing")
+            .WithSourceType("cli")
+            .WithIdentityIssuer(identity.Issuer)
+            .WithIdentitySubject(identity.Subject)
+            .Build();
+        var signal = SignalTestBuilder.Create()
+            .WithSource(storedRecord.SourceType)
+            .WithSessionId(storedRecord.SessionId)
+            .Build();
+        var envelope = SignalEnvelopeTestBuilder.Create()
+            .WithSignal(signal)
+            .WithContext(SignalContextTestBuilder.Create()
+                .WithAuthentication(authentication)
+                .Build())
+            .Build();
+        var repository = new FakeSessionRepository();
+        await repository.SaveAsync(storedRecord);
+        var configRepository = new FakeSignalSourceConfigRepository();
+        await configRepository.SaveAsync(SignalSourceConfigTestBuilder.Create()
+            .WithSourceType(signal.Source)
+            .Build());
+        var scope = new FakeSignalContextScope();
+        var strategy = new ContextCapturingStrategy(scope);
+        var sut = UseCaseSutBuilder.Create()
+            .WithRepository(repository)
+            .WithConfigRepository(configRepository)
+            .WithStrategy(strategy)
+            .WithContextScope(scope)
+            .Build();
+
+        // Act
+        await sut.ExecuteAsync(envelope, new FakePresenter());
+
+        // Assert
+        Expect(strategy.Context?.Authentication.Identity.GetClaimValues("role"))
+            .To.Equal(new HashSet<string>(["operator"], StringComparer.Ordinal));
+        Expect(strategy.Context?.Authentication.CredentialReferences["calendar"].Reference)
+            .To.Equal("current-calendar-ref");
     }
 
     [Test]
@@ -216,6 +411,7 @@ file sealed class UseCaseSutBuilder
     private ISessionRepository _repository = new FakeSessionRepository();
     private ISignalSourceConfigRepository _configRepository = new FakeSignalSourceConfigRepository();
     private TimeProvider _timeProvider = new FakeTimeProvider(DateTimeOffset.UtcNow);
+    private ISignalContextScope _contextScope = new FakeSignalContextScope();
 
     private UseCaseSutBuilder() { }
 
@@ -245,7 +441,13 @@ file sealed class UseCaseSutBuilder
         return this;
     }
 
-    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _timeProvider);
+    public UseCaseSutBuilder WithContextScope(ISignalContextScope contextScope)
+    {
+        _contextScope = contextScope;
+        return this;
+    }
+
+    public RunSessionUseCase Build() => new(_strategy, _repository, _configRepository, _timeProvider, _contextScope);
 }
 
 file sealed class FakeSessionRepository : ISessionRepository
@@ -288,6 +490,35 @@ file sealed class FailingStrategy(Exception error) : IAgentStrategy
 {
     public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
         => throw error;
+}
+
+file sealed class ContextCapturingStrategy(FakeSignalContextScope scope) : IAgentStrategy
+{
+    public SignalExecutionContext? Context { get; private set; }
+
+    public Task<SessionResult> ExecuteAsync(AgentExecutionRequest request, ISignalPresenter presenter)
+    {
+        Context = scope.Current;
+        return Task.FromResult(SessionResultTestBuilder.Create()
+            .WithSessionId(request.SessionId)
+            .Build());
+    }
+}
+
+file sealed class FakeSignalContextScope : ISignalContextScope
+{
+    public SignalExecutionContext? Current { get; private set; }
+
+    public IDisposable Push(SignalExecutionContext context)
+    {
+        Current = context;
+        return new Scope(this);
+    }
+
+    private sealed class Scope(FakeSignalContextScope owner) : IDisposable
+    {
+        public void Dispose() => owner.Current = null;
+    }
 }
 
 file sealed class FakePresenter : ISignalPresenter

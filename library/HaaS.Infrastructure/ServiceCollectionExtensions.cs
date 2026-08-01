@@ -24,6 +24,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDeferredSessionResultStore, DeferredSessionResultStore>();
         services.AddSingleton<ILogger, ConsoleLogger>();
         services.AddSingleton<ISignalScopeAccessor, SignalScopeAccessor>();
+        services.AddScoped<SignalContextScope>();
+        services.AddScoped<ISignalContextAccessor>(sp => sp.GetRequiredService<SignalContextScope>());
+        services.AddScoped<ISignalContextScope>(sp => sp.GetRequiredService<SignalContextScope>());
 
         services.AddSingleton<ChatClientFactory>();
         services.AddSingleton<IChatClientFactory>(sp => sp.GetRequiredService<ChatClientFactory>());

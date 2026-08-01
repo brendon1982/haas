@@ -36,9 +36,32 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 ThinkingLevel TEXT NOT NULL,
                 Output TEXT,
                 CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL
+                UpdatedAt TEXT NOT NULL,
+                IdentityIssuer TEXT,
+                IdentitySubject TEXT
             );";
         command.ExecuteNonQuery();
+
+        EnsureColumn(connection, "IdentityIssuer");
+        EnsureColumn(connection, "IdentitySubject");
+    }
+
+    private static void EnsureColumn(SqliteConnection connection, string columnName)
+    {
+        using var columns = connection.CreateCommand();
+        columns.CommandText = "PRAGMA table_info(sessions);";
+        using var reader = columns.ExecuteReader();
+        while (reader.Read())
+        {
+            if (StringComparer.Ordinal.Equals(reader.GetString(1), columnName))
+            {
+                return;
+            }
+        }
+
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE sessions ADD COLUMN {columnName} TEXT;";
+        alter.ExecuteNonQuery();
     }
 
     public async Task SaveAsync(SessionRecord record)
@@ -50,11 +73,14 @@ public class SharedSqliteSessionRepository : ISessionRepository
         command.CommandText = 
             @"INSERT INTO sessions (
                 SessionId, SourceType, Status, Provider, ModelId, 
-                SystemPrompt, Tools, ThinkingLevel, Output, CreatedAt, UpdatedAt
+                SystemPrompt, Tools, ThinkingLevel, Output, CreatedAt, UpdatedAt,
+                IdentityIssuer, IdentitySubject
             ) VALUES (
                 $id, $source, $status, $provider, $model, 
-                $prompt, $tools, $thinking, $output, $created, $updated
+                $prompt, $tools, $thinking, $output, $created, $updated,
+                $issuer, $subject
             ) ON CONFLICT(SessionId) DO UPDATE SET
+                SourceType = excluded.SourceType,
                 Status = excluded.Status,
                 Provider = excluded.Provider,
                 ModelId = excluded.ModelId,
@@ -62,7 +88,9 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 Tools = excluded.Tools,
                 ThinkingLevel = excluded.ThinkingLevel,
                 Output = excluded.Output,
-                UpdatedAt = excluded.UpdatedAt;";
+                UpdatedAt = excluded.UpdatedAt,
+                IdentityIssuer = excluded.IdentityIssuer,
+                IdentitySubject = excluded.IdentitySubject;";
 
         command.Parameters.AddWithValue("$id", record.SessionId);
         command.Parameters.AddWithValue("$source", record.SourceType);
@@ -75,6 +103,8 @@ public class SharedSqliteSessionRepository : ISessionRepository
         command.Parameters.AddWithValue("$output", (object?)record.Output ?? DBNull.Value);
         command.Parameters.AddWithValue("$created", record.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("$updated", record.UpdatedAt.ToString("O"));
+        command.Parameters.AddWithValue("$issuer", record.IdentityIssuer);
+        command.Parameters.AddWithValue("$subject", record.IdentitySubject);
 
         await command.ExecuteNonQueryAsync();
     }
@@ -85,12 +115,23 @@ public class SharedSqliteSessionRepository : ISessionRepository
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT * FROM sessions WHERE SessionId = $id";
+        command.CommandText =
+            """
+            SELECT SessionId, SourceType, Status, Provider, ModelId, SystemPrompt,
+                   Tools, ThinkingLevel, Output, CreatedAt, UpdatedAt,
+                   IdentityIssuer, IdentitySubject
+            FROM sessions
+            WHERE SessionId = $id
+            """;
         command.Parameters.AddWithValue("$id", sessionId);
 
         using var reader = await command.ExecuteReaderAsync();
         if (await reader.ReadAsync())
         {
+            var identity = reader.IsDBNull(11) || reader.IsDBNull(12)
+                ? Identity.Anonymous
+                : new Identity(reader.GetString(11), reader.GetString(12));
+
             return new SessionRecord(
                 reader.GetString(0),
                 reader.GetString(1),
@@ -102,7 +143,9 @@ public class SharedSqliteSessionRepository : ISessionRepository
                 reader.GetString(7),
                 reader.IsDBNull(8) ? null : reader.GetString(8),
                 DateTimeOffset.Parse(reader.GetString(9)),
-                DateTimeOffset.Parse(reader.GetString(10))
+                DateTimeOffset.Parse(reader.GetString(10)),
+                identity.Issuer,
+                identity.Subject
             );
         }
 

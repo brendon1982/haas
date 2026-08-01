@@ -13,7 +13,9 @@ public record SessionRecord(
     string ThinkingLevel,
     string? Output,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt
+    DateTimeOffset UpdatedAt,
+    string IdentityIssuer,
+    string IdentitySubject
 )
 {
     public static class Statuses

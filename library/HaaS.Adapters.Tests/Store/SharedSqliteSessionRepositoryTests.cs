@@ -2,6 +2,7 @@ using NExpect;
 using static NExpect.Expectations;
 using HaaS.Adapters.Store;
 using HaaS.Domain.ValueObjects;
+using HaaS.Domain.Tests.Builders;
 using NUnit.Framework;
 
 namespace HaaS.Adapters.Tests.Store;
@@ -32,10 +33,12 @@ public class SharedSqliteSessionRepositoryTests
     {
         // Arrange
         var sut = new SharedSqliteSessionRepository(_dbPath);
-        var record = new SessionRecord(
-            "sess-1", "cli", "running", "openai", "gpt-4",
-            "System prompt", "[]", "off", "Some output",
-            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-1")
+            .WithSourceType("cli")
+            .WithIdentityIssuer("issuer")
+            .WithIdentitySubject("subject")
+            .Build();
 
         // Act
         await sut.SaveAsync(record);
@@ -54,6 +57,8 @@ public class SharedSqliteSessionRepositoryTests
         Expect(loaded.Output).To.Equal(record.Output);
         Expect(loaded.CreatedAt.ToUnixTimeSeconds()).To.Equal(record.CreatedAt.ToUnixTimeSeconds());
         Expect(loaded.UpdatedAt.ToUnixTimeSeconds()).To.Equal(record.UpdatedAt.ToUnixTimeSeconds());
+        Expect(loaded.IdentityIssuer).To.Equal(record.IdentityIssuer);
+        Expect(loaded.IdentitySubject).To.Equal(record.IdentitySubject);
     }
 
     [Test]
@@ -61,10 +66,11 @@ public class SharedSqliteSessionRepositoryTests
     {
         // Arrange
         var sut = new SharedSqliteSessionRepository(_dbPath);
-        var record = new SessionRecord(
-            "sess-1", "cli", "running", "openai", "gpt-4",
-            "System prompt", "[]", "off", null,
-            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var record = SessionRecordTestBuilder.Create()
+            .WithSessionId("sess-1")
+            .WithIdentityIssuer("issuer")
+            .WithIdentitySubject("subject")
+            .Build();
         await sut.SaveAsync(record);
 
         var updated = record with { Status = "completed", UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(1) };
@@ -77,5 +83,76 @@ public class SharedSqliteSessionRepositoryTests
         Expect(loaded).Not.To.Be.Null();
         Expect(loaded!.Status).To.Equal("completed");
         Expect(loaded.UpdatedAt.ToUnixTimeSeconds()).To.Equal(updated.UpdatedAt.ToUnixTimeSeconds());
+    }
+
+    [Test]
+    public async Task Load_LegacyIdentityColumnsMissing_MapsToAnonymousIdentity()
+    {
+        // Arrange
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_dbPath}"))
+        {
+            await connection.OpenAsync();
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE sessions (
+                    SessionId TEXT PRIMARY KEY, SourceType TEXT NOT NULL, Status TEXT NOT NULL,
+                    Provider TEXT NOT NULL, ModelId TEXT NOT NULL, SystemPrompt TEXT NOT NULL,
+                    Tools TEXT NOT NULL, ThinkingLevel TEXT NOT NULL, Output TEXT,
+                    CreatedAt TEXT NOT NULL, UpdatedAt TEXT NOT NULL
+                );
+                INSERT INTO sessions VALUES (
+                    'sess-legacy', 'cli', 'completed', 'provider', 'model', 'prompt',
+                    '[]', 'off', NULL, '2026-01-01T00:00:00.0000000+00:00',
+                    '2026-01-01T00:00:00.0000000+00:00'
+                );
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+        var sut = new SharedSqliteSessionRepository(_dbPath);
+
+        // Act
+        var loaded = await sut.LoadAsync("sess-legacy");
+
+        // Assert
+        Expect(loaded).Not.To.Be.Null();
+        Expect(loaded!.IdentityIssuer).To.Equal(Identity.Anonymous.Issuer);
+        Expect(loaded.IdentitySubject).To.Equal(Identity.Anonymous.Subject);
+    }
+
+    [Test]
+    public async Task Load_LegacyNullIdentity_MapsToCanonicalAnonymousIdentity()
+    {
+        // Arrange
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_dbPath}"))
+        {
+            await connection.OpenAsync();
+            var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TABLE sessions (
+                    SessionId TEXT PRIMARY KEY, SourceType TEXT NOT NULL, Status TEXT NOT NULL,
+                    Provider TEXT NOT NULL, ModelId TEXT NOT NULL, SystemPrompt TEXT NOT NULL,
+                    Tools TEXT NOT NULL, ThinkingLevel TEXT NOT NULL, Output TEXT,
+                    CreatedAt TEXT NOT NULL, UpdatedAt TEXT NOT NULL,
+                    IdentityIssuer TEXT, IdentitySubject TEXT
+                );
+                INSERT INTO sessions VALUES (
+                    'sess-legacy-null', 'cli', 'completed', 'provider', 'model', 'prompt',
+                    '[]', 'off', NULL, '2026-01-01T00:00:00.0000000+00:00',
+                    '2026-01-01T00:00:00.0000000+00:00', NULL, 'stale-subject'
+                );
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+        var sut = new SharedSqliteSessionRepository(_dbPath);
+
+        // Act
+        var loaded = await sut.LoadAsync("sess-legacy-null");
+
+        // Assert
+        Expect(loaded).Not.To.Be.Null();
+        Expect(loaded!.IdentityIssuer).To.Equal(Identity.Anonymous.Issuer);
+        Expect(loaded.IdentitySubject).To.Equal(Identity.Anonymous.Subject);
     }
 }

@@ -16,6 +16,8 @@ public class SessionRecordTestBuilder
     private string? _output = null;
     private DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
+    private string _identityIssuer = Identity.Anonymous.Issuer;
+    private string _identitySubject = Identity.Anonymous.Subject;
 
     private SessionRecordTestBuilder() { }
 
@@ -87,10 +89,23 @@ public class SessionRecordTestBuilder
         return this;
     }
 
+    public SessionRecordTestBuilder WithIdentityIssuer(string identityIssuer)
+    {
+        _identityIssuer = identityIssuer;
+        return this;
+    }
+
+    public SessionRecordTestBuilder WithIdentitySubject(string identitySubject)
+    {
+        _identitySubject = identitySubject;
+        return this;
+    }
+
     public SessionRecord Build() => new(
         _sessionId, _sourceType, _status,
         _provider, _modelId, _systemPrompt,
         JsonSerializer.Serialize(_toolBelt), _thinkingLevel,
         _output,
-        _createdAt, _updatedAt);
+        _createdAt, _updatedAt,
+        _identityIssuer, _identitySubject);
 }
