@@ -13,7 +13,8 @@ public static class HaasSqliteExtensions
     {
         builder.WithSqliteSessionRepository(sharedDbDirectory)
                .WithSqliteMessageStore(sharedDbDirectory)
-               .WithSqliteQueue(sharedDbDirectory);
+               .WithSqliteQueue(sharedDbDirectory)
+               .WithSqlitePolicyRuleRepository(sharedDbDirectory);
 
         if (includeConfig)
         {
@@ -53,6 +54,23 @@ public static class HaasSqliteExtensions
         var dbPath = Path.Combine(sharedDbDirectory, "signal_queue.db");
         EnsureDirectory(sharedDbDirectory);
         builder.Services.AddSingleton<ISignalQueue>(new SharedSqliteSignalQueueStore(dbPath));
+        return builder;
+    }
+
+    public static HaasBuilder WithSqlitePolicyRuleRepository(
+        this HaasBuilder builder,
+        string sharedDbDirectory)
+    {
+        var dbPath = Path.Combine(sharedDbDirectory, "policies.db");
+        EnsureDirectory(sharedDbDirectory);
+        builder.Services.AddSingleton<IPolicyRuleRepository>(sp =>
+        {
+            var configuration = sp.GetRequiredService<HaasGovernanceConfiguration>();
+            var timeProvider = sp.GetRequiredService<TimeProvider>();
+            return new SharedSqlitePolicyRuleRepository(
+                dbPath,
+                configuration.CreateSeedRules(timeProvider));
+        });
         return builder;
     }
 

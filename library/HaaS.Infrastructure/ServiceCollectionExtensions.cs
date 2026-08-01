@@ -5,7 +5,9 @@ using HaaS.Adapters.Persistence;
 using HaaS.Adapters.Store;
 using HaaS.Application.UseCases;
 using HaaS.Application;
+using HaaS.Application.Policies;
 using HaaS.Domain.Ports;
+using HaaS.Domain.ValueObjects;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -15,6 +17,9 @@ public static class ServiceCollectionExtensions
 {
     public static HaasBuilder AddHaas(this IServiceCollection services)
     {
+        var governanceConfiguration = new HaasGovernanceConfiguration();
+        services.AddSingleton(governanceConfiguration);
+
         services.AddSingleton<ISignalSourceConfigRepository, InMemorySignalSourceConfigRepository>();
 
         services.AddSingleton<IProviderConfigRepository, InMemoryProviderConfigRepository>();
@@ -46,6 +51,29 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<PolicyOptions>(sp =>
+            sp.GetRequiredService<HaasGovernanceConfiguration>().CreateOptions());
+        services.AddSingleton<IPolicyRuleRepository>(sp =>
+        {
+            var configuration = sp.GetRequiredService<HaasGovernanceConfiguration>();
+            var timeProvider = sp.GetRequiredService<TimeProvider>();
+            return new InMemoryPolicyRuleRepository(configuration.CreateSeedRules(timeProvider));
+        });
+        services.AddSingleton<DeterministicPolicyEngine>();
+        services.AddSingleton<IPolicyEngine>(sp =>
+            sp.GetRequiredService<DeterministicPolicyEngine>());
+        services.AddSingleton<ListPolicyRulesUseCase>();
+        services.AddSingleton<IListPolicyRulesUseCase>(sp =>
+            sp.GetRequiredService<ListPolicyRulesUseCase>());
+        services.AddSingleton<GetPolicyRuleUseCase>();
+        services.AddSingleton<IGetPolicyRuleUseCase>(sp =>
+            sp.GetRequiredService<GetPolicyRuleUseCase>());
+        services.AddSingleton<SavePolicyRuleUseCase>();
+        services.AddSingleton<ISavePolicyRuleUseCase>(sp =>
+            sp.GetRequiredService<SavePolicyRuleUseCase>());
+        services.AddSingleton<DeletePolicyRuleUseCase>();
+        services.AddSingleton<IDeletePolicyRuleUseCase>(sp =>
+            sp.GetRequiredService<DeletePolicyRuleUseCase>());
         services.AddScoped<RunSessionUseCase>();
         services.AddScoped<IRunSessionUseCase>(sp =>
         {
@@ -89,7 +117,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHostedService<ObservableHaasEngine>(sp => (ObservableHaasEngine)sp.GetRequiredService<IHaasEngine>());
 
-        return new HaasBuilder(services);
+        return new HaasBuilder(services, governanceConfiguration);
     }
 }
 

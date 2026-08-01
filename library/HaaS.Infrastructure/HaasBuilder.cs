@@ -11,10 +11,14 @@ namespace HaaS.Infrastructure;
 public readonly struct HaasBuilder
 {
     public IServiceCollection Services { get; }
+    internal HaasGovernanceConfiguration GovernanceConfiguration { get; }
 
-    internal HaasBuilder(IServiceCollection services)
+    internal HaasBuilder(
+        IServiceCollection services,
+        HaasGovernanceConfiguration governanceConfiguration)
     {
         Services = services;
+        GovernanceConfiguration = governanceConfiguration;
     }
 
     public HaasBuilder AddQueuedWorkerPool(int workerCount, Action<HaasQueuedPoolBuilder> configure)
@@ -77,7 +81,10 @@ public readonly struct HaasBuilder
             return new SignalSourceRegistration(source, presenter, builder.Build(), sourceOptions.IsQueued);
         });
 
-        return new SignalSourceBuilder<TSource, TPresenter>(Services, options);
+        return new SignalSourceBuilder<TSource, TPresenter>(
+            Services,
+            options,
+            GovernanceConfiguration);
     }
 }
 
